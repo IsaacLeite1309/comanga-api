@@ -315,8 +315,8 @@ exports.getUserProfile = async (req, res) => {
 exports.getUserById = async (req, res) => {
     try {
         const targetId = req.params.id; // O ID que o usuário tentou acessar na URL
-        const requesterId = req.user.userId; // O ID real de quem fez a requisição (do JWT)
-        const requesterRole = req.user.role; // O Nível de Acesso (do JWT)
+        const requesterId = req.user.userId; // O ID real de quem fez a requisição (da sessão validada)
+        const requesterRole = req.user.role; // O nível de acesso vindo da sessão validada
 
         // A Trava IDOR: Se não for Administrador e tentar ver o ID de outro, bloqueia.
         if (requesterRole === 'Usuário Padrão' && targetId !== requesterId) {
@@ -345,7 +345,7 @@ exports.getUserById = async (req, res) => {
 
 exports.updateAdultContent = async (req, res) => {
     try {
-        // Checklist 2: O ID vem 100% do Token JWT, impossibilitando que o usuário altere a conta do vizinho.
+        // Checklist 2: O ID vem 100% da sessão validada, impossibilitando que o usuário altere a conta do vizinho.
         const userId = req.user.userId; 
         
         const { conteudo_adulto } = req.body;
