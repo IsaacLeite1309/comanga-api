@@ -175,7 +175,7 @@ exports.resendActivation = async (req, res) => {
 
         // Cenário Alternativo 1 (RN0009): E-mail inexistente
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Endereco de e-mail nao cadastrado" });
+            return res.status(404).json({ error: "Endereço de e-mail não cadastrado" });
         }
 
         const user = result.rows[0];
