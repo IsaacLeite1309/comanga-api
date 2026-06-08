@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 
 exports.sendActivationEmail = async (toEmail, username, token) => {
     // Em produção, isso apontaria para a URL do Front-end (React)
-    const activationLink = `http://localhost:5173/ativar-conta?token=${token}`;
+    const activationLink = `http://localhost:8080/activate/${token}`;
 
     const mailOptions = {
         from: '"Equipe CoMangá" <noreply@comanga.com>',

@@ -1,21 +1,36 @@
 // src/database/index.js
 const { Pool } = require('pg');
 
-// Cria o pool de conexões usando a sua DATABASE_URL do .env
+const connectionString = process.env.NODE_ENV === 'test'
+    ? process.env.DATABASE_URL_TEST
+    : process.env.DATABASE_URL;
+
+if (!connectionString) {
+    throw new Error(process.env.NODE_ENV === 'test'
+        ? 'DATABASE_URL_TEST nao configurada.'
+        : 'DATABASE_URL nao configurada.');
+}
+
+function shouldUseSsl(url) {
+    if (process.env.DATABASE_SSL === 'true') return true;
+    if (process.env.DATABASE_SSL === 'false') return false;
+    return !url.includes('localhost') && !url.includes('127.0.0.1');
+}
+
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    // O SSL é obrigatório para bancos em nuvem como o Neon e Render
-    ssl: {
-        rejectUnauthorized: false 
+    connectionString,
+    ssl: shouldUseSsl(connectionString)
+        ? { rejectUnauthorized: false }
+        : false
+});
+
+pool.on('connect', () => {
+    if (process.env.NODE_ENV !== 'test') {
+        console.log('Banco de dados conectado com sucesso.');
     }
 });
 
-// Mensagem de log para confirmar a conexão quando o servidor ligar
-pool.on('connect', () => {
-    console.log('📦 Banco de Dados conectado com sucesso!');
-});
-
-// Exporta uma função facilitadora para rodarmos nossas queries depois
 module.exports = {
     query: (text, params) => pool.query(text, params),
+    pool
 };
