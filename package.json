@@ -4,7 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --runInBand",
+    "lint": "eslint .",
+    "migrate": "node-pg-migrate",
+    "migrate:test": "node scripts/migrate-test-db.js",
+    "migrate:create": "node-pg-migrate create"
   },
   "repository": {
     "type": "git",
@@ -22,10 +28,15 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "pg": "^8.20.0"
+    "node-pg-migrate": "^8.0.4",
+    "nodemailer": "^8.0.7",
+    "pg": "^8.20.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "eslint": "^10.4.1",
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }
