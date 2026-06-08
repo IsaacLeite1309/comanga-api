@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const db = require('./database');
+const prisma = require('./prisma');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 
@@ -30,12 +30,12 @@ app.use('/api/users', userRoutes);
 
 app.get('/ping', async (req, res) => {
     try {
-        const result = await db.query('SELECT NOW() AS hora_atual');
+        const result = await prisma.$queryRaw`SELECT NOW() AS hora_atual`;
 
         res.json({
             status: "Online",
             message: "API e Banco de Dados operando perfeitamente!",
-            database_time: result.rows[0].hora_atual
+            database_time: result[0].hora_atual
         });
     } catch (error) {
         console.error('Erro na conexao com o banco:', error);

@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username            String    @unique @db.VarChar(50)
+  email               String    @unique @db.VarChar(255)
+  passwordHash        String    @map("password_hash") @db.VarChar(255)
+  status              String    @default("Pendente") @db.VarChar(20)
+  nivelAcesso         String    @default("Usuário Padrão") @map("nivel_acesso") @db.VarChar(50)
+  activationToken     String?   @map("activation_token") @db.VarChar(255)
+  activationExpiresAt DateTime? @map("activation_expires_at") @db.Timestamptz
+  conteudoAdulto      Boolean   @default(false) @map("conteudo_adulto")
+  criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz
+  sessions            Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id               Int       @id @default(autoincrement())
+  userId           String    @map("user_id") @db.Uuid
+  sessionTokenHash String    @unique @map("session_token_hash") @db.VarChar(64)
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
+  criadoEm         DateTime  @default(now()) @map("criado_em") @db.Timestamptz
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}

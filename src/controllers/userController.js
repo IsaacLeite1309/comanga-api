@@ -1,10 +1,11 @@
-const db = require('../database');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { z } = require('zod');
+const prisma = require('../prisma');
 const mailer = require('../utils/mailer');
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
+const ACCESS_DENIED_MESSAGE = "Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil.";
 
 function hashSessionToken(token) {
     return crypto.createHash('sha256').update(token).digest('hex');
@@ -29,6 +30,16 @@ function clearSessionCookie(req, res) {
     res.clearCookie(SESSION_COOKIE_NAME, getCookieOptions(req));
 }
 
+function toUserResponse(user) {
+    return {
+        id: String(user.id),
+        username: user.username,
+        email: user.email,
+        conteudo_adulto: user.conteudoAdulto,
+        role: user.nivelAcesso
+    };
+}
+
 const registerSchema = z.object({
     username: z.string()
         .regex(/^[a-zA-Z0-9_]{3,20}$/, "Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais."),
@@ -44,50 +55,62 @@ const registerSchema = z.object({
 exports.registerUser = async (req, res) => {
     try {
         const validation = registerSchema.safeParse(req.body);
-        
+
         if (!validation.success) {
             const issue = validation.error.issues[0];
             const message = issue?.message || "Dados inválidos.";
-            const fieldName = issue?.path[0] || "geral"; // NOVO: Captura qual campo falhou no Zod
-            
-            return res.status(400).json({ error: message, field: fieldName }); // NOVO: Retorna o campo
+            const fieldName = issue?.path[0] || "geral";
+
+            return res.status(400).json({ error: message, field: fieldName });
         }
 
         const { username, email, password } = validation.data;
 
-        const checkQuery = await db.query(
-            'SELECT username, email FROM users WHERE email = $1 OR username = $2',
-            [email, username]
-        );
+        const conflict = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    { username }
+                ]
+            },
+            select: {
+                email: true,
+                username: true
+            }
+        });
 
-        if (checkQuery.rows.length > 0) {
-            const conflict = checkQuery.rows[0];
-            if (conflict.email === email) {
-                // NOVO: Adicionado field: 'email'
-                return res.status(409).json({ error: "Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.", field: "email" });
-            }
-            if (conflict.username === username) {
-                // NOVO: Adicionado field: 'username'
-                return res.status(409).json({ error: "Este nome de usuário não está disponível. Por favor, escolha outro.", field: "username" });
-            }
+        if (conflict?.email === email) {
+            return res.status(409).json({
+                error: "Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.",
+                field: "email"
+            });
+        }
+
+        if (conflict?.username === username) {
+            return res.status(409).json({
+                error: "Este nome de usuário não está disponível. Por favor, escolha outro.",
+                field: "username"
+            });
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
         const activationToken = crypto.randomBytes(32).toString('hex');
-        
-        // NOVO: Calcula 24 horas a partir de agora (Garante a RN0007)
         const activationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-        // MODIFICADO: Atualizamos o INSERT para salvar a nova coluna de expiração
-        await db.query(
-            `INSERT INTO users (username, email, password_hash, activation_token, activation_expires_at) VALUES ($1, $2, $3, $4, $5)`,
-            [username, email, passwordHash, activationToken, activationExpiresAt]
-        );
+        await prisma.user.create({
+            data: {
+                username,
+                email,
+                passwordHash,
+                activationToken,
+                activationExpiresAt
+            }
+        });
 
         try {
             await mailer.sendActivationEmail(email, username, activationToken);
         } catch (mailError) {
-            console.error("Erro detalhado no Nodemailer:", mailError); // NOVO
+            console.error("Erro detalhado no Nodemailer:", mailError);
             return res.status(201).json({ message: "Conta criada, mas erro ao enviar e-mail." });
         }
 
@@ -100,66 +123,55 @@ exports.registerUser = async (req, res) => {
 };
 
 exports.activateAccount = async (req, res) => {
-    // Checklist 1: A rota captura o token via parâmetro da URL
     const { token } = req.params;
-    const client = await db.pool.connect();
 
     try {
-        await client.query('BEGIN');
-
-        // Checklist 2: Busca no banco de dados pelo token informado
-        const result = await client.query(
-            'SELECT id, activation_expires_at FROM users WHERE activation_token = $1 FOR UPDATE',
-            [token]
-        );
-
-        // Cenário Alternativo 2: Falha por token já utilizado ou inválido
-        // RN0008: Se o token for nulo (já usado) ou falso, não achará nenhuma linha
-        if (result.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ error: "Link de ativação inválido!" }); // Ajustado para a string exata do QA
-        }
-
-        const user = result.rows[0];
-
-        // Checklist 3: Verificação condicional de tempo (RN0007)
-        // Cenário Alternativo 1: Falha por token expirado
-        const now = new Date();
-        if (now > user.activation_expires_at) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ 
-                error: "Este link de ativação expirou. Solicite um novo e-mail de ativação." 
+        const activationResult = await prisma.$transaction(async (tx) => {
+            const user = await tx.user.findFirst({
+                where: { activationToken: token },
+                select: {
+                    id: true,
+                    activationExpiresAt: true
+                }
             });
+
+            if (!user) {
+                return { error: "Link de ativação inválido!" };
+            }
+
+            if (new Date() > user.activationExpiresAt) {
+                return {
+                    error: "Este link de ativação expirou. Solicite um novo e-mail de ativação."
+                };
+            }
+
+            await tx.user.update({
+                where: { id: user.id },
+                data: {
+                    status: 'Ativada',
+                    activationToken: null,
+                    activationExpiresAt: null
+                }
+            });
+
+            return { activated: true };
+        });
+
+        if (activationResult.error) {
+            return res.status(400).json({ error: activationResult.error });
         }
 
-        // Checklist 4: Atualização do status e remoção do token (Caminho Feliz)
-        await client.query(
-            `UPDATE users 
-             SET status = 'Ativada', 
-                 activation_token = NULL, 
-                 activation_expires_at = NULL 
-             WHERE id = $1`,
-            [user.id]
-        );
-
-        await client.query('COMMIT');
-
-        // Retorna HTTP 200 (OK) conforme o Critério de Aceite
-        return res.status(200).json({ 
-            message: "Conta ativada com sucesso!" 
+        return res.status(200).json({
+            message: "Conta ativada com sucesso!"
         });
 
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error("ERRO CRÍTICO NA ATIVAÇÃO:", error);
         return res.status(500).json({ error: "Erro interno do servidor." });
-    } finally {
-        client.release();
     }
 };
 
 exports.resendActivation = async (req, res) => {
-    // O e-mail virá no corpo da requisição (JSON)
     const { email } = req.body;
 
     if (!email) {
@@ -167,50 +179,45 @@ exports.resendActivation = async (req, res) => {
     }
 
     try {
-        // Checklist 2: Busca no banco de dados
-        const result = await db.query(
-            'SELECT id, username, status FROM users WHERE email = $1',
-            [email]
-        );
+        const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+                id: true,
+                username: true,
+                status: true
+            }
+        });
 
-        // Cenário Alternativo 1 (RN0009): E-mail inexistente
-        if (result.rows.length === 0) {
+        if (!user) {
             return res.status(404).json({ error: "Endereço de e-mail não cadastrado" });
         }
 
-        const user = result.rows[0];
-
-        // Cenário Alternativo 2 (RN0010): Conta já ativada
-        // Checklist 3: Trava de Validação
         if (user.status === 'Ativada') {
             return res.status(400).json({ error: "Este endereço de e-mail pertence a uma conta ativada." });
         }
 
-        // Checklist 4: Geração do novo token criptográfico (Sobrescrita / RN0011)
         const newActivationToken = crypto.randomBytes(32).toString('hex');
-        const newExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24 horas
+        const newExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-        await db.query(
-            `UPDATE users 
-             SET activation_token = $1, 
-                 activation_expires_at = $2 
-             WHERE id = $3`,
-            [newActivationToken, newExpiresAt, user.id]
-        );
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                activationToken: newActivationToken,
+                activationExpiresAt: newExpiresAt
+            }
+        });
 
-        // Disparo via SMTP com Nodemailer
         try {
             await mailer.sendActivationEmail(email, user.username, newActivationToken);
         } catch (mailError) {
-            console.error("❌ Erro detalhado no Nodemailer (Reenvio):", mailError);
+            console.error("Erro detalhado no Nodemailer (Reenvio):", mailError);
             return res.status(500).json({ error: "Erro ao tentar enviar o e-mail." });
         }
 
-        // Caminho Feliz: Sucesso e HTTP 200
         return res.status(200).json({ message: "Novo link de ativação enviado com sucesso para o seu e-mail!" });
 
     } catch (error) {
-        console.error("🔥 ERRO CRÍTICO NO REENVIO:", error);
+        console.error("ERRO CRÍTICO NO REENVIO:", error);
         return res.status(500).json({ error: "Erro interno do servidor." });
     }
 };
@@ -223,31 +230,32 @@ exports.loginUser = async (req, res) => {
     }
 
     try {
-        // Checklist 2: Busca no banco pelo e-mail
-        const result = await db.query(
-            'SELECT id, username, password_hash, status, nivel_acesso FROM users WHERE email = $1',
-            [email]
-        );
+        const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+                id: true,
+                username: true,
+                passwordHash: true,
+                status: true,
+                nivelAcesso: true
+            }
+        });
 
-        if (result.rows.length === 0) {
+        if (!user) {
             return res.status(401).json({ error: "Credenciais inválidas!" });
         }
 
-        const user = result.rows[0];
-
-        // Checklist 2: Validação da senha com bcrypt
-        const validPassword = await bcrypt.compare(password, user.password_hash);
+        const validPassword = await bcrypt.compare(password, user.passwordHash);
         if (!validPassword) {
             return res.status(401).json({ error: "Credenciais inválidas!" });
         }
 
-        // Checklist 3: Trava de Validação de Status (RN0013)
         if (user.status === 'Pendente') {
-            return res.status(403).json({ 
-                error: "Conta de acesso pendente. Ative a conta com o e-mail de verificação enviado anteriormente." 
+            return res.status(403).json({
+                error: "Conta de acesso pendente. Ative a conta com o e-mail de verificação enviado anteriormente."
             });
         }
-        
+
         if (user.status === 'Bloqueada') {
             return res.status(403).json({ error: "Esta conta foi bloqueada por razões de segurança." });
         }
@@ -255,21 +263,21 @@ exports.loginUser = async (req, res) => {
         const sessionToken = crypto.randomBytes(48).toString('hex');
         const sessionTokenHash = hashSessionToken(sessionToken);
 
-        await db.query(
-            `INSERT INTO sessions (user_id, session_token_hash)
-             VALUES ($1, $2)`,
-            [user.id, sessionTokenHash]
-        );
+        await prisma.session.create({
+            data: {
+                userId: user.id,
+                sessionTokenHash
+            }
+        });
 
         res.cookie(SESSION_COOKIE_NAME, sessionToken, getCookieOptions(req));
 
-        // Sucesso
-        return res.status(200).json({ 
-            message: "Login realizado com sucesso!", 
+        return res.status(200).json({
+            message: "Login realizado com sucesso!",
             user: {
                 id: String(user.id),
                 username: user.username,
-                role: user.nivel_acesso
+                role: user.nivelAcesso
             }
         });
 
@@ -281,29 +289,22 @@ exports.loginUser = async (req, res) => {
 
 exports.getUserProfile = async (req, res) => {
     try {
-        // O ID vem da sessao validada pelo middleware.
-        const userId = req.user.userId; 
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.userId },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                conteudoAdulto: true,
+                nivelAcesso: true
+            }
+        });
 
-        // Projeção de Dados: Retornando ESTRITAMENTE o que o cartão pediu
-        const result = await db.query(
-            'SELECT id, username, email, conteudo_adulto, nivel_acesso FROM users WHERE id = $1',
-            [userId]
-        );
-
-        if (result.rows.length === 0) {
+        if (!user) {
             return res.status(404).json({ error: "Perfil não encontrado." });
         }
 
-        const user = result.rows[0];
-        return res.status(200).json({
-            user: {
-                id: String(user.id),
-                username: user.username,
-                email: user.email,
-                conteudo_adulto: user.conteudo_adulto,
-                role: user.nivel_acesso
-            }
-        });
+        return res.status(200).json({ user: toUserResponse(user) });
 
     } catch (error) {
         console.error("Erro ao buscar perfil (/me):", error);
@@ -311,31 +312,67 @@ exports.getUserProfile = async (req, res) => {
     }
 };
 
-// CHECKLIST 4: Proteção contra IDOR na Rota /:id (RN0022)
-exports.getUserById = async (req, res) => {
+exports.getOwnUserProfile = async (req, res) => {
     try {
-        const targetId = req.params.id; // O ID que o usuário tentou acessar na URL
-        const requesterId = req.user.userId; // O ID real de quem fez a requisição (da sessão validada)
-        const requesterRole = req.user.role; // O nível de acesso vindo da sessão validada
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.userId },
+            select: {
+                username: true,
+                email: true,
+                conteudoAdulto: true
+            }
+        });
 
-        // A Trava IDOR: Se não for Administrador e tentar ver o ID de outro, bloqueia.
-        if (requesterRole === 'Usuário Padrão' && targetId !== requesterId) {
-            return res.status(403).json({ 
-                error: "Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil." 
-            });
+        if (!user) {
+            return res.status(404).json({ error: "Perfil não encontrado." });
         }
 
-        // Se passou pela trava (é o próprio usuário ou é um Admin), busca os dados
-        const result = await db.query(
-            'SELECT username, email, conteudo_adulto, status, nivel_acesso FROM users WHERE id = $1',
-            [targetId]
-        );
+        return res.status(200).json({
+            user: {
+                username: user.username,
+                email: user.email,
+                conteudo_adulto: user.conteudoAdulto
+            }
+        });
 
-        if (result.rows.length === 0) {
+    } catch (error) {
+        console.error("Erro ao buscar perfil (/users/me):", error);
+        return res.status(500).json({ error: "Erro interno do servidor." });
+    }
+};
+
+exports.getUserById = async (req, res) => {
+    try {
+        const targetId = req.params.id;
+        const requesterId = req.user.userId;
+        const requesterRole = req.user.role;
+
+        if (requesterRole === 'Usuário Padrão' && targetId !== requesterId) {
+            return res.status(403).json({ error: ACCESS_DENIED_MESSAGE });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: targetId },
+            select: {
+                username: true,
+                email: true,
+                conteudoAdulto: true,
+                status: true,
+                nivelAcesso: true
+            }
+        });
+
+        if (!user) {
             return res.status(404).json({ error: "Usuário não encontrado." });
         }
 
-        return res.status(200).json(result.rows[0]);
+        return res.status(200).json({
+            username: user.username,
+            email: user.email,
+            conteudo_adulto: user.conteudoAdulto,
+            status: user.status,
+            nivel_acesso: user.nivelAcesso
+        });
 
     } catch (error) {
         console.error("Erro ao buscar perfil por ID:", error);
@@ -345,38 +382,30 @@ exports.getUserById = async (req, res) => {
 
 exports.updateAdultContent = async (req, res) => {
     try {
-        // Checklist 2: O ID vem 100% da sessão validada, impossibilitando que o usuário altere a conta do vizinho.
-        const userId = req.user.userId; 
-        
         const { conteudo_adulto } = req.body;
 
-        // Checklist 3: Validação de Tipo Estrita
         if (typeof conteudo_adulto !== 'boolean') {
-            return res.status(400).json({ 
-                error: "Formato inválido. A preferência 'conteudo_adulto' deve ser estritamente verdadeira (true) ou falsa (false)." 
+            return res.status(400).json({
+                error: "Formato inválido. A preferência 'conteudo_adulto' deve ser estritamente verdadeira (true) ou falsa (false)."
             });
         }
 
-        // Checklist 4: Execução da instrução SQL de UPDATE
-        const result = await db.query(
-            `UPDATE users 
-             SET conteudo_adulto = $1 
-             WHERE id = $2 
-             RETURNING conteudo_adulto`,
-            [conteudo_adulto, userId]
-        );
+        const user = await prisma.user.update({
+            where: { id: req.user.userId },
+            data: { conteudoAdulto: conteudo_adulto },
+            select: { conteudoAdulto: true }
+        });
 
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: "Usuário não encontrado no banco de dados." });
-        }
-
-        // Caminho Feliz: Retorna 200 OK
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "Preferência de exibição atualizada com sucesso!",
-            conteudo_adulto: result.rows[0].conteudo_adulto
+            conteudo_adulto: user.conteudoAdulto
         });
 
     } catch (error) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: "Usuário não encontrado no banco de dados." });
+        }
+
         console.error("Erro ao atualizar preferência +18:", error);
         return res.status(500).json({ error: "Erro interno do servidor." });
     }
@@ -384,18 +413,14 @@ exports.updateAdultContent = async (req, res) => {
 
 exports.updateUserById = async (req, res) => {
     try {
-        const targetId = req.params.id; // O ID que o usuário quer alterar
-        const requesterId = req.user.userId; // O ID real do token
-        const requesterRole = req.user.role; // Nível de acesso do token
+        const targetId = req.params.id;
+        const requesterId = req.user.userId;
+        const requesterRole = req.user.role;
 
-        // RN0022: Se for Usuário Padrão e tentar alterar o ID de outro, toma bloqueio 403.
         if (requesterRole === 'Usuário Padrão' && targetId !== requesterId) {
-            return res.status(403).json({ 
-                error: "Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil." 
-            });
+            return res.status(403).json({ error: ACCESS_DENIED_MESSAGE });
         }
 
-        // Se a requisição passou do bloqueio, aqui entraria o código de UPDATE geral...
         return res.status(200).json({ message: "Permissão concedida. Rota de atualização genérica em construção." });
 
     } catch (error) {
@@ -404,16 +429,17 @@ exports.updateUserById = async (req, res) => {
     }
 };
 
-
 exports.logoutUser = async (req, res) => {
     try {
-        await db.query(
-            `UPDATE sessions
-             SET revoked_at = CURRENT_TIMESTAMP
-             WHERE id = $1
-               AND revoked_at IS NULL`,
-            [req.session.id]
-        );
+        await prisma.session.updateMany({
+            where: {
+                id: req.session.id,
+                revokedAt: null
+            },
+            data: {
+                revokedAt: new Date()
+            }
+        });
 
         clearSessionCookie(req, res);
 
@@ -422,33 +448,5 @@ exports.logoutUser = async (req, res) => {
     } catch (error) {
         console.error("Erro no logout:", error);
         return res.status(500).json({ error: "Erro interno ao tentar encerrar a sessão." });
-    }
-};
-
-exports.getOwnUserProfile = async (req, res) => {
-    try {
-        const userId = req.user.userId;
-
-        const result = await db.query(
-            'SELECT username, email, conteudo_adulto FROM users WHERE id = $1',
-            [userId]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Perfil não encontrado." });
-        }
-
-        const user = result.rows[0];
-        return res.status(200).json({
-            user: {
-                username: user.username,
-                email: user.email,
-                conteudo_adulto: user.conteudo_adulto
-            }
-        });
-
-    } catch (error) {
-        console.error("Erro ao buscar perfil (/users/me):", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
     }
 };

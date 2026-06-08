@@ -12,7 +12,7 @@ on:
 
 jobs:
   backend:
-    name: Jest, Supertest, migrations and ESLint
+    name: Jest, Supertest, Prisma migrations and ESLint
     runs-on: ubuntu-latest
 
     services:

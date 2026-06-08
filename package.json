@@ -8,9 +8,10 @@
     "dev": "nodemon src/server.js",
     "test": "jest --runInBand",
     "lint": "eslint .",
-    "migrate": "node-pg-migrate",
+    "migrate": "prisma migrate deploy",
     "migrate:test": "node scripts/migrate-test-db.js",
-    "migrate:create": "node-pg-migrate create"
+    "migrate:dev": "prisma migrate dev",
+    "prisma:generate": "prisma generate"
   },
   "repository": {
     "type": "git",
@@ -24,11 +25,11 @@
   },
   "homepage": "https://github.com/IsaacLeite1309/comanga-api#readme",
   "dependencies": {
+    "@prisma/client": "^6.19.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "node-pg-migrate": "^8.0.4",
     "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
     "zod": "^4.4.3"
@@ -37,6 +38,7 @@
     "eslint": "^10.4.1",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
+    "prisma": "^6.19.0",
     "supertest": "^7.2.2"
   }
 }
