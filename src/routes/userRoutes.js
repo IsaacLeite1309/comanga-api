@@ -6,7 +6,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const router = express.Router();
 
 // Consulta de perfil próprio
-router.get('/me', authMiddleware, userController.getUserProfile);
+router.get('/me', authMiddleware, userController.getOwnUserProfile);
 
 // Consulta de perfil por ID (com proteção IDOR)
 router.get('/:id', authMiddleware, userController.getUserById);

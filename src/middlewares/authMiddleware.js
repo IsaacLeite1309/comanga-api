@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const db = require('../database');
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
+const INVALID_SESSION_MESSAGE = "Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.";
 
 function parseCookies(cookieHeader = '') {
     return cookieHeader.split(';').reduce((cookies, pair) => {
@@ -27,7 +28,7 @@ module.exports = async (req, res, next) => {
 
     if (!token) {
         return res.status(401).json({
-            error: "Sua sessao e invalida ou foi encerrada. Por favor, faca login novamente."
+            error: INVALID_SESSION_MESSAGE
         });
     }
 
@@ -50,7 +51,7 @@ module.exports = async (req, res, next) => {
 
         if (sessionResult.rows.length === 0) {
             return res.status(401).json({
-                error: "Sua sessao e invalida ou foi encerrada. Por favor, faca login novamente."
+                error: INVALID_SESSION_MESSAGE
             });
         }
 
@@ -82,7 +83,7 @@ module.exports = async (req, res, next) => {
     } catch (error) {
         console.error("Erro ao validar sessao:", error);
         return res.status(401).json({
-            error: "Sua sessao e invalida ou foi encerrada. Por favor, faca login novamente."
+            error: INVALID_SESSION_MESSAGE
         });
     }
 };

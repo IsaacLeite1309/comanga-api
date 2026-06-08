@@ -417,10 +417,38 @@ exports.logoutUser = async (req, res) => {
 
         clearSessionCookie(req, res);
 
-        return res.status(200).json({ message: "Sessao encerrada com sucesso." });
+        return res.status(200).json({ message: "Sessão encerrada com sucesso." });
 
     } catch (error) {
         console.error("Erro no logout:", error);
-        return res.status(500).json({ error: "Erro interno ao tentar encerrar a sessao." });
+        return res.status(500).json({ error: "Erro interno ao tentar encerrar a sessão." });
+    }
+};
+
+exports.getOwnUserProfile = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const result = await db.query(
+            'SELECT username, email, conteudo_adulto FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Perfil não encontrado." });
+        }
+
+        const user = result.rows[0];
+        return res.status(200).json({
+            user: {
+                username: user.username,
+                email: user.email,
+                conteudo_adulto: user.conteudo_adulto
+            }
+        });
+
+    } catch (error) {
+        console.error("Erro ao buscar perfil (/users/me):", error);
+        return res.status(500).json({ error: "Erro interno do servidor." });
     }
 };
