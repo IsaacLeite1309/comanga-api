@@ -417,10 +417,10 @@ exports.logoutUser = async (req, res) => {
 
         clearSessionCookie(req, res);
 
-        return res.status(200).json({ message: "Sessao encerrada com sucesso." });
+        return res.status(200).json({ message: "Sessão encerrada com sucesso." });
 
     } catch (error) {
         console.error("Erro no logout:", error);
-        return res.status(500).json({ error: "Erro interno ao tentar encerrar a sessao." });
+        return res.status(500).json({ error: "Erro interno ao tentar encerrar a sessão." });
     }
 };
