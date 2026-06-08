@@ -1,10 +1,11 @@
 name: Backend Quality
 
 on:
+  workflow_dispatch:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   backend:
