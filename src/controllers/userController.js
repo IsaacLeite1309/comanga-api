@@ -102,17 +102,21 @@ exports.registerUser = async (req, res) => {
 exports.activateAccount = async (req, res) => {
     // Checklist 1: A rota captura o token via parâmetro da URL
     const { token } = req.params;
+    const client = await db.pool.connect();
 
     try {
+        await client.query('BEGIN');
+
         // Checklist 2: Busca no banco de dados pelo token informado
-        const result = await db.query(
-            'SELECT id, activation_expires_at FROM users WHERE activation_token = $1',
+        const result = await client.query(
+            'SELECT id, activation_expires_at FROM users WHERE activation_token = $1 FOR UPDATE',
             [token]
         );
 
         // Cenário Alternativo 2: Falha por token já utilizado ou inválido
         // RN0008: Se o token for nulo (já usado) ou falso, não achará nenhuma linha
         if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ error: "Link de ativação inválido!" }); // Ajustado para a string exata do QA
         }
 
@@ -122,13 +126,14 @@ exports.activateAccount = async (req, res) => {
         // Cenário Alternativo 1: Falha por token expirado
         const now = new Date();
         if (now > user.activation_expires_at) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ 
                 error: "Este link de ativação expirou. Solicite um novo e-mail de ativação." 
             });
         }
 
         // Checklist 4: Atualização do status e remoção do token (Caminho Feliz)
-        await db.query(
+        await client.query(
             `UPDATE users 
              SET status = 'Ativada', 
                  activation_token = NULL, 
@@ -137,14 +142,19 @@ exports.activateAccount = async (req, res) => {
             [user.id]
         );
 
+        await client.query('COMMIT');
+
         // Retorna HTTP 200 (OK) conforme o Critério de Aceite
         return res.status(200).json({ 
             message: "Conta ativada com sucesso!" 
         });
 
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error("ERRO CRÍTICO NA ATIVAÇÃO:", error);
         return res.status(500).json({ error: "Erro interno do servidor." });
+    } finally {
+        client.release();
     }
 };
 
