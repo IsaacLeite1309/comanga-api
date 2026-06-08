@@ -1,6 +1,6 @@
 // src/middlewares/authMiddleware.js
 const crypto = require('crypto');
-const db = require('../database');
+const prisma = require('../prisma');
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
 const INVALID_SESSION_MESSAGE = "Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.";
@@ -34,48 +34,49 @@ module.exports = async (req, res, next) => {
 
     try {
         const tokenHash = hashSessionToken(token);
-        const sessionResult = await db.query(
-            `SELECT
-                sessions.id AS session_id,
-                sessions.user_id,
-                users.username,
-                users.email,
-                users.nivel_acesso,
-                users.status
-             FROM sessions
-             INNER JOIN users ON users.id = sessions.user_id
-             WHERE sessions.session_token_hash = $1
-               AND sessions.revoked_at IS NULL`,
-            [tokenHash]
-        );
+        const session = await prisma.session.findFirst({
+            where: {
+                sessionTokenHash: tokenHash,
+                revokedAt: null
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        nivelAcesso: true,
+                        status: true
+                    }
+                }
+            }
+        });
 
-        if (sessionResult.rows.length === 0) {
+        if (!session) {
             return res.status(401).json({
                 error: INVALID_SESSION_MESSAGE
             });
         }
 
-        const session = sessionResult.rows[0];
-
-        if (session.status !== 'Ativada') {
+        if (session.user.status !== 'Ativada') {
             return res.status(403).json({
                 error: "Sua conta nao esta ativa para acessar este recurso."
             });
         }
 
-        await db.query(
-            'UPDATE sessions SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1',
-            [session.session_id]
-        );
+        await prisma.session.update({
+            where: { id: session.id },
+            data: { lastUsedAt: new Date() }
+        });
 
         req.user = {
-            userId: String(session.user_id),
-            username: session.username,
-            email: session.email,
-            role: session.nivel_acesso
+            userId: String(session.user.id),
+            username: session.user.username,
+            email: session.user.email,
+            role: session.user.nivelAcesso
         };
         req.session = {
-            id: session.session_id,
+            id: session.id,
             tokenHash
         };
 
