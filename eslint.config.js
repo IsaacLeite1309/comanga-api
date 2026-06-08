@@ -1,7 +1,4 @@
-const js = require('@eslint/js');
-
 module.exports = [
-    js.configs.recommended,
     {
         files: ['**/*.js'],
         languageOptions: {
@@ -25,7 +22,16 @@ module.exports = [
             }
         },
         rules: {
-            'no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+            'no-undef': 'error',
+            'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+            'no-redeclare': 'error',
+            'no-dupe-keys': 'error',
+            'no-unreachable': 'error',
+            'no-constant-condition': 'error',
+            'no-empty': 'error',
+            'no-extra-semi': 'error',
+            'no-irregular-whitespace': 'error',
+            'valid-typeof': 'error'
         }
     },
     {
