@@ -111,7 +111,10 @@ exports.registerUser = async (req, res) => {
             await mailer.sendActivationEmail(email, username, activationToken);
         } catch (mailError) {
             console.error("Erro detalhado no Nodemailer:", mailError);
-            return res.status(201).json({ message: "Conta criada, mas erro ao enviar e-mail." });
+            return res.status(201).json({
+                message: "Conta criada, mas nao foi possivel enviar o e-mail de ativacao. Use a opcao de reenvio.",
+                email_sent: false
+            });
         }
 
         return res.status(201).json({ message: "Conta criada com sucesso!" });
