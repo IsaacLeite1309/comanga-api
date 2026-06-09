@@ -51,7 +51,7 @@ describe('POST /api/auth/register', () => {
             .send(payload);
 
         expect(response.status).toBe(201);
-        expect(response.body).toEqual({ message: 'Conta criada com sucesso!' });
+        expect(response.body).toEqual({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativacao.' });
 
         const userResult = await db.query(
             `SELECT username, email, password_hash, status, nivel_acesso,

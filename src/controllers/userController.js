@@ -117,7 +117,7 @@ exports.registerUser = async (req, res) => {
             });
         }
 
-        return res.status(201).json({ message: "Conta criada com sucesso!" });
+        return res.status(201).json({ message: "Conta criada com sucesso! Enviamos o e-mail de ativacao." });
 
     } catch (error) {
         console.error("ERRO CRÍTICO:", error);
