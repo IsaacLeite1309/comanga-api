@@ -1,14 +1,32 @@
 // src/utils/mailer.js
 const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "sandbox.smtp.mailtrap.io",
-    port: process.env.SMTP_PORT || 2525,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+function getRequiredSmtpConfig() {
+    const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
+
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+        const error = new Error('Servico de e-mail nao configurado.');
+        error.code = 'SMTP_NOT_CONFIGURED';
+        throw error;
     }
-});
+
+    return {
+        host: SMTP_HOST,
+        port: Number(SMTP_PORT || 587),
+        secure: SMTP_SECURE === 'true',
+        auth: {
+            user: SMTP_USER,
+            pass: SMTP_PASS
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000
+    };
+}
+
+function createTransporter() {
+    return nodemailer.createTransport(getRequiredSmtpConfig());
+}
 
 exports.sendActivationEmail = async (toEmail, username, token) => {
     // Em produção, isso apontaria para a URL do Front-end (React)
@@ -19,7 +37,7 @@ exports.sendActivationEmail = async (toEmail, username, token) => {
     const activationLink = `${frontendUrl}/activate/${token}`;
 
     const mailOptions = {
-        from: '"Equipe CoMangá" <noreply@comanga.com>',
+        from: process.env.SMTP_FROM || '"Equipe CoMangá" <noreply@comanga.com>',
         to: toEmail,
         subject: 'CoMangá - Ative sua conta!',
         html: `
@@ -30,5 +48,5 @@ exports.sendActivationEmail = async (toEmail, username, token) => {
         `
     };
 
-    await transporter.sendMail(mailOptions);
+    await createTransporter().sendMail(mailOptions);
 };
