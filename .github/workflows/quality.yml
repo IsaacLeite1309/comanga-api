@@ -1,0 +1,66 @@
+name: Backend Quality
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+
+jobs:
+  backend:
+    name: Jest, Supertest, Prisma migrations and ESLint
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: comanga_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d comanga_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/comanga_test
+      DATABASE_SSL: "false"
+      CORS_ORIGIN: http://localhost:8080
+      SESSION_COOKIE_NAME: comanga_session
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: strict
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_USER: test
+      SMTP_PASS: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply test database migrations
+        run: npm run migrate:test
+
+      - name: Run backend tests
+        run: npm test
+
+      - name: Run backend lint
+        run: npm run lint
