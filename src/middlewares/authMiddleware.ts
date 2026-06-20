@@ -1,12 +1,12 @@
-// src/middlewares/authMiddleware.js
-const crypto = require('crypto');
-const prisma = require('../prisma');
+import crypto from 'crypto';
+import type { NextFunction, Request, Response } from 'express';
+import prisma from '../prisma';
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
-const INVALID_SESSION_MESSAGE = "Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.";
+const INVALID_SESSION_MESSAGE = 'Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.';
 
-function parseCookies(cookieHeader = '') {
-    return cookieHeader.split(';').reduce((cookies, pair) => {
+function parseCookies(cookieHeader = ''): Record<string, string> {
+    return cookieHeader.split(';').reduce<Record<string, string>>((cookies, pair) => {
         const separatorIndex = pair.indexOf('=');
         if (separatorIndex === -1) return cookies;
 
@@ -18,11 +18,11 @@ function parseCookies(cookieHeader = '') {
     }, {});
 }
 
-function hashSessionToken(token) {
+function hashSessionToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-module.exports = async (req, res, next) => {
+async function authMiddleware(req: Request, res: Response, next: NextFunction) {
     const cookies = parseCookies(req.headers.cookie);
     const token = cookies[SESSION_COOKIE_NAME];
 
@@ -60,7 +60,7 @@ module.exports = async (req, res, next) => {
 
         if (session.user.status !== 'Ativada') {
             return res.status(403).json({
-                error: "Sua conta nao esta ativa para acessar este recurso."
+                error: 'Sua conta nao esta ativa para acessar este recurso.'
             });
         }
 
@@ -82,9 +82,11 @@ module.exports = async (req, res, next) => {
 
         return next();
     } catch (error) {
-        console.error("Erro ao validar sessao:", error);
+        console.error('Erro ao validar sessao:', error);
         return res.status(401).json({
             error: INVALID_SESSION_MESSAGE
         });
     }
-};
+}
+
+export = authMiddleware;

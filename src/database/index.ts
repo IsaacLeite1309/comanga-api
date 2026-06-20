@@ -1,5 +1,4 @@
-// src/database/index.js
-const { Pool } = require('pg');
+import { Pool, type QueryResult, type QueryResultRow } from 'pg';
 
 const connectionString = process.env.NODE_ENV === 'test'
     ? process.env.DATABASE_URL_TEST
@@ -11,7 +10,7 @@ if (!connectionString) {
         : 'DATABASE_URL nao configurada.');
 }
 
-function shouldUseSsl(url) {
+function shouldUseSsl(url: string): boolean {
     if (process.env.DATABASE_SSL === 'true') return true;
     if (process.env.DATABASE_SSL === 'false') return false;
     return !url.includes('localhost') && !url.includes('127.0.0.1');
@@ -30,7 +29,7 @@ pool.on('connect', () => {
     }
 });
 
-module.exports = {
-    query: (text, params) => pool.query(text, params),
+export = {
+    query: <T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]): Promise<QueryResult<T>> => pool.query<T>(text, params),
     pool
 };

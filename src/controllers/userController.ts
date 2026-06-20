@@ -1,36 +1,49 @@
-const bcrypt = require('bcrypt');
-const crypto = require('crypto');
-const { z } = require('zod');
-const prisma = require('../prisma');
-const mailer = require('../utils/mailer');
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import type { CookieOptions, Request, Response } from 'express';
+import { z } from 'zod';
+import prisma from '../prisma';
+import mailer from '../utils/mailer';
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
-const ACCESS_DENIED_MESSAGE = "Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil.";
+const ACCESS_DENIED_MESSAGE = 'Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil.';
 
-function hashSessionToken(token) {
+interface PrismaKnownError {
+    code?: string;
+}
+
+interface UserResponseInput {
+    id: string;
+    username: string;
+    email: string;
+    conteudoAdulto: boolean;
+    nivelAcesso: string;
+}
+
+function hashSessionToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function shouldUseSecureCookie(req) {
+function shouldUseSecureCookie(req: Request): boolean {
     if (process.env.COOKIE_SECURE === 'true') return true;
     if (process.env.COOKIE_SECURE === 'false') return false;
     return process.env.NODE_ENV === 'production' || req.headers['x-forwarded-proto'] === 'https';
 }
 
-function getCookieOptions(req) {
+function getCookieOptions(req: Request): CookieOptions {
     return {
         httpOnly: true,
         secure: shouldUseSecureCookie(req),
-        sameSite: process.env.COOKIE_SAME_SITE || 'strict',
+        sameSite: process.env.COOKIE_SAME_SITE as CookieOptions['sameSite'] || 'strict',
         path: '/'
     };
 }
 
-function clearSessionCookie(req, res) {
+function clearSessionCookie(req: Request, res: Response): void {
     res.clearCookie(SESSION_COOKIE_NAME, getCookieOptions(req));
 }
 
-function toUserResponse(user) {
+function toUserResponse(user: UserResponseInput) {
     return {
         id: String(user.id),
         username: user.username,
@@ -40,26 +53,42 @@ function toUserResponse(user) {
     };
 }
 
+function getAuthenticatedUser(req: Request) {
+    if (!req.user) {
+        throw new Error('Usuario autenticado nao encontrado na requisicao.');
+    }
+
+    return req.user;
+}
+
+function getAuthenticatedSession(req: Request) {
+    if (!req.session) {
+        throw new Error('Sessao autenticada nao encontrada na requisicao.');
+    }
+
+    return req.session;
+}
+
 const registerSchema = z.object({
     username: z.string()
-        .regex(/^[a-zA-Z0-9_]{3,20}$/, "Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais."),
-    email: z.string().email("E-mail com formato inválido."),
+        .regex(/^[a-zA-Z0-9_]{3,20}$/, 'Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais.'),
+    email: z.string().email('E-mail com formato inválido.'),
     password: z.string()
-        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/, "Utilize no mínimo 8 caracteres, incluindo pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial."),
+        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/, 'Utilize no mínimo 8 caracteres, incluindo pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial.'),
     confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
-    message: "Divergência nos valores da senha e confirmação de senha!",
-    path: ["confirmPassword"]
+    message: 'Divergência nos valores da senha e confirmação de senha!',
+    path: ['confirmPassword']
 });
 
-exports.registerUser = async (req, res) => {
+async function registerUser(req: Request, res: Response) {
     try {
         const validation = registerSchema.safeParse(req.body);
 
         if (!validation.success) {
             const issue = validation.error.issues[0];
-            const message = issue?.message || "Dados inválidos.";
-            const fieldName = issue?.path[0] || "geral";
+            const message = issue?.message || 'Dados inválidos.';
+            const fieldName = issue?.path[0] || 'geral';
 
             return res.status(400).json({ error: message, field: fieldName });
         }
@@ -81,15 +110,15 @@ exports.registerUser = async (req, res) => {
 
         if (conflict?.email === email) {
             return res.status(409).json({
-                error: "Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.",
-                field: "email"
+                error: 'Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.',
+                field: 'email'
             });
         }
 
         if (conflict?.username === username) {
             return res.status(409).json({
-                error: "Este nome de usuário não está disponível. Por favor, escolha outro.",
-                field: "username"
+                error: 'Este nome de usuário não está disponível. Por favor, escolha outro.',
+                field: 'username'
             });
         }
 
@@ -110,23 +139,23 @@ exports.registerUser = async (req, res) => {
         try {
             await mailer.sendActivationEmail(email, username, activationToken);
         } catch (mailError) {
-            console.error("Erro detalhado no Nodemailer:", mailError);
+            console.error('Erro detalhado no Nodemailer:', mailError);
             return res.status(201).json({
-                message: "Conta criada, mas nao foi possivel enviar o e-mail de ativacao. Use a opcao de reenvio.",
+                message: 'Conta criada, mas nao foi possivel enviar o e-mail de ativacao. Use a opcao de reenvio.',
                 email_sent: false
             });
         }
 
-        return res.status(201).json({ message: "Conta criada com sucesso! Enviamos o e-mail de ativacao." });
+        return res.status(201).json({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativacao.' });
 
     } catch (error) {
-        console.error("ERRO CRÍTICO:", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('ERRO CRÍTICO:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.activateAccount = async (req, res) => {
-    const { token } = req.params;
+async function activateAccount(req: Request, res: Response) {
+    const token = String(req.params.token);
 
     try {
         const activationResult = await prisma.$transaction(async (tx) => {
@@ -139,12 +168,12 @@ exports.activateAccount = async (req, res) => {
             });
 
             if (!user) {
-                return { error: "Link de ativação inválido!" };
+                return { error: 'Link de ativação inválido!' };
             }
 
-            if (new Date() > user.activationExpiresAt) {
+            if (!user.activationExpiresAt || new Date() > user.activationExpiresAt) {
                 return {
-                    error: "Este link de ativação expirou. Solicite um novo e-mail de ativação."
+                    error: 'Este link de ativação expirou. Solicite um novo e-mail de ativação.'
                 };
             }
 
@@ -160,25 +189,25 @@ exports.activateAccount = async (req, res) => {
             return { activated: true };
         });
 
-        if (activationResult.error) {
+        if ('error' in activationResult) {
             return res.status(400).json({ error: activationResult.error });
         }
 
         return res.status(200).json({
-            message: "Conta ativada com sucesso!"
+            message: 'Conta ativada com sucesso!'
         });
 
     } catch (error) {
-        console.error("ERRO CRÍTICO NA ATIVAÇÃO:", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('ERRO CRÍTICO NA ATIVAÇÃO:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.resendActivation = async (req, res) => {
-    const { email } = req.body;
+async function resendActivation(req: Request, res: Response) {
+    const { email } = req.body as { email?: string };
 
     if (!email) {
-        return res.status(400).json({ error: "O e-mail é obrigatório." });
+        return res.status(400).json({ error: 'O e-mail é obrigatório.' });
     }
 
     try {
@@ -192,11 +221,11 @@ exports.resendActivation = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(404).json({ error: "Endereço de e-mail não cadastrado" });
+            return res.status(404).json({ error: 'Endereço de e-mail não cadastrado' });
         }
 
         if (user.status === 'Ativada') {
-            return res.status(400).json({ error: "Este endereço de e-mail pertence a uma conta ativada." });
+            return res.status(400).json({ error: 'Este endereço de e-mail pertence a uma conta ativada.' });
         }
 
         const newActivationToken = crypto.randomBytes(32).toString('hex');
@@ -213,23 +242,23 @@ exports.resendActivation = async (req, res) => {
         try {
             await mailer.sendActivationEmail(email, user.username, newActivationToken);
         } catch (mailError) {
-            console.error("Erro detalhado no Nodemailer (Reenvio):", mailError);
-            return res.status(500).json({ error: "Erro ao tentar enviar o e-mail." });
+            console.error('Erro detalhado no Nodemailer (Reenvio):', mailError);
+            return res.status(500).json({ error: 'Erro ao tentar enviar o e-mail.' });
         }
 
-        return res.status(200).json({ message: "Novo link de ativação enviado com sucesso para o seu e-mail!" });
+        return res.status(200).json({ message: 'Novo link de ativação enviado com sucesso para o seu e-mail!' });
 
     } catch (error) {
-        console.error("ERRO CRÍTICO NO REENVIO:", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('ERRO CRÍTICO NO REENVIO:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.loginUser = async (req, res) => {
-    const { email, password } = req.body;
+async function loginUser(req: Request, res: Response) {
+    const { email, password } = req.body as { email?: string; password?: string };
 
     if (!email || !password) {
-        return res.status(400).json({ error: "E-mail e senha são obrigatórios." });
+        return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
     }
 
     try {
@@ -245,22 +274,22 @@ exports.loginUser = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(401).json({ error: "Credenciais inválidas!" });
+            return res.status(401).json({ error: 'Credenciais inválidas!' });
         }
 
         const validPassword = await bcrypt.compare(password, user.passwordHash);
         if (!validPassword) {
-            return res.status(401).json({ error: "Credenciais inválidas!" });
+            return res.status(401).json({ error: 'Credenciais inválidas!' });
         }
 
         if (user.status === 'Pendente') {
             return res.status(403).json({
-                error: "Conta de acesso pendente. Ative a conta com o e-mail de verificação enviado anteriormente."
+                error: 'Conta de acesso pendente. Ative a conta com o e-mail de verificação enviado anteriormente.'
             });
         }
 
         if (user.status === 'Bloqueada') {
-            return res.status(403).json({ error: "Esta conta foi bloqueada por razões de segurança." });
+            return res.status(403).json({ error: 'Esta conta foi bloqueada por razões de segurança.' });
         }
 
         const sessionToken = crypto.randomBytes(48).toString('hex');
@@ -276,7 +305,7 @@ exports.loginUser = async (req, res) => {
         res.cookie(SESSION_COOKIE_NAME, sessionToken, getCookieOptions(req));
 
         return res.status(200).json({
-            message: "Login realizado com sucesso!",
+            message: 'Login realizado com sucesso!',
             user: {
                 id: String(user.id),
                 username: user.username,
@@ -285,15 +314,16 @@ exports.loginUser = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("ERRO CRÍTICO NO LOGIN:", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('ERRO CRÍTICO NO LOGIN:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.getUserProfile = async (req, res) => {
+async function getUserProfile(req: Request, res: Response) {
     try {
+        const authenticatedUser = getAuthenticatedUser(req);
         const user = await prisma.user.findUnique({
-            where: { id: req.user.userId },
+            where: { id: authenticatedUser.userId },
             select: {
                 id: true,
                 username: true,
@@ -304,21 +334,22 @@ exports.getUserProfile = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(404).json({ error: "Perfil não encontrado." });
+            return res.status(404).json({ error: 'Perfil não encontrado.' });
         }
 
         return res.status(200).json({ user: toUserResponse(user) });
 
     } catch (error) {
-        console.error("Erro ao buscar perfil (/me):", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('Erro ao buscar perfil (/me):', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.getOwnUserProfile = async (req, res) => {
+async function getOwnUserProfile(req: Request, res: Response) {
     try {
+        const authenticatedUser = getAuthenticatedUser(req);
         const user = await prisma.user.findUnique({
-            where: { id: req.user.userId },
+            where: { id: authenticatedUser.userId },
             select: {
                 username: true,
                 email: true,
@@ -327,7 +358,7 @@ exports.getOwnUserProfile = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(404).json({ error: "Perfil não encontrado." });
+            return res.status(404).json({ error: 'Perfil não encontrado.' });
         }
 
         return res.status(200).json({
@@ -339,16 +370,17 @@ exports.getOwnUserProfile = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Erro ao buscar perfil (/users/me):", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('Erro ao buscar perfil (/users/me):', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.getUserById = async (req, res) => {
+async function getUserById(req: Request, res: Response) {
     try {
-        const targetId = req.params.id;
-        const requesterId = req.user.userId;
-        const requesterRole = req.user.role;
+        const authenticatedUser = getAuthenticatedUser(req);
+        const targetId = String(req.params.id);
+        const requesterId = authenticatedUser.userId;
+        const requesterRole = authenticatedUser.role;
 
         if (requesterRole === 'Usuário Padrão' && targetId !== requesterId) {
             return res.status(403).json({ error: ACCESS_DENIED_MESSAGE });
@@ -366,7 +398,7 @@ exports.getUserById = async (req, res) => {
         });
 
         if (!user) {
-            return res.status(404).json({ error: "Usuário não encontrado." });
+            return res.status(404).json({ error: 'Usuário não encontrado.' });
         }
 
         return res.status(200).json({
@@ -378,14 +410,14 @@ exports.getUserById = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Erro ao buscar perfil por ID:", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('Erro ao buscar perfil por ID:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.updateAdultContent = async (req, res) => {
+async function updateAdultContent(req: Request, res: Response) {
     try {
-        const { conteudo_adulto } = req.body;
+        const { conteudo_adulto } = req.body as { conteudo_adulto?: unknown };
 
         if (typeof conteudo_adulto !== 'boolean') {
             return res.status(400).json({
@@ -393,50 +425,54 @@ exports.updateAdultContent = async (req, res) => {
             });
         }
 
+        const authenticatedUser = getAuthenticatedUser(req);
         const user = await prisma.user.update({
-            where: { id: req.user.userId },
+            where: { id: authenticatedUser.userId },
             data: { conteudoAdulto: conteudo_adulto },
             select: { conteudoAdulto: true }
         });
 
         return res.status(200).json({
-            message: "Preferência de exibição atualizada com sucesso!",
+            message: 'Preferência de exibição atualizada com sucesso!',
             conteudo_adulto: user.conteudoAdulto
         });
 
     } catch (error) {
-        if (error.code === 'P2025') {
-            return res.status(404).json({ error: "Usuário não encontrado no banco de dados." });
+        const knownError = error as PrismaKnownError;
+        if (knownError.code === 'P2025') {
+            return res.status(404).json({ error: 'Usuário não encontrado no banco de dados.' });
         }
 
-        console.error("Erro ao atualizar preferência +18:", error);
-        return res.status(500).json({ error: "Erro interno do servidor." });
+        console.error('Erro ao atualizar preferência +18:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-};
+}
 
-exports.updateUserById = async (req, res) => {
+async function updateUserById(req: Request, res: Response) {
     try {
-        const targetId = req.params.id;
-        const requesterId = req.user.userId;
-        const requesterRole = req.user.role;
+        const authenticatedUser = getAuthenticatedUser(req);
+        const targetId = String(req.params.id);
+        const requesterId = authenticatedUser.userId;
+        const requesterRole = authenticatedUser.role;
 
         if (requesterRole === 'Usuário Padrão' && targetId !== requesterId) {
             return res.status(403).json({ error: ACCESS_DENIED_MESSAGE });
         }
 
-        return res.status(200).json({ message: "Permissão concedida. Rota de atualização genérica em construção." });
+        return res.status(200).json({ message: 'Permissão concedida. Rota de atualização genérica em construção.' });
 
     } catch (error) {
-        console.error("Erro na trava IDOR de atualização:", error);
-        return res.status(500).json({ error: "Erro interno." });
+        console.error('Erro na trava IDOR de atualização:', error);
+        return res.status(500).json({ error: 'Erro interno.' });
     }
-};
+}
 
-exports.logoutUser = async (req, res) => {
+async function logoutUser(req: Request, res: Response) {
     try {
+        const authenticatedSession = getAuthenticatedSession(req);
         await prisma.session.updateMany({
             where: {
-                id: req.session.id,
+                id: authenticatedSession.id,
                 revokedAt: null
             },
             data: {
@@ -446,10 +482,23 @@ exports.logoutUser = async (req, res) => {
 
         clearSessionCookie(req, res);
 
-        return res.status(200).json({ message: "Sessão encerrada com sucesso." });
+        return res.status(200).json({ message: 'Sessão encerrada com sucesso.' });
 
     } catch (error) {
-        console.error("Erro no logout:", error);
-        return res.status(500).json({ error: "Erro interno ao tentar encerrar a sessão." });
+        console.error('Erro no logout:', error);
+        return res.status(500).json({ error: 'Erro interno ao tentar encerrar a sessão.' });
     }
+}
+
+export = {
+    registerUser,
+    activateAccount,
+    resendActivation,
+    loginUser,
+    logoutUser,
+    getUserProfile,
+    getOwnUserProfile,
+    getUserById,
+    updateAdultContent,
+    updateUserById
 };

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node", "jest"],
+    "noImplicitReturns": false,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["src/**/*.ts", "jest.env.ts", "jest.setup.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}
