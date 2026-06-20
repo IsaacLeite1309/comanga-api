@@ -1,11 +1,14 @@
-// src/utils/mailer.js
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
+
+interface SmtpConfigError extends Error {
+    code?: string;
+}
 
 function getRequiredSmtpConfig() {
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
 
     if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-        const error = new Error('Servico de e-mail nao configurado.');
+        const error: SmtpConfigError = new Error('Servico de e-mail nao configurado.');
         error.code = 'SMTP_NOT_CONFIGURED';
         throw error;
     }
@@ -28,8 +31,7 @@ function createTransporter() {
     return nodemailer.createTransport(getRequiredSmtpConfig());
 }
 
-exports.sendActivationEmail = async (toEmail, username, token) => {
-    // Em produção, isso apontaria para a URL do Front-end (React)
+async function sendActivationEmail(toEmail: string, username: string, token: string): Promise<void> {
     const frontendUrl = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:8080')
         .split(',')[0]
         .trim()
@@ -49,4 +51,8 @@ exports.sendActivationEmail = async (toEmail, username, token) => {
     };
 
     await createTransporter().sendMail(mailOptions);
+}
+
+export = {
+    sendActivationEmail
 };
