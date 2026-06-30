@@ -1,4 +1,7 @@
+import dns from 'node:dns';
 import nodemailer from 'nodemailer';
+
+dns.setDefaultResultOrder('ipv4first');
 
 interface SmtpConfigError extends Error {
     code?: string;
@@ -6,6 +9,7 @@ interface SmtpConfigError extends Error {
 
 function getRequiredSmtpConfig() {
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
+    const secure = SMTP_SECURE === 'true';
 
     if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
         const error: SmtpConfigError = new Error('Servico de e-mail nao configurado.');
@@ -16,10 +20,14 @@ function getRequiredSmtpConfig() {
     return {
         host: SMTP_HOST,
         port: Number(SMTP_PORT || 587),
-        secure: SMTP_SECURE === 'true',
+        secure,
+        requireTLS: !secure,
         auth: {
             user: SMTP_USER,
             pass: SMTP_PASS
+        },
+        tls: {
+            servername: SMTP_HOST
         },
         family: 4,
         connectionTimeout: 30000,
