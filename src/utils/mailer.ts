@@ -7,7 +7,17 @@ interface SmtpConfigError extends Error {
     code?: string;
 }
 
-function getRequiredSmtpConfig() {
+async function resolveSmtpHost(host: string): Promise<string> {
+    try {
+        const addresses = await dns.promises.resolve4(host);
+        return addresses[0] || host;
+    } catch (error) {
+        console.error('Nao foi possivel resolver IPv4 do SMTP, usando host original:', error);
+        return host;
+    }
+}
+
+async function getRequiredSmtpConfig() {
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
     const secure = SMTP_SECURE === 'true';
 
@@ -17,8 +27,10 @@ function getRequiredSmtpConfig() {
         throw error;
     }
 
+    const smtpHost = await resolveSmtpHost(SMTP_HOST);
+
     return {
-        host: SMTP_HOST,
+        host: smtpHost,
         port: Number(SMTP_PORT || 587),
         secure,
         requireTLS: !secure,
@@ -36,8 +48,8 @@ function getRequiredSmtpConfig() {
     };
 }
 
-function createTransporter() {
-    return nodemailer.createTransport(getRequiredSmtpConfig());
+async function createTransporter() {
+    return nodemailer.createTransport(await getRequiredSmtpConfig());
 }
 
 async function sendActivationEmail(toEmail: string, username: string, token: string): Promise<void> {
@@ -59,7 +71,8 @@ async function sendActivationEmail(toEmail: string, username: string, token: str
         `
     };
 
-    await createTransporter().sendMail(mailOptions);
+    const transporter = await createTransporter();
+    await transporter.sendMail(mailOptions);
 }
 
 export = {
