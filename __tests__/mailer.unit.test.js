@@ -37,7 +37,9 @@ describe('mailer unitario', () => {
             host: 'smtp.test.local',
             port: 2525,
             secure: false,
+            requireTLS: true,
             family: 4,
+            tls: { servername: 'smtp.test.local' },
             auth: { user: 'usuario', pass: 'senha' }
         }));
         expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
@@ -84,7 +86,8 @@ describe('mailer unitario', () => {
         await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-seguro');
 
         expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
-            secure: true
+            secure: true,
+            requireTLS: false
         }));
     });
 
