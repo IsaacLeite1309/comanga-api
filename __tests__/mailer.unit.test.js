@@ -1,5 +1,14 @@
 const sendMail = jest.fn();
 const createTransport = jest.fn(() => ({ sendMail }));
+const resolve4 = jest.fn();
+const setDefaultResultOrder = jest.fn();
+
+jest.mock('node:dns', () => ({
+    promises: {
+        resolve4
+    },
+    setDefaultResultOrder
+}));
 
 jest.mock('nodemailer', () => ({
     createTransport
@@ -12,6 +21,7 @@ describe('mailer unitario', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        resolve4.mockResolvedValue(['142.250.0.109']);
         process.env = {
             ...originalEnv,
             SMTP_HOST: 'smtp.test.local',
@@ -34,7 +44,7 @@ describe('mailer unitario', () => {
         await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-123');
 
         expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
-            host: 'smtp.test.local',
+            host: '142.250.0.109',
             port: 2525,
             secure: false,
             requireTLS: true,
@@ -88,6 +98,18 @@ describe('mailer unitario', () => {
         expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
             secure: true,
             requireTLS: false
+        }));
+    });
+
+    it('usa host original quando resolucao IPv4 falha', async () => {
+        resolve4.mockRejectedValueOnce(new Error('DNS indisponivel'));
+        sendMail.mockResolvedValue({});
+
+        await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-dns');
+
+        expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
+            host: 'smtp.test.local',
+            tls: { servername: 'smtp.test.local' }
         }));
     });
 
