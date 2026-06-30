@@ -12,7 +12,7 @@ on:
 
 jobs:
   backend:
-    name: Jest, Supertest, Prisma migrations, TypeScript build and ESLint
+    name: Jest, coverage, Supertest, Prisma migrations, TypeScript build and ESLint
     runs-on: ubuntu-latest
 
     services:
@@ -64,6 +64,9 @@ jobs:
 
       - name: Run backend tests
         run: npm test
+
+      - name: Run backend coverage threshold
+        run: npm run test:coverage:unit
 
       - name: Run backend lint
         run: npm run lint
