@@ -37,6 +37,7 @@ describe('mailer unitario', () => {
             host: 'smtp.test.local',
             port: 2525,
             secure: false,
+            family: 4,
             auth: { user: 'usuario', pass: 'senha' }
         }));
         expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
