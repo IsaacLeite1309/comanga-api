@@ -9,7 +9,7 @@
     "build": "tsc",
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",
-    "test:coverage:unit": "jest --runInBand app.unit.test.js database.unit.test.js userController.unit.test.js middlewares.unit.test.js mailer.unit.test.js --coverage",
+    "test:coverage:unit": "jest --runInBand app.unit.test.js database.unit.test.js userController.unit.test.js adminController.unit.test.js middlewares.unit.test.js mailer.unit.test.js --coverage",
     "lint": "eslint .",
     "migrate": "prisma migrate deploy",
     "migrate:test": "node scripts/migrate-test-db.js",

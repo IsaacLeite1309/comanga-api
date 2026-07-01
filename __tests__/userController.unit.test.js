@@ -5,7 +5,8 @@ const prisma = {
         findFirst: jest.fn(),
         create: jest.fn(),
         findUnique: jest.fn(),
-        update: jest.fn()
+        update: jest.fn(),
+        delete: jest.fn()
     },
     session: {
         create: jest.fn(),
@@ -506,6 +507,77 @@ describe('userController unitario', () => {
             }));
             expect(res.clearCookie).toHaveBeenCalled();
             expect(res.status).toHaveBeenCalledWith(200);
+        });
+    });
+
+    describe('deleteOwnAccount', () => {
+        it('exige senha atual no corpo da requisicao', async () => {
+            const req = makeReq({ user: { userId: 'user-1' } });
+            const res = makeRes();
+
+            await userController.deleteOwnAccount(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(prisma.user.findUnique).not.toHaveBeenCalled();
+            expect(prisma.user.delete).not.toHaveBeenCalled();
+        });
+
+        it('rejeita exclusao quando a senha atual esta incorreta', async () => {
+            prisma.user.findUnique.mockResolvedValue({
+                id: 'user-1',
+                passwordHash: 'hash-salvo'
+            });
+            jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
+            const req = makeReq({
+                body: { currentPassword: 'senha-errada' },
+                user: { userId: 'user-1' }
+            });
+            const res = makeRes();
+
+            await userController.deleteOwnAccount(req, res);
+
+            expect(bcrypt.compare).toHaveBeenCalledWith('senha-errada', 'hash-salvo');
+            expect(prisma.user.delete).not.toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Senha atual incorreta!' });
+        });
+
+        it('remove fisicamente o usuario autenticado e limpa o cookie da sessao', async () => {
+            prisma.user.findUnique.mockResolvedValue({
+                id: 'user-1',
+                passwordHash: 'hash-salvo'
+            });
+            prisma.user.delete.mockResolvedValue({});
+            jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+            const req = makeReq({
+                body: { currentPassword: 'SenhaForte123!' },
+                user: { userId: 'user-1' }
+            });
+            const res = makeRes();
+
+            await userController.deleteOwnAccount(req, res);
+
+            expect(prisma.user.delete).toHaveBeenCalledWith({
+                where: { id: 'user-1' }
+            });
+            expect(res.clearCookie).toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith({ message: 'Conta excluida permanentemente.' });
+        });
+
+        it('retorna 404 quando o usuario autenticado nao existe mais', async () => {
+            prisma.user.findUnique.mockResolvedValue(null);
+            const req = makeReq({
+                body: { currentPassword: 'SenhaForte123!' },
+                user: { userId: 'user-1' }
+            });
+            const res = makeRes();
+
+            await userController.deleteOwnAccount(req, res);
+
+            expect(prisma.user.delete).not.toHaveBeenCalled();
+            expect(res.clearCookie).toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(404);
         });
     });
 });

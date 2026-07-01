@@ -4,6 +4,7 @@ import cors, { type CorsOptions } from 'cors';
 import prisma from './prisma';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 type PingResult = Array<{ hora_atual: Date }>;
 
@@ -31,6 +32,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/ping', async (_req: Request, res: Response) => {
     try {
