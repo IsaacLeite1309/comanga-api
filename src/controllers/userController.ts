@@ -141,12 +141,12 @@ async function registerUser(req: Request, res: Response) {
         } catch (mailError) {
             console.error('Erro detalhado no Nodemailer:', mailError);
             return res.status(201).json({
-                message: 'Conta criada, mas nao foi possivel enviar o e-mail de ativacao. Use a opcao de reenvio.',
+                message: 'Conta criada, mas não foi possível enviar o e-mail de ativação. Use a opção de reenvio.',
                 email_sent: false
             });
         }
 
-        return res.status(201).json({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativacao.' });
+        return res.status(201).json({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativação.' });
 
     } catch (error) {
         console.error('ERRO CRÍTICO:', error);
@@ -467,6 +467,53 @@ async function updateUserById(req: Request, res: Response) {
     }
 }
 
+async function deleteOwnAccount(req: Request, res: Response) {
+    try {
+        const { currentPassword } = req.body as { currentPassword?: unknown };
+
+        if (typeof currentPassword !== 'string' || !currentPassword.trim()) {
+            return res.status(400).json({ error: 'Informe sua senha atual.' });
+        }
+
+        const authenticatedUser = getAuthenticatedUser(req);
+        const user = await prisma.user.findUnique({
+            where: { id: authenticatedUser.userId },
+            select: {
+                id: true,
+                passwordHash: true
+            }
+        });
+
+        if (!user) {
+            clearSessionCookie(req, res);
+            return res.status(404).json({ error: 'Usuario nao encontrado.' });
+        }
+
+        const validPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!validPassword) {
+            return res.status(401).json({ error: 'Senha atual incorreta!' });
+        }
+
+        await prisma.user.delete({
+            where: { id: authenticatedUser.userId }
+        });
+
+        clearSessionCookie(req, res);
+
+        return res.status(200).json({ message: 'Conta excluida permanentemente.' });
+
+    } catch (error) {
+        const knownError = error as PrismaKnownError;
+        if (knownError.code === 'P2025') {
+            clearSessionCookie(req, res);
+            return res.status(404).json({ error: 'Usuario nao encontrado.' });
+        }
+
+        console.error('Erro ao excluir conta:', error);
+        return res.status(500).json({ error: 'Erro interno ao tentar excluir a conta.' });
+    }
+}
+
 async function logoutUser(req: Request, res: Response) {
     try {
         const authenticatedSession = getAuthenticatedSession(req);
@@ -500,5 +547,6 @@ export = {
     getOwnUserProfile,
     getUserById,
     updateAdultContent,
-    updateUserById
+    updateUserById,
+    deleteOwnAccount
 };
