@@ -111,6 +111,19 @@ describe('adminController unitario', () => {
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.user.findMany).not.toHaveBeenCalled();
         });
+
+        it('retorna erro interno quando a consulta de usuarios falha', async () => {
+            prisma.$transaction.mockRejectedValue(new Error('falha no banco'));
+            const req = makeReq();
+            const res = makeRes();
+
+            await adminController.listUsers(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Erro interno ao listar usuários.'
+            });
+        });
     });
 
     describe('updateUserRole', () => {
@@ -186,6 +199,22 @@ describe('adminController unitario', () => {
             await adminController.updateUserRole(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
+        });
+
+        it('retorna erro interno quando a atualizacao de nivel falha', async () => {
+            prisma.user.update.mockRejectedValue(new Error('falha inesperada'));
+            const req = makeReq({
+                params: { id: 'user-2' },
+                body: { role: 'Administrador' }
+            });
+            const res = makeRes();
+
+            await adminController.updateUserRole(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Erro interno ao atualizar nível de acesso.'
+            });
         });
     });
 });
