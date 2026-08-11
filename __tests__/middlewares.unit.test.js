@@ -9,11 +9,18 @@ jest.mock('../src/prisma', () => prisma);
 
 const authMiddleware = require('../src/middlewares/authMiddleware');
 const rbacMiddleware = require('../src/middlewares/rbacMiddleware');
+const loginRateLimiter = require('../src/middlewares/loginRateLimiter');
+const errorHandler = require('../src/middlewares/errorHandler');
 
 function makeRes() {
     const res = {
         status: jest.fn(() => res),
-        json: jest.fn(() => res)
+        json: jest.fn(() => res),
+        on: jest.fn((_event, callback) => {
+            res.finishCallback = callback;
+            return res;
+        }),
+        statusCode: 200
     };
 
     return res;
@@ -22,6 +29,7 @@ function makeRes() {
 describe('middlewares unitarios', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        loginRateLimiter.resetLoginRateLimiter();
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -138,6 +146,94 @@ describe('middlewares unitarios', () => {
 
             expect(next).toHaveBeenCalledTimes(1);
             expect(res.status).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('loginRateLimiter', () => {
+        it('bloqueia a sexta tentativa apos cinco falhas de login no mesmo IP', () => {
+            const ip = '198.51.100.10';
+
+            for (let attempt = 0; attempt < loginRateLimiter.LOGIN_FAILURE_LIMIT; attempt += 1) {
+                const req = { ip, socket: {} };
+                const res = makeRes();
+                const next = jest.fn();
+
+                loginRateLimiter.loginRateLimiter(req, res, next);
+                expect(next).toHaveBeenCalledTimes(1);
+
+                res.statusCode = 401;
+                res.finishCallback();
+            }
+
+            const blockedReq = { ip, socket: {} };
+            const blockedRes = makeRes();
+            const blockedNext = jest.fn();
+
+            loginRateLimiter.loginRateLimiter(blockedReq, blockedRes, blockedNext);
+
+            expect(blockedRes.status).toHaveBeenCalledWith(429);
+            expect(blockedRes.json).toHaveBeenCalledWith({
+                error: loginRateLimiter.RATE_LIMIT_MESSAGE,
+                code: 'LOGIN_RATE_LIMITED'
+            });
+            expect(blockedNext).not.toHaveBeenCalled();
+        });
+
+        it('zera tentativas falhas quando o login posterior e bem-sucedido', () => {
+            const ip = '198.51.100.11';
+            const failedReq = { ip, socket: {} };
+            const failedRes = makeRes();
+
+            loginRateLimiter.loginRateLimiter(failedReq, failedRes, jest.fn());
+            failedRes.statusCode = 401;
+            failedRes.finishCallback();
+
+            const successReq = { ip, socket: {} };
+            const successRes = makeRes();
+
+            loginRateLimiter.loginRateLimiter(successReq, successRes, jest.fn());
+            successRes.statusCode = 200;
+            successRes.finishCallback();
+
+            const nextReq = { ip, socket: {} };
+            const nextRes = makeRes();
+            const next = jest.fn();
+
+            loginRateLimiter.loginRateLimiter(nextReq, nextRes, next);
+
+            expect(next).toHaveBeenCalledTimes(1);
+            expect(nextRes.status).not.toHaveBeenCalledWith(429);
+        });
+    });
+
+    describe('errorHandler', () => {
+        it('retorna erro padronizado sem expor stack trace para erro inesperado', () => {
+            const res = makeRes();
+            const error = new Error('falha tecnica sensivel');
+
+            errorHandler(error, {}, res, jest.fn());
+
+            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Erro interno do servidor.',
+                code: 'INTERNAL_SERVER_ERROR'
+            });
+            expect(console.error).toHaveBeenCalled();
+        });
+
+        it('preserva mensagem amigavel e codigo de erros 4XX', () => {
+            const res = makeRes();
+            const error = new Error('Entrada invalida.');
+            error.status = 400;
+            error.code = 'BAD_REQUEST';
+
+            errorHandler(error, {}, res, jest.fn());
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Entrada invalida.',
+                code: 'BAD_REQUEST'
+            });
         });
     });
 });

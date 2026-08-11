@@ -4,6 +4,7 @@ const crypto = require('crypto');
 
 const db = require('../src/database');
 const app = require('../src/app');
+const loginRateLimiter = require('../src/middlewares/loginRateLimiter');
 
 const runId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 const testEmailDomain = 'login-test.local';
@@ -54,10 +55,12 @@ async function deleteTestUsers() {
 
 describe('POST /api/auth/login e middleware de sessao', () => {
     beforeEach(async () => {
+        loginRateLimiter.resetLoginRateLimiter();
         await deleteTestUsers();
     });
 
     afterEach(async () => {
+        loginRateLimiter.resetLoginRateLimiter();
         await deleteTestUsers();
     });
 
@@ -113,6 +116,29 @@ describe('POST /api/auth/login e middleware de sessao', () => {
 
         expect(response.status).toBe(401);
         expect(response.body).toEqual({ error: 'Credenciais inválidas!' });
+    });
+
+    it('bloqueia login por rate limiting apos cinco falhas no mesmo IP', async () => {
+        const user = makeUser();
+        await insertUser(user);
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const response = await request(app)
+                .post('/api/auth/login')
+                .send({ email: user.email, password: 'SenhaErrada123!' });
+
+            expect(response.status).toBe(401);
+        }
+
+        const blockedResponse = await request(app)
+            .post('/api/auth/login')
+            .send({ email: user.email, password: validPassword });
+
+        expect(blockedResponse.status).toBe(429);
+        expect(blockedResponse.body).toEqual({
+            error: loginRateLimiter.RATE_LIMIT_MESSAGE,
+            code: 'LOGIN_RATE_LIMITED'
+        });
     });
 
     it('bloqueia login de conta pendente RN0013', async () => {

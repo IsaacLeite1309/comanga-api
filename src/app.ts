@@ -5,6 +5,7 @@ import prisma from './prisma';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
+import errorHandler from './middlewares/errorHandler';
 
 type PingResult = Array<{ hora_atual: Date }>;
 
@@ -53,5 +54,7 @@ app.get('/ping', async (_req: Request, res: Response) => {
         });
     }
 });
+
+app.use(errorHandler);
 
 export = app;
