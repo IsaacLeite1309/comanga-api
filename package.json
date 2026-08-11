@@ -2,11 +2,14 @@
   "name": "comanga-api",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "start": "node dist/src/server.js",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
     "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "test:coverage:unit": "jest --runInBand app.unit.test.js database.unit.test.js userController.unit.test.js adminController.unit.test.js middlewares.unit.test.js mailer.unit.test.js --coverage",
     "lint": "eslint .",
     "migrate": "prisma migrate deploy",
     "migrate:test": "node scripts/migrate-test-db.js",
@@ -35,10 +38,22 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.0.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.0",
     "eslint": "^10.4.1",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "prisma": "^6.19.0",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.11",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
   }
 }

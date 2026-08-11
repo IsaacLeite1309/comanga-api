@@ -1,35 +1,58 @@
-// src/utils/mailer.js
-const nodemailer = require('nodemailer');
+import dns from 'node:dns';
+import nodemailer from 'nodemailer';
 
-function getRequiredSmtpConfig() {
+dns.setDefaultResultOrder('ipv4first');
+
+interface SmtpConfigError extends Error {
+    code?: string;
+}
+
+async function resolveSmtpHost(host: string): Promise<string> {
+    try {
+        const addresses = await dns.promises.resolve4(host);
+        return addresses[0] || host;
+    } catch (error) {
+        console.error('Nao foi possivel resolver IPv4 do SMTP, usando host original:', error);
+        return host;
+    }
+}
+
+async function getRequiredSmtpConfig() {
     const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
+    const secure = SMTP_SECURE === 'true';
 
     if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-        const error = new Error('Servico de e-mail nao configurado.');
+        const error: SmtpConfigError = new Error('Servico de e-mail nao configurado.');
         error.code = 'SMTP_NOT_CONFIGURED';
         throw error;
     }
 
+    const smtpHost = await resolveSmtpHost(SMTP_HOST);
+
     return {
-        host: SMTP_HOST,
+        host: smtpHost,
         port: Number(SMTP_PORT || 587),
-        secure: SMTP_SECURE === 'true',
+        secure,
+        requireTLS: !secure,
         auth: {
             user: SMTP_USER,
             pass: SMTP_PASS
         },
+        tls: {
+            servername: SMTP_HOST
+        },
+        family: 4,
         connectionTimeout: 30000,
         greetingTimeout: 30000,
         socketTimeout: 30000
     };
 }
 
-function createTransporter() {
-    return nodemailer.createTransport(getRequiredSmtpConfig());
+async function createTransporter() {
+    return nodemailer.createTransport(await getRequiredSmtpConfig());
 }
 
-exports.sendActivationEmail = async (toEmail, username, token) => {
-    // Em produção, isso apontaria para a URL do Front-end (React)
+async function sendActivationEmail(toEmail: string, username: string, token: string): Promise<void> {
     const frontendUrl = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:8080')
         .split(',')[0]
         .trim()
@@ -48,5 +71,10 @@ exports.sendActivationEmail = async (toEmail, username, token) => {
         `
     };
 
-    await createTransporter().sendMail(mailOptions);
+    const transporter = await createTransporter();
+    await transporter.sendMail(mailOptions);
+}
+
+export = {
+    sendActivationEmail
 };
