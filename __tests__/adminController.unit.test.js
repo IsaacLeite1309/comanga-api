@@ -180,17 +180,17 @@ describe('adminController unitario', () => {
             expect(prisma.user.findMany).not.toHaveBeenCalled();
         });
 
-        it('retorna erro interno quando a consulta de usuarios falha', async () => {
-            prisma.$transaction.mockRejectedValue(new Error('falha no banco'));
+        it('encaminha falha inesperada da consulta de usuarios ao handler global', async () => {
+            const error = new Error('falha no banco');
+            prisma.$transaction.mockRejectedValue(error);
             const req = makeReq();
             const res = makeRes();
+            const next = jest.fn();
 
-            await adminController.listUsers(req, res);
+            await adminController.listUsers(req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith({
-                error: 'Erro interno ao listar usuários.'
-            });
+            expect(next).toHaveBeenCalledWith(error);
+            expect(res.status).not.toHaveBeenCalledWith(500);
         });
     });
 
@@ -269,20 +269,20 @@ describe('adminController unitario', () => {
             expect(res.status).toHaveBeenCalledWith(404);
         });
 
-        it('retorna erro interno quando a atualizacao de nivel falha', async () => {
-            prisma.user.update.mockRejectedValue(new Error('falha inesperada'));
+        it('encaminha falha inesperada da atualizacao de nivel ao handler global', async () => {
+            const error = new Error('falha inesperada');
+            prisma.user.update.mockRejectedValue(error);
             const req = makeReq({
                 params: { id: 'user-2' },
                 body: { role: 'Administrador' }
             });
             const res = makeRes();
+            const next = jest.fn();
 
-            await adminController.updateUserRole(req, res);
+            await adminController.updateUserRole(req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith({
-                error: 'Erro interno ao atualizar nível de acesso.'
-            });
+            expect(next).toHaveBeenCalledWith(error);
+            expect(res.status).not.toHaveBeenCalledWith(500);
         });
     });
 
@@ -290,7 +290,7 @@ describe('adminController unitario', () => {
         const category = {
             id: 1,
             slug: 'generos',
-            name: 'GÃªneros'
+            name: 'Gêneros'
         };
 
         it('lista valores ativos de uma categoria em ordem alfabetica', async () => {
@@ -338,7 +338,7 @@ describe('adminController unitario', () => {
             expect(res.json).toHaveBeenCalledWith({
                 category: {
                     slug: 'generos',
-                    name: 'GÃªneros'
+                    name: 'Gêneros'
                 },
                 values: [
                     {
@@ -346,7 +346,7 @@ describe('adminController unitario', () => {
                         label: 'Ação',
                         category: {
                             slug: 'generos',
-                            name: 'GÃªneros'
+                            name: 'Gêneros'
                         },
                         depends_on: []
                     }
@@ -807,6 +807,7 @@ describe('adminController unitario', () => {
     describe('obras administrativas', () => {
         const work = {
             id: 1,
+            slug: 'naruto',
             title: 'Naruto',
             originalTitle: 'Naruto',
             originalPublicationStartYear: 1999,
@@ -818,7 +819,6 @@ describe('adminController unitario', () => {
             coverUrl: 'https://cdn.comanga.test/naruto.jpg',
             type: { id: 1, label: 'Mangá' },
             country: 'Japão',
-            originalPublisher: { id: 9, label: 'Shueisha' },
             originalPublishers: [
                 { position: 0, publisher: { id: 9, label: 'Shueisha' } },
                 { position: 1, publisher: { id: 10, label: 'Shogakukan' } }
@@ -854,7 +854,7 @@ describe('adminController unitario', () => {
         function mockExistingWorkForUpdate(overrides = {}) {
             return {
                 id: 1,
-                country: 'JapÃƒÂ£o',
+                country: 'Japão',
                 typeId: 1,
                 authors: [{ authorId: 4 }, { authorId: 11 }],
                 originalPublishers: [{ publisherId: 9 }, { publisherId: 10 }],
@@ -906,11 +906,11 @@ describe('adminController unitario', () => {
 
             expect(prisma.work.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
+                    slug: 'naruto',
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
                     originalPublicationStatus: 'Completo',
-                    originalPublisherId: 10,
                     originalPublishers: {
                         createMany: {
                             data: [{ publisherId: 10, position: 0 }, { publisherId: 9, position: 1 }]
@@ -933,6 +933,7 @@ describe('adminController unitario', () => {
                     }
                 })
             }));
+            expect(prisma.work.create.mock.calls[0][0].data).not.toHaveProperty('originalPublisherId');
             expect(prisma.workAuthorRole.createMany).toHaveBeenCalledWith({
                 data: [
                     { workId: 1, authorId: 4, role: 'História e Arte' },
@@ -959,6 +960,34 @@ describe('adminController unitario', () => {
                     ]
                 })
             }));
+        });
+
+        it('consulta uma obra diretamente pelo slug sem executar listagem auxiliar', async () => {
+            prisma.work.findUnique.mockResolvedValue(work);
+            const req = makeReq({ params: { slug: 'naruto' } });
+            const res = makeRes();
+
+            await adminController.getWorkBySlug(req, res, jest.fn());
+
+            expect(prisma.work.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+                where: { slug: 'naruto' }
+            }));
+            expect(prisma.work.findMany).not.toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith({
+                work: expect.objectContaining({ slug: 'naruto', title: 'Naruto' })
+            });
+        });
+
+        it('retorna 404 seguro ao consultar slug inexistente', async () => {
+            prisma.work.findUnique.mockResolvedValue(null);
+            const req = makeReq({ params: { slug: 'obra-inexistente' } });
+            const res = makeRes();
+
+            await adminController.getWorkBySlug(req, res, jest.fn());
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Obra não encontrada.' });
         });
 
         it('bloqueia autor duplicado mesmo com papeis diferentes antes de consultar o banco', async () => {
@@ -1038,6 +1067,25 @@ describe('adminController unitario', () => {
             expect(prisma.work.findFirst).not.toHaveBeenCalled();
         });
 
+        it('rejeita o campo singular legado de Editora original', async () => {
+            const req = makeReq({
+                body: {
+                    title: 'Naruto',
+                    typeId: 1,
+                    country: 'Japão',
+                    originalPublisherId: 9,
+                    originalPublicationStatus: 'Completo',
+                    authors: [{ authorId: 4, roles: ['História e Arte'] }]
+                }
+            });
+            const res = makeRes();
+
+            await adminController.createWork(req, res, jest.fn());
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(prisma.work.findFirst).not.toHaveBeenCalled();
+        });
+
         it('lista obras com filtros e limite maximo de 50', async () => {
             prisma.$transaction.mockResolvedValue([[work], 1]);
             const req = makeReq({
@@ -1111,6 +1159,7 @@ describe('adminController unitario', () => {
                 where: { id: 1 },
                 data: { title: 'Naruto - Edicao Revisada' }
             }));
+            expect(prisma.work.update.mock.calls[0][0].data).not.toHaveProperty('slug');
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
@@ -1206,7 +1255,6 @@ describe('adminController unitario', () => {
                 .mockResolvedValueOnce(mockExistingWorkForUpdate())
                 .mockResolvedValueOnce({
                     ...work,
-                    originalPublisher: { id: 10, label: 'Shogakukan' },
                     originalPublishers: [
                         { position: 0, publisher: { id: 10, label: 'Shogakukan' } },
                         { position: 1, publisher: { id: 9, label: 'Shueisha' } }
@@ -1231,9 +1279,9 @@ describe('adminController unitario', () => {
             await adminController.updateWork(req, res);
 
             expect(prisma.work.update).toHaveBeenCalledWith(expect.objectContaining({
-                where: { id: 1 },
-                data: { originalPublisherId: 10 }
+                where: { id: 1 }
             }));
+            expect(prisma.work.update.mock.calls[0][0].data).not.toHaveProperty('originalPublisherId');
             expect(prisma.workOriginalPublisher.deleteMany).toHaveBeenCalledWith({ where: { workId: 1 } });
             expect(prisma.workOriginalPublisher.createMany).toHaveBeenCalledWith({
                 data: [
@@ -1676,7 +1724,7 @@ describe('adminController unitario', () => {
         });
 
         it('bloqueia exclusão de volume publico', async () => {
-            prisma.volume.findUnique.mockResolvedValue({ id: 30, visibility: 'PÃƒÂºblico' });
+            prisma.volume.findUnique.mockResolvedValue({ id: 30, visibility: 'Público' });
             const req = makeReq({ params: { id: '30' } });
             const res = makeRes();
 
@@ -1831,16 +1879,15 @@ describe('adminController unitario', () => {
             ['getVolumeById', { params: { id: '30' } }, () => prisma.volume.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateVolume', { params: { id: '30' }, body: { pages: 200 } }, () => prisma.volume.findUnique.mockRejectedValue(new Error('falha'))],
             ['deleteVolume', { params: { id: '30' } }, () => prisma.volume.findUnique.mockRejectedValue(new Error('falha'))]
-        ])('padroniza falha interna em %s', async (handlerName, request, arrange) => {
+        ])('encaminha falha interna de %s ao handler global', async (handlerName, request, arrange) => {
             arrange();
             const res = makeRes();
+            const next = jest.fn();
 
-            await adminController[handlerName](makeReq(request), res);
+            await adminController[handlerName](makeReq(request), res, next);
 
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                error: expect.stringContaining('Erro interno')
-            }));
+            expect(next).toHaveBeenCalledWith(expect.any(Error));
+            expect(res.status).not.toHaveBeenCalledWith(500);
         });
 
         it('consulta e atualiza uma edicao existente', async () => {

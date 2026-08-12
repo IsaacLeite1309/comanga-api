@@ -1,6 +1,25 @@
 require('dotenv').config();
 const { spawnSync } = require('child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 const { Pool } = require('pg');
+
+const INTEGRITY_MIGRATION_PATH = path.join(
+    __dirname,
+    '..',
+    'prisma',
+    'migrations',
+    '20260811120000_sanitize_domain_values_and_remove_legacy_publisher',
+    'migration.sql'
+);
+const SLUG_MIGRATION_PATH = path.join(
+    __dirname,
+    '..',
+    'prisma',
+    'migrations',
+    '20260811150000_add_work_slugs',
+    'migration.sql'
+);
 
 if (!process.env.DATABASE_URL_TEST) {
     throw new Error('DATABASE_URL_TEST nao configurada.');
@@ -67,6 +86,24 @@ async function seedDomainOptions() {
     }
 }
 
+async function applyIntegrityMigration() {
+    const pool = new Pool({
+        connectionString: process.env.DATABASE_URL_TEST,
+        ssl: process.env.DATABASE_SSL === 'false'
+            ? false
+            : { rejectUnauthorized: false }
+    });
+
+    try {
+        for (const migrationPath of [INTEGRITY_MIGRATION_PATH, SLUG_MIGRATION_PATH]) {
+            const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+            await pool.query(migrationSql);
+        }
+    } finally {
+        await pool.end();
+    }
+}
+
 async function run() {
     await ensureUuidExtension();
 
@@ -88,6 +125,7 @@ async function run() {
         process.exit(result.status ?? 1);
     }
 
+    await applyIntegrityMigration();
     await seedDomainOptions();
     process.exit(0);
 }

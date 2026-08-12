@@ -6,6 +6,11 @@ import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
 import errorHandler from './middlewares/errorHandler';
+import requestContext from './middlewares/requestContext';
+import requestLogger from './middlewares/requestLogger';
+import notFoundHandler from './middlewares/notFoundHandler';
+import ApplicationError from './errors/ApplicationError';
+import healthRouter from './infrastructure/operations/healthRouter';
 
 type PingResult = Array<{ hora_atual: Date }>;
 
@@ -23,13 +28,23 @@ const corsOptions: CorsOptions = {
             return callback(null, true);
         }
 
-        return callback(new Error('Origem nao permitida pelo CORS.'));
+        return callback(new ApplicationError({
+            statusCode: 403,
+            code: 'CORS_ORIGIN_DENIED',
+            message: 'Origem não permitida pelo CORS.'
+        }));
     },
     credentials: true
 };
 
+app.use(requestContext);
+if (process.env.NODE_ENV !== 'test' || process.env.REQUEST_LOGGING_ENABLED === 'true') {
+    app.use(requestLogger);
+}
 app.use(cors(corsOptions));
 app.use(express.json());
+
+app.use('/health', healthRouter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -45,16 +60,16 @@ app.get('/ping', async (_req: Request, res: Response) => {
             database_time: result[0].hora_atual
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Erro desconhecido.';
-        console.error('Erro na conexao com o banco:', error);
-        res.status(500).json({
-            status: 'Erro Critico',
-            message: 'API online, mas o Banco de Dados falhou.',
-            error: message
+        throw new ApplicationError({
+            statusCode: 500,
+            code: 'DATABASE_UNAVAILABLE',
+            message: 'Banco de dados indisponível.',
+            cause: error
         });
     }
 });
 
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 export = app;
