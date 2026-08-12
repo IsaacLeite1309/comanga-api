@@ -3,6 +3,7 @@ import type { Session } from '@prisma/client';
 declare global {
     namespace Express {
         interface Request {
+            requestId?: string;
             user?: {
                 userId: string;
                 username: string;

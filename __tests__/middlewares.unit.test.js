@@ -1,7 +1,7 @@
 const prisma = {
     session: {
         findFirst: jest.fn(),
-        update: jest.fn()
+        updateMany: jest.fn()
     }
 };
 
@@ -69,7 +69,7 @@ describe('middlewares unitarios', () => {
                     id: 'user-1',
                     username: 'isaac',
                     email: 'user@teste.local',
-                    nivelAcesso: 'UsuÃ¡rio PadrÃ£o',
+                    nivelAcesso: 'Usuário Padrão',
                     status: 'Pendente'
                 }
             });
@@ -86,27 +86,50 @@ describe('middlewares unitarios', () => {
         it('injeta usuario e sessao quando a sessao e valida', async () => {
             prisma.session.findFirst.mockResolvedValue({
                 id: 1,
+                lastUsedAt: new Date(0),
                 user: {
                     id: 'user-1',
                     username: 'isaac',
                     email: 'user@teste.local',
-                    nivelAcesso: 'UsuÃ¡rio PadrÃ£o',
+                    nivelAcesso: 'Usuário Padrão',
                     status: 'Ativada'
                 }
             });
-            prisma.session.update.mockResolvedValue({});
+            prisma.session.updateMany.mockResolvedValue({ count: 1 });
             const req = { headers: { cookie: 'tema=dark; comanga_session=abc123' } };
             const res = makeRes();
             const next = jest.fn();
 
             await authMiddleware(req, res, next);
 
-            expect(prisma.session.update).toHaveBeenCalledWith(expect.objectContaining({
-                where: { id: 1 },
+            expect(prisma.session.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+                where: expect.objectContaining({ id: 1 }),
                 data: { lastUsedAt: expect.any(Date) }
             }));
-            expect(req.user).toEqual(expect.objectContaining({ userId: 'user-1', role: 'UsuÃ¡rio PadrÃ£o' }));
+            expect(req.user).toEqual(expect.objectContaining({ userId: 'user-1', role: 'Usuário Padrão' }));
             expect(req.session).toEqual(expect.objectContaining({ id: 1, tokenHash: expect.any(String) }));
+            expect(next).toHaveBeenCalledTimes(1);
+        });
+
+        it('nao regrava lastUsedAt quando a sessao foi usada recentemente', async () => {
+            prisma.session.findFirst.mockResolvedValue({
+                id: 1,
+                lastUsedAt: new Date(),
+                user: {
+                    id: 'user-1',
+                    username: 'isaac',
+                    email: 'user@teste.local',
+                    nivelAcesso: 'Administrador',
+                    status: 'Ativada'
+                }
+            });
+            const req = { headers: { cookie: 'comanga_session=abc123' } };
+            const res = makeRes();
+            const next = jest.fn();
+
+            await authMiddleware(req, res, next);
+
+            expect(prisma.session.updateMany).not.toHaveBeenCalled();
             expect(next).toHaveBeenCalledTimes(1);
         });
 
@@ -125,7 +148,7 @@ describe('middlewares unitarios', () => {
 
     describe('rbacMiddleware', () => {
         it('bloqueia usuario sem role permitida', () => {
-            const req = { user: { role: 'UsuÃ¡rio PadrÃ£o' } };
+            const req = { user: { role: 'Usuário Padrão' } };
             const res = makeRes();
             const next = jest.fn();
             const middleware = rbacMiddleware.requireRole('Administrador');
@@ -210,15 +233,33 @@ describe('middlewares unitarios', () => {
         it('retorna erro padronizado sem expor stack trace para erro inesperado', () => {
             const res = makeRes();
             const error = new Error('falha tecnica sensivel');
+            const req = {
+                method: 'GET',
+                originalUrl: '/api/admin/works',
+                requestId: 'req-test-123'
+            };
 
-            errorHandler(error, {}, res, jest.fn());
+            errorHandler(error, req, res, jest.fn());
 
             expect(res.status).toHaveBeenCalledWith(500);
             expect(res.json).toHaveBeenCalledWith({
                 error: 'Erro interno do servidor.',
                 code: 'INTERNAL_SERVER_ERROR'
             });
-            expect(console.error).toHaveBeenCalled();
+            expect(console.error).toHaveBeenCalledTimes(1);
+            const loggedError = JSON.parse(console.error.mock.calls[0][0]);
+            expect(loggedError).toEqual(expect.objectContaining({
+                level: 'error',
+                event: 'api.unhandled_error',
+                method: 'GET',
+                route: '/api/admin/works',
+                requestId: 'req-test-123',
+                timestamp: expect.any(String),
+                error: expect.objectContaining({
+                    name: 'Error',
+                    message: 'falha tecnica sensivel'
+                })
+            }));
         });
 
         it('preserva mensagem amigavel e codigo de erros 4XX', () => {

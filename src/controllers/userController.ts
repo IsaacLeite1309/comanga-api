@@ -1,9 +1,9 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import type { CookieOptions, Request, Response } from 'express';
+import type { CookieOptions, NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../prisma';
-import mailer from '../utils/mailer';
+import { authNotificationService } from '../infrastructure/container';
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
 const ACCESS_DENIED_MESSAGE = 'Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil.';
@@ -81,7 +81,7 @@ const registerSchema = z.object({
     path: ['confirmPassword']
 });
 
-async function registerUser(req: Request, res: Response) {
+async function registerUser(req: Request, res: Response, next: NextFunction) {
     try {
         const validation = registerSchema.safeParse(req.body);
 
@@ -137,7 +137,11 @@ async function registerUser(req: Request, res: Response) {
         });
 
         try {
-            await mailer.sendActivationEmail(email, username, activationToken);
+            await authNotificationService.sendActivationEmail({
+                toEmail: email,
+                username,
+                token: activationToken
+            });
         } catch (mailError) {
             console.error('Erro detalhado no Nodemailer:', mailError);
             return res.status(201).json({
@@ -149,12 +153,11 @@ async function registerUser(req: Request, res: Response) {
         return res.status(201).json({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativação.' });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function activateAccount(req: Request, res: Response) {
+async function activateAccount(req: Request, res: Response, next: NextFunction) {
     const token = String(req.params.token);
 
     try {
@@ -198,12 +201,11 @@ async function activateAccount(req: Request, res: Response) {
         });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO NA ATIVAÇÃO:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function resendActivation(req: Request, res: Response) {
+async function resendActivation(req: Request, res: Response, next: NextFunction) {
     const { email } = req.body as { email?: string };
 
     if (!email) {
@@ -240,21 +242,27 @@ async function resendActivation(req: Request, res: Response) {
         });
 
         try {
-            await mailer.sendActivationEmail(email, user.username, newActivationToken);
+            await authNotificationService.sendActivationEmail({
+                toEmail: email,
+                username: user.username,
+                token: newActivationToken
+            });
         } catch (mailError) {
             console.error('Erro detalhado no Nodemailer (Reenvio):', mailError);
-            return res.status(500).json({ error: 'Erro ao tentar enviar o e-mail.' });
+            return res.status(502).json({
+                error: 'Erro ao tentar enviar o e-mail.',
+                code: 'ACTIVATION_EMAIL_DELIVERY_FAILED'
+            });
         }
 
         return res.status(200).json({ message: 'Novo link de ativação enviado com sucesso para o seu e-mail!' });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO NO REENVIO:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function loginUser(req: Request, res: Response) {
+async function loginUser(req: Request, res: Response, next: NextFunction) {
     const { email, password } = req.body as { email?: string; password?: string };
 
     if (!email || !password) {
@@ -314,12 +322,11 @@ async function loginUser(req: Request, res: Response) {
         });
 
     } catch (error) {
-        console.error('ERRO CRÍTICO NO LOGIN:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function getUserProfile(req: Request, res: Response) {
+async function getUserProfile(req: Request, res: Response, next: NextFunction) {
     try {
         const authenticatedUser = getAuthenticatedUser(req);
         const user = await prisma.user.findUnique({
@@ -340,12 +347,11 @@ async function getUserProfile(req: Request, res: Response) {
         return res.status(200).json({ user: toUserResponse(user) });
 
     } catch (error) {
-        console.error('Erro ao buscar perfil (/me):', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function getOwnUserProfile(req: Request, res: Response) {
+async function getOwnUserProfile(req: Request, res: Response, next: NextFunction) {
     try {
         const authenticatedUser = getAuthenticatedUser(req);
         const user = await prisma.user.findUnique({
@@ -370,12 +376,11 @@ async function getOwnUserProfile(req: Request, res: Response) {
         });
 
     } catch (error) {
-        console.error('Erro ao buscar perfil (/users/me):', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function getUserById(req: Request, res: Response) {
+async function getUserById(req: Request, res: Response, next: NextFunction) {
     try {
         const authenticatedUser = getAuthenticatedUser(req);
         const targetId = String(req.params.id);
@@ -410,12 +415,11 @@ async function getUserById(req: Request, res: Response) {
         });
 
     } catch (error) {
-        console.error('Erro ao buscar perfil por ID:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function updateAdultContent(req: Request, res: Response) {
+async function updateAdultContent(req: Request, res: Response, next: NextFunction) {
     try {
         const { conteudo_adulto } = req.body as { conteudo_adulto?: unknown };
 
@@ -443,12 +447,11 @@ async function updateAdultContent(req: Request, res: Response) {
             return res.status(404).json({ error: 'Usuário não encontrado no banco de dados.' });
         }
 
-        console.error('Erro ao atualizar preferência +18:', error);
-        return res.status(500).json({ error: 'Erro interno do servidor.' });
+        return next(error);
     }
 }
 
-async function updateUserById(req: Request, res: Response) {
+async function updateUserById(req: Request, res: Response, next: NextFunction) {
     try {
         const authenticatedUser = getAuthenticatedUser(req);
         const targetId = String(req.params.id);
@@ -462,12 +465,11 @@ async function updateUserById(req: Request, res: Response) {
         return res.status(200).json({ message: 'Permissão concedida. Rota de atualização genérica em construção.' });
 
     } catch (error) {
-        console.error('Erro na trava IDOR de atualização:', error);
-        return res.status(500).json({ error: 'Erro interno.' });
+        return next(error);
     }
 }
 
-async function deleteOwnAccount(req: Request, res: Response) {
+async function deleteOwnAccount(req: Request, res: Response, next: NextFunction) {
     try {
         const { currentPassword } = req.body as { currentPassword?: unknown };
 
@@ -509,12 +511,11 @@ async function deleteOwnAccount(req: Request, res: Response) {
             return res.status(404).json({ error: 'Usuario nao encontrado.' });
         }
 
-        console.error('Erro ao excluir conta:', error);
-        return res.status(500).json({ error: 'Erro interno ao tentar excluir a conta.' });
+        return next(error);
     }
 }
 
-async function logoutUser(req: Request, res: Response) {
+async function logoutUser(req: Request, res: Response, next: NextFunction) {
     try {
         const authenticatedSession = getAuthenticatedSession(req);
         await prisma.session.updateMany({
@@ -532,8 +533,7 @@ async function logoutUser(req: Request, res: Response) {
         return res.status(200).json({ message: 'Sessão encerrada com sucesso.' });
 
     } catch (error) {
-        console.error('Erro no logout:', error);
-        return res.status(500).json({ error: 'Erro interno ao tentar encerrar a sessão.' });
+        return next(error);
     }
 }
 

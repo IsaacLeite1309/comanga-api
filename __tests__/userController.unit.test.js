@@ -236,7 +236,11 @@ describe('userController unitario', () => {
 
             await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
-            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.status).toHaveBeenCalledWith(502);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Erro ao tentar enviar o e-mail.',
+                code: 'ACTIVATION_EMAIL_DELIVERY_FAILED'
+            });
         });
     });
 
@@ -264,7 +268,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Ativada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
             const res = makeRes();
@@ -280,7 +284,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Pendente',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
             const res = makeRes();
@@ -296,7 +300,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Bloqueada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
             const res = makeRes();
@@ -312,7 +316,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Ativada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             prisma.session.create.mockResolvedValue({});
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
@@ -336,7 +340,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 email: 'user@teste.local',
                 conteudoAdulto: false,
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
@@ -404,7 +408,7 @@ describe('userController unitario', () => {
                 email: 'user@teste.local',
                 conteudoAdulto: false,
                 status: 'Ativada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             const req = makeReq({
                 params: { id: 'user-2' },

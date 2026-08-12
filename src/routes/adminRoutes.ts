@@ -12,10 +12,15 @@ router.get('/options/:category', authMiddleware, requireAdmin, adminController.l
 router.post('/options', authMiddleware, requireAdmin, adminController.createOption);
 router.patch('/options/:id', authMiddleware, requireAdmin, adminController.updateOption);
 router.delete('/options/:id', authMiddleware, requireAdmin, adminController.deleteOption);
+router.post('/media/poc/covers', authMiddleware, requireAdmin, adminController.importCover);
+router.put('/media/poc/covers', authMiddleware, requireAdmin, adminController.replaceCover);
+router.delete('/media/poc/covers', authMiddleware, requireAdmin, adminController.deleteCover);
+router.get('/media/poc/metrics', authMiddleware, requireAdmin, adminController.getMetrics);
 router.get('/works/form-options', authMiddleware, requireAdmin, adminController.getWorkFormOptions);
 router.get('/editions/form-options', authMiddleware, requireAdmin, adminController.getEditionFormOptions);
 router.get('/works', authMiddleware, requireAdmin, adminController.listWorks);
 router.post('/works', authMiddleware, requireAdmin, adminController.createWork);
+router.get('/works/slug/:slug', authMiddleware, requireAdmin, adminController.getWorkBySlug);
 router.post('/works/:workId/editions', authMiddleware, requireAdmin, adminController.createEdition);
 router.get('/works/:workId/editions', authMiddleware, requireAdmin, adminController.listEditionsByWork);
 router.post('/editions/:editionId/volumes', authMiddleware, requireAdmin, adminController.createVolume);

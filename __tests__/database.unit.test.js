@@ -33,7 +33,10 @@ describe('database helper unitario', () => {
 
         expect(poolInstances[0].config).toEqual(expect.objectContaining({
             connectionString: 'postgres://user:pass@localhost:5432/testdb',
-            ssl: false
+            ssl: false,
+            max: 5,
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 10000
         }));
         expect(poolInstances[0].query).toHaveBeenCalledWith('SELECT 1', [1]);
     });
@@ -53,6 +56,20 @@ describe('database helper unitario', () => {
         require('../src/database');
 
         expect(poolInstances[0].config.ssl).toBe(false);
+    });
+
+    it('permite ajustar o pool auxiliar por variaveis de ambiente', () => {
+        process.env.PG_POOL_MAX = '3';
+        process.env.PG_POOL_CONNECTION_TIMEOUT_MS = '2500';
+        process.env.PG_POOL_IDLE_TIMEOUT_MS = '4000';
+
+        require('../src/database');
+
+        expect(poolInstances[0].config).toEqual(expect.objectContaining({
+            max: 3,
+            connectionTimeoutMillis: 2500,
+            idleTimeoutMillis: 4000
+        }));
     });
 
     it('falha quando DATABASE_URL_TEST nao esta configurada em teste', () => {
