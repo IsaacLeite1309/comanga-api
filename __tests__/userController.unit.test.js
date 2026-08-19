@@ -127,6 +127,44 @@ describe('userController unitario', () => {
             );
             expect(res.status).toHaveBeenCalledWith(201);
         });
+
+        it('traduz conflito UNIQUE concorrente do Prisma para HTTP 409', async () => {
+            prisma.user.findFirst.mockResolvedValue(null);
+            prisma.user.create.mockRejectedValue({
+                code: 'P2002',
+                meta: { target: ['email'] }
+            });
+            const req = makeReq({ body: validBody });
+            const res = makeRes();
+
+            await userController.registerUser(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.',
+                field: 'email'
+            });
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+        });
+
+        it('identifica username no conflito UNIQUE concorrente do Prisma', async () => {
+            prisma.user.findFirst.mockResolvedValue(null);
+            prisma.user.create.mockRejectedValue({
+                code: 'P2002',
+                meta: { target: ['username'] }
+            });
+            const req = makeReq({ body: validBody });
+            const res = makeRes();
+
+            await userController.registerUser(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Este nome de usuário não está disponível. Por favor, escolha outro.',
+                field: 'username'
+            });
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+        });
     });
 
     describe('activateAccount', () => {
@@ -137,7 +175,7 @@ describe('userController unitario', () => {
                         id: 'user-1',
                         activationExpiresAt: new Date(Date.now() + 1000)
                     }),
-                    update: jest.fn().mockResolvedValue({})
+                    updateMany: jest.fn().mockResolvedValue({ count: 1 })
                 }
             };
             prisma.$transaction.mockImplementation((callback) => callback(tx));
@@ -146,11 +184,30 @@ describe('userController unitario', () => {
 
             await userController.activateAccount(req, res);
 
-            expect(tx.user.update).toHaveBeenCalledWith(expect.objectContaining({
-                where: { id: 'user-1' },
+            expect(tx.user.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+                where: expect.objectContaining({ id: 'user-1', activationToken: 'token-valido' }),
                 data: expect.objectContaining({ status: 'Ativada', activationToken: null })
             }));
             expect(res.status).toHaveBeenCalledWith(200);
+        });
+
+        it('rejeita token perdido em corrida concorrente quando nenhuma linha e atualizada', async () => {
+            prisma.$transaction.mockImplementation((callback) => callback({
+                user: {
+                    findFirst: jest.fn().mockResolvedValue({
+                        id: 'user-1',
+                        activationExpiresAt: new Date(Date.now() + 1000)
+                    }),
+                    updateMany: jest.fn().mockResolvedValue({ count: 0 })
+                }
+            }));
+            const req = makeReq({ params: { token: 'token-concorrente' } });
+            const res = makeRes();
+
+            await userController.activateAccount(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Link de ativação inválido!' });
         });
 
         it('rejeita token inexistente', async () => {
@@ -211,6 +268,20 @@ describe('userController unitario', () => {
             await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
+        });
+
+        it('rejeita reenvio para conta bloqueada', async () => {
+            prisma.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'isaac', status: 'Bloqueada' });
+            const res = makeRes();
+
+            await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Somente contas pendentes podem solicitar um novo link de ativação.'
+            });
+            expect(prisma.user.update).not.toHaveBeenCalled();
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
         });
 
         it('renova token e envia novo e-mail', async () => {

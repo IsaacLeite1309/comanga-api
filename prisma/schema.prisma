@@ -65,6 +65,7 @@ model DomainOptionValue {
   editionsAsFormat Edition[] @relation("EditionFormat")
 
   @@index([categoryId, label], map: "idx_domain_option_values_category_label")
+  @@index([label(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_domain_option_values_label_trgm")
   @@map("domain_option_values")
 }
 
@@ -105,10 +106,14 @@ model Work {
   editions Edition[]
 
   @@index([title], map: "idx_works_title")
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_title_trgm")
+  @@index([originalTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_original_title_trgm")
   @@index([typeId], map: "idx_works_type")
   @@index([country], map: "idx_works_country")
   @@index([originalPublicationStatus], map: "idx_works_original_publication_status")
   @@index([visibility], map: "idx_works_visibility")
+  @@index([visibility, adultContent, typeId, country, id], map: "idx_works_public_filters")
+  @@index([visibility, title, id], map: "idx_works_visibility_title")
   @@map("works")
 }
 
@@ -135,6 +140,9 @@ model Edition {
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
   @@index([workId, chronologicalNumber], map: "idx_editions_work_chronological")
   @@index([visibility], map: "idx_editions_visibility")
+  @@index([visibility, brazilianPublisherId, id], map: "idx_editions_visibility_publisher")
+  @@index([visibility, formatId, id], map: "idx_editions_visibility_format")
+  @@index([visibility, coverTypeId, id], map: "idx_editions_visibility_cover_type")
   @@map("editions")
 }
 
@@ -147,7 +155,7 @@ model Volume {
   pages Int?
   price Decimal? @db.Decimal(10, 2)
   priceCurrency String @default("R$") @map("price_currency") @db.VarChar(10)
-  releaseDatePrecision String @default("Desconhecida") @map("release_date_precision") @db.VarChar(20)
+  releaseDatePrecision String @default("Completa") @map("release_date_precision") @db.VarChar(20)
   releaseYear Int? @map("release_year")
   releaseMonth Int? @map("release_month")
   releaseDay Int? @map("release_day")
@@ -163,6 +171,7 @@ model Volume {
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")
   @@index([visibility], map: "idx_volumes_visibility")
+  @@index([visibility, releaseYear, releaseMonth, releaseDay, id, editionId], map: "idx_volumes_calendar_release")
   @@map("volumes")
 }
 
@@ -188,6 +197,7 @@ model WorkAuthor {
 
   @@id([workId, authorId])
   @@index([authorId], map: "idx_work_authors_author")
+  @@index([authorId, workId], map: "idx_work_authors_author_work")
   @@map("work_authors")
 }
 
@@ -209,6 +219,7 @@ model WorkGenre {
 
   @@id([workId, genreId])
   @@index([genreId], map: "idx_work_genres_genre")
+  @@index([genreId, workId], map: "idx_work_genres_genre_work")
   @@map("work_genres")
 }
 
@@ -219,6 +230,7 @@ model WorkDemography {
 
   @@id([workId, demography])
   @@index([demography], map: "idx_work_demographies_demography")
+  @@index([demography, workId], map: "idx_work_demographies_demography_work")
   @@map("work_demographies")
 }
 

@@ -2,10 +2,17 @@ import prisma from '../../prisma';
 import {
     COUNTRY_CATEGORY_SLUG,
     COUNTRY_DEPENDENCY_REQUIRED_MESSAGE,
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS
+    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
+    MANAGEABLE_OPTION_CATEGORY_SLUGS
 } from './constants';
 
+function isManageableOptionCategory(slug: string) {
+    return MANAGEABLE_OPTION_CATEGORY_SLUGS.has(slug);
+}
+
 async function findCategoryBySlug(slug: string) {
+    if (!isManageableOptionCategory(slug)) return null;
+
     return prisma.domainOptionCategory.findUnique({
         where: { slug }
     });
@@ -178,6 +185,7 @@ async function validateSelectedOptionsByCountry(
 }
 
 export {
+    isManageableOptionCategory,
     findCategoryBySlug,
     optionLabelExists,
     parseOptionLabels,

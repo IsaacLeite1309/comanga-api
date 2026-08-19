@@ -13,6 +13,7 @@ import {
     createOptionSchema,
     updateOptionSchema,
     findCategoryBySlug,
+    isManageableOptionCategory,
     optionLabelExists,
     parseOptionLabelsForCategory,
     findDuplicateSubmittedLabels,
@@ -301,6 +302,10 @@ async function updateOption(req: Request, res: Response, next: NextFunction) {
             return res.status(404).json({ error: 'Valor não encontrado.' });
         }
 
+        if (!isManageableOptionCategory(currentValue.category.slug)) {
+            return res.status(404).json({ error: 'Valor não encontrado.' });
+        }
+
         if (await optionLabelExists(currentValue.categoryId, validation.data.label, optionId)) {
             return res.status(409).json({ error: DUPLICATE_OPTION_MESSAGE });
         }
@@ -368,6 +373,19 @@ async function deleteOption(req: Request, res: Response, next: NextFunction) {
     }
 
     try {
+        const currentValue = await prisma.domainOptionValue.findUnique({
+            where: { id: optionId },
+            select: {
+                category: {
+                    select: { slug: true }
+                }
+            }
+        });
+
+        if (!currentValue || !isManageableOptionCategory(currentValue.category.slug)) {
+            return res.status(404).json({ error: 'Valor não encontrado.' });
+        }
+
         await prisma.domainOptionValue.delete({
             where: { id: optionId }
         });

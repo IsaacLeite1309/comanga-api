@@ -14,6 +14,10 @@ declare global {
                 id: Session['id'];
                 tokenHash: string;
             };
+            publicCatalogViewer?: {
+                userId?: string;
+                canViewAdultContent: boolean;
+            };
         }
     }
 }

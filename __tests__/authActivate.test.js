@@ -115,4 +115,19 @@ describe('GET /api/auth/activate/:token', () => {
             error: 'Link de ativação inválido!'
         });
     });
+
+    it('permite que apenas uma requisicao concorrente consuma o token', async () => {
+        const user = makeUser();
+        await insertUser(user);
+
+        const responses = await Promise.all([
+            request(app).get(`/api/auth/activate/${user.activationToken}`),
+            request(app).get(`/api/auth/activate/${user.activationToken}`)
+        ]);
+
+        expect(responses.map(({ status }) => status).sort()).toEqual([200, 400]);
+        expect(responses.find(({ status }) => status === 400).body).toEqual({
+            error: 'Link de ativação inválido!'
+        });
+    });
 });

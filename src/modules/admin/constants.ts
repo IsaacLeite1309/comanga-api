@@ -51,6 +51,17 @@ const COUNTRY_DEPENDENT_CATEGORY_SLUGS = new Set([
     'revistas-serializacao',
     'editoras-originais'
 ]);
+const MANAGEABLE_OPTION_CATEGORY_SLUGS = new Set([
+    'autores',
+    'tipos-obra',
+    'generos',
+    'editoras-originais',
+    'revistas-serializacao',
+    'editoras-brasileiras',
+    'tipos-edicao',
+    'tipos-capa',
+    'formatos-fisicos'
+]);
 const COUNTRY_DEPENDENCY_REQUIRED_MESSAGE = 'Selecione ao menos um país de origem relacionado.';
 
 export {
@@ -85,5 +96,6 @@ export {
     VOLUME_PRICE_CURRENCY_VALUES,
     VOLUME_RELEASE_PRECISION_VALUES,
     COUNTRY_DEPENDENT_CATEGORY_SLUGS,
+    MANAGEABLE_OPTION_CATEGORY_SLUGS,
     COUNTRY_DEPENDENCY_REQUIRED_MESSAGE
 };
