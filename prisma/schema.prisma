@@ -20,6 +20,9 @@ model User {
   criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz
   sessions            Session[]
 
+  @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_username_trgm")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_email_trgm")
+  @@index([username], map: "idx_users_username_sort")
   @@map("users")
 }
 
@@ -30,8 +33,9 @@ model Session {
   lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz
   revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
   criadoEm         DateTime  @default(now()) @map("criado_em") @db.Timestamptz
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([sessionTokenHash], map: "idx_sessions_token_hash")
   @@map("sessions")
 }
 
@@ -65,6 +69,7 @@ model DomainOptionValue {
   editionsAsFormat Edition[] @relation("EditionFormat")
 
   @@index([categoryId, label], map: "idx_domain_option_values_category_label")
+  @@index([categoryId, active, label], map: "idx_domain_option_values_category_active_label")
   @@index([label(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_domain_option_values_label_trgm")
   @@map("domain_option_values")
 }
@@ -96,7 +101,7 @@ model Work {
   visibility String @default("Privado") @db.VarChar(20)
   adultContent Boolean @default(false) @map("adult_content")
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
-  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz
+  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
   type DomainOptionValue @relation("WorkType", fields: [typeId], references: [id], onDelete: Restrict)
   authors WorkAuthor[]
   genres WorkGenre[]
@@ -129,12 +134,12 @@ model Edition {
   coverUrl String? @map("cover_url") @db.VarChar(2048)
   visibility String @default("Privado") @db.VarChar(20)
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
-  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz
-  work Work @relation(fields: [workId], references: [id], onDelete: Restrict)
-  brazilianPublisher DomainOptionValue @relation("EditionBrazilianPublisher", fields: [brazilianPublisherId], references: [id], onDelete: Restrict)
-  editionType DomainOptionValue @relation("EditionType", fields: [editionTypeId], references: [id], onDelete: Restrict)
-  coverType DomainOptionValue @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict)
-  format DomainOptionValue @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict)
+  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
+  work Work @relation(fields: [workId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  brazilianPublisher DomainOptionValue @relation("EditionBrazilianPublisher", fields: [brazilianPublisherId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  editionType DomainOptionValue @relation("EditionType", fields: [editionTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  coverType DomainOptionValue @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  format DomainOptionValue @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   volumes Volume[]
 
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
@@ -165,8 +170,8 @@ model Volume {
   synopsis String? @db.Text
   visibility String @default("Privado") @db.VarChar(20)
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
-  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz
-  edition Edition @relation(fields: [editionId], references: [id], onDelete: Restrict)
+  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
+  edition Edition @relation(fields: [editionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")
@@ -196,6 +201,7 @@ model WorkAuthor {
   roles WorkAuthorRole[]
 
   @@id([workId, authorId])
+  @@unique([workId, authorId], map: "work_authors_work_author_unique")
   @@index([authorId], map: "idx_work_authors_author")
   @@index([authorId, workId], map: "idx_work_authors_author_work")
   @@map("work_authors")
@@ -205,7 +211,7 @@ model WorkAuthorRole {
   workId Int @map("work_id")
   authorId Int @map("author_id")
   role String @db.VarChar(40)
-  author WorkAuthor @relation(fields: [workId, authorId], references: [workId, authorId], onDelete: Cascade)
+  author WorkAuthor @relation(fields: [workId, authorId], references: [workId, authorId], onDelete: Cascade, map: "work_author_roles_work_author_fkey")
 
   @@id([workId, authorId, role])
   @@map("work_author_roles")

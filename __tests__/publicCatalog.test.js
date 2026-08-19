@@ -146,9 +146,10 @@ async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY) 
             number,
             cover_url,
             release_date_precision,
+            release_year,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, 'Ano', $4, NOW())`,
+         ) VALUES ($1, $2, $3, 'Ano', 2026, $4, NOW())`,
         [editionId, number, `https://example.com/volume-${editionId}-${number}.jpg`, visibility]
     );
 }
