@@ -152,9 +152,12 @@ describe('planos de consulta do catalogo publico', () => {
 
         expect(plan).toEqual(expect.arrayContaining([
             'idx_works_public_filters',
-            'idx_work_genres_genre_work',
-            'idx_work_demographies_demography_work'
+            'idx_work_genres_genre_work'
         ]));
+        expect(plan.some((indexName) => [
+            'idx_work_demographies_demography_work',
+            'work_demographies_pkey'
+        ].includes(indexName))).toBe(true);
     });
 
     it.each([

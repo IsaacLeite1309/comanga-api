@@ -3,6 +3,7 @@ import {
     COUNTRY_CATEGORY_SLUG,
     COUNTRY_DEPENDENCY_REQUIRED_MESSAGE,
     COUNTRY_DEPENDENT_CATEGORY_SLUGS,
+    LISTABLE_OPTION_CATEGORY_SLUGS,
     MANAGEABLE_OPTION_CATEGORY_SLUGS
 } from './constants';
 
@@ -10,8 +11,20 @@ function isManageableOptionCategory(slug: string) {
     return MANAGEABLE_OPTION_CATEGORY_SLUGS.has(slug);
 }
 
+function isListableOptionCategory(slug: string) {
+    return LISTABLE_OPTION_CATEGORY_SLUGS.has(slug);
+}
+
 async function findCategoryBySlug(slug: string) {
     if (!isManageableOptionCategory(slug)) return null;
+
+    return prisma.domainOptionCategory.findUnique({
+        where: { slug }
+    });
+}
+
+async function findListableCategoryBySlug(slug: string) {
+    if (!isListableOptionCategory(slug)) return null;
 
     return prisma.domainOptionCategory.findUnique({
         where: { slug }
@@ -186,7 +199,9 @@ async function validateSelectedOptionsByCountry(
 
 export {
     isManageableOptionCategory,
+    isListableOptionCategory,
     findCategoryBySlug,
+    findListableCategoryBySlug,
     optionLabelExists,
     parseOptionLabels,
     parseOptionLabelsForCategory,

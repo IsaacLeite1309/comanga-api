@@ -45,6 +45,14 @@ const VOLUME_RELEASE_DATE_MIGRATION_PATH = path.join(
     '20260818120000_enforce_volume_release_date',
     'migration.sql'
 );
+const PRISMA_SCHEMA_RECONCILIATION_MIGRATION_PATH = path.join(
+    __dirname,
+    '..',
+    'prisma',
+    'migrations',
+    '20260818233000_reconcile_prisma_physical_schema',
+    'migration.sql'
+);
 
 if (!process.env.DATABASE_URL_TEST) {
     throw new Error('DATABASE_URL_TEST nao configurada.');
@@ -130,7 +138,8 @@ async function applyIntegrityMigration() {
             INTEGRITY_MIGRATION_PATH,
             SLUG_MIGRATION_PATH,
             PUBLIC_CATALOG_INDEXES_MIGRATION_PATH,
-            VOLUME_RELEASE_DATE_MIGRATION_PATH
+            VOLUME_RELEASE_DATE_MIGRATION_PATH,
+            PRISMA_SCHEMA_RECONCILIATION_MIGRATION_PATH
         ]) {
             const migrationSql = fs.readFileSync(migrationPath, 'utf8');
             await pool.query(migrationSql);

@@ -13,6 +13,7 @@ import {
     createOptionSchema,
     updateOptionSchema,
     findCategoryBySlug,
+    findListableCategoryBySlug,
     isManageableOptionCategory,
     optionLabelExists,
     parseOptionLabelsForCategory,
@@ -117,7 +118,7 @@ async function listOptions(req: Request, res: Response, next: NextFunction) {
     const { term, dependsOn, order, page, limit } = queryValidation.data;
 
     try {
-        const category = await findCategoryBySlug(paramsValidation.data.category);
+        const category = await findListableCategoryBySlug(paramsValidation.data.category);
 
         if (!category) {
             return res.status(404).json({ error: 'Categoria não encontrada.' });

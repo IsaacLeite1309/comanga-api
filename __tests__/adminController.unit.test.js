@@ -807,9 +807,15 @@ describe('adminController unitario', () => {
             });
         });
 
-        it('recusa listar ou cadastrar categorias internas', async () => {
+        it('permite listar paises como referencia e recusa cadastrar categorias internas', async () => {
             const listRes = makeRes();
             const createRes = makeRes();
+            prisma.domainOptionCategory.findUnique.mockResolvedValueOnce({
+                id: 4,
+                slug: 'paises-origem',
+                name: 'País de origem'
+            });
+            prisma.$transaction.mockResolvedValueOnce([[], 0]);
 
             await adminController.listOptions(makeReq({
                 params: { category: 'paises-origem' },
@@ -819,9 +825,12 @@ describe('adminController unitario', () => {
                 body: { category: 'miolos', label: 'Offset' }
             }), createRes);
 
-            expect(listRes.status).toHaveBeenCalledWith(404);
+            expect(listRes.status).toHaveBeenCalledWith(200);
             expect(createRes.status).toHaveBeenCalledWith(404);
-            expect(prisma.domainOptionCategory.findUnique).not.toHaveBeenCalled();
+            expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledTimes(1);
+            expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledWith({
+                where: { slug: 'paises-origem' }
+            });
         });
 
         it('recusa alterar ou excluir um valor de categoria interna', async () => {
