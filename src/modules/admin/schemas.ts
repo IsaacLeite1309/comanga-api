@@ -140,9 +140,49 @@ const updateEditionVisibilitySchema = z.object({
     visibility: z.enum(EDITION_VISIBILITY_VALUES)
 });
 
+const httpUrlSchema = z.string().trim().url().refine((value) => {
+    try {
+        return ['http:', 'https:'].includes(new URL(value).protocol);
+    } catch {
+        return false;
+    }
+}, { message: 'Informe uma URL HTTP ou HTTPS válida.' });
+
+function normalizeIsbn(value: string) {
+    return value.replace(/[\s-]/g, '').toUpperCase();
+}
+
+function isValidIsbn10(value: string) {
+    const normalized = normalizeIsbn(value);
+    if (!/^\d{9}[\dX]$/.test(normalized)) return false;
+
+    const checksum = [...normalized].reduce((sum, character, index) => (
+        sum + (character === 'X' ? 10 : Number(character)) * (10 - index)
+    ), 0);
+    return checksum % 11 === 0;
+}
+
+function isValidIsbn13(value: string) {
+    const normalized = normalizeIsbn(value);
+    if (!/^\d{13}$/.test(normalized)) return false;
+
+    const checksum = [...normalized.slice(0, 12)].reduce((sum, character, index) => (
+        sum + Number(character) * (index % 2 === 0 ? 1 : 3)
+    ), 0);
+    const expectedCheckDigit = (10 - (checksum % 10)) % 10;
+    return expectedCheckDigit === Number(normalized[12]);
+}
+
+const isbn10Schema = z.string().trim().max(20).refine(isValidIsbn10, {
+    message: 'ISBN-10 inválido.'
+});
+const isbn13Schema = z.string().trim().max(20).refine(isValidIsbn13, {
+    message: 'ISBN-13 inválido.'
+});
+
 const volumePayloadBaseSchema = z.object({
     number: z.coerce.number().int().min(0),
-    coverUrl: z.string().trim().url(),
+    coverUrl: httpUrlSchema,
     singleVolume: z.boolean().optional().default(false),
     pages: z.coerce.number().int().positive().optional().nullable(),
     priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).optional().default('R$'),
@@ -151,8 +191,8 @@ const volumePayloadBaseSchema = z.object({
     releaseYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     releaseMonth: z.coerce.number().int().min(1).max(12).optional().nullable(),
     releaseDay: z.coerce.number().int().min(1).max(31).optional().nullable(),
-    isbn10: z.string().trim().max(20).optional().nullable(),
-    isbn13: z.string().trim().max(20).optional().nullable(),
+    isbn10: isbn10Schema.optional().nullable(),
+    isbn13: isbn13Schema.optional().nullable(),
     affiliateLink: z.string().trim().url().optional().nullable(),
     synopsis: z.string().trim().optional().nullable()
 });
@@ -168,6 +208,17 @@ function validateVolumeReleaseDate(
 ) {
     if (value.releaseDatePrecision === 'Completa' && (!value.releaseYear || !value.releaseMonth || !value.releaseDay)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseDay'], message: 'Informe data completa.' });
+    }
+
+    if (value.releaseDatePrecision === 'Completa' && value.releaseYear && value.releaseMonth && value.releaseDay) {
+        const date = new Date(Date.UTC(value.releaseYear, value.releaseMonth - 1, value.releaseDay));
+        const isSameDate = date.getUTCFullYear() === value.releaseYear
+            && date.getUTCMonth() === value.releaseMonth - 1
+            && date.getUTCDate() === value.releaseDay;
+
+        if (!isSameDate) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseDay'], message: 'Informe uma data válida.' });
+        }
     }
 
     if (value.releaseDatePrecision === 'Mes e ano' && (!value.releaseYear || !value.releaseMonth)) {

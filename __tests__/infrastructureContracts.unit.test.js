@@ -12,14 +12,17 @@ const {
 } = require('../src/modules/auth/AuthNotificationService');
 const {
     createLoginRateLimiter,
-    RATE_LIMIT_MESSAGE
+    RATE_LIMIT_MESSAGE,
+    LOGIN_FAILURE_WINDOW_MS
 } = require('../src/middlewares/loginRateLimiter');
 
 function makeRateLimitResponse() {
     const response = {
         status: jest.fn(() => response),
         json: jest.fn(() => response),
-        on: jest.fn()
+        on: jest.fn((event, callback) => {
+            if (event === 'finish') response.finishCallback = callback;
+        })
     };
     return response;
 }
@@ -115,5 +118,33 @@ describe('contratos de infraestrutura substituivel', () => {
             code: 'LOGIN_RATE_LIMITED'
         });
         expect(next).not.toHaveBeenCalled();
+    });
+
+    it('libera o IP quando a janela de cinco minutos expira', () => {
+        let currentTime = 1_000;
+        const store = new MemoryRateLimitStore();
+        const limiter = createLoginRateLimiter({ store, now: () => currentTime });
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const response = makeRateLimitResponse();
+            limiter.middleware({ ip: '203.0.113.20', socket: {} }, response, jest.fn());
+            response.statusCode = 401;
+            response.finishCallback();
+        }
+
+        const blockedResponse = makeRateLimitResponse();
+        const blockedNext = jest.fn();
+        limiter.middleware({ ip: '203.0.113.20', socket: {} }, blockedResponse, blockedNext);
+        expect(blockedResponse.status).toHaveBeenCalledWith(429);
+        expect(blockedNext).not.toHaveBeenCalled();
+
+        currentTime += LOGIN_FAILURE_WINDOW_MS;
+        const releasedResponse = makeRateLimitResponse();
+        const releasedNext = jest.fn();
+        limiter.middleware({ ip: '203.0.113.20', socket: {} }, releasedResponse, releasedNext);
+
+        expect(releasedNext).toHaveBeenCalledTimes(1);
+        expect(releasedResponse.status).not.toHaveBeenCalledWith(429);
+        expect(store.get('203.0.113.20')).toBeUndefined();
     });
 });

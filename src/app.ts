@@ -5,6 +5,7 @@ import prisma from './prisma';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
+import publicCatalogRoutes from './routes/publicCatalogRoutes';
 import errorHandler from './middlewares/errorHandler';
 import requestContext from './middlewares/requestContext';
 import requestLogger from './middlewares/requestLogger';
@@ -49,6 +50,7 @@ app.use('/health', healthRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/public', publicCatalogRoutes);
 
 app.get('/ping', async (_req: Request, res: Response) => {
     try {

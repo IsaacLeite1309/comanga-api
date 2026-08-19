@@ -791,6 +791,10 @@ describe('adminController unitario', () => {
         });
 
         it('bloqueia exclusão quando o valor está em uso por FK', async () => {
+            prisma.domainOptionValue.findUnique.mockResolvedValue({
+                id: 10,
+                category: { slug: 'generos' }
+            });
             prisma.domainOptionValue.delete.mockRejectedValue({ code: 'P2003' });
             const req = makeReq({ params: { id: '10' } });
             const res = makeRes();
@@ -801,6 +805,44 @@ describe('adminController unitario', () => {
             expect(res.json).toHaveBeenCalledWith({
                 error: 'Esse valor está vinculado a um mangá, não pode ser excluído!'
             });
+        });
+
+        it('recusa listar ou cadastrar categorias internas', async () => {
+            const listRes = makeRes();
+            const createRes = makeRes();
+
+            await adminController.listOptions(makeReq({
+                params: { category: 'paises-origem' },
+                query: {}
+            }), listRes);
+            await adminController.createOption(makeReq({
+                body: { category: 'miolos', label: 'Offset' }
+            }), createRes);
+
+            expect(listRes.status).toHaveBeenCalledWith(404);
+            expect(createRes.status).toHaveBeenCalledWith(404);
+            expect(prisma.domainOptionCategory.findUnique).not.toHaveBeenCalled();
+        });
+
+        it('recusa alterar ou excluir um valor de categoria interna', async () => {
+            prisma.domainOptionValue.findUnique.mockResolvedValue({
+                id: 10,
+                categoryId: 99,
+                category: { slug: 'paises-origem' }
+            });
+            const updateRes = makeRes();
+            const deleteRes = makeRes();
+
+            await adminController.updateOption(makeReq({
+                params: { id: '10' },
+                body: { label: 'Brasil' }
+            }), updateRes);
+            await adminController.deleteOption(makeReq({ params: { id: '10' } }), deleteRes);
+
+            expect(updateRes.status).toHaveBeenCalledWith(404);
+            expect(deleteRes.status).toHaveBeenCalledWith(404);
+            expect(prisma.domainOptionValue.update).not.toHaveBeenCalled();
+            expect(prisma.domainOptionValue.delete).not.toHaveBeenCalled();
         });
     });
 
@@ -1596,7 +1638,7 @@ describe('adminController unitario', () => {
             releaseMonth: 1,
             releaseDay: 10,
             isbn10: '123456789X',
-            isbn13: '9781234567890',
+            isbn13: '9781234567897',
             affiliateLink: 'https://loja.test/volume-1',
             synopsis: 'Sinopse do volume.',
             visibility: 'Privado'
@@ -1619,7 +1661,7 @@ describe('adminController unitario', () => {
                     releaseMonth: 1,
                     releaseDay: 10,
                     isbn10: '123456789X',
-                    isbn13: '9781234567890',
+                    isbn13: '9781234567897',
                     affiliateLink: 'https://loja.test/volume-1',
                     synopsis: 'Sinopse do volume.'
                 }
@@ -1862,7 +1904,7 @@ describe('adminController unitario', () => {
             ['listOptions', { params: { category: 'generos' }, query: {} }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
             ['createOption', { body: { category: 'generos', label: 'Drama' } }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateOption', { params: { id: '10' }, body: { label: 'Drama' } }, () => prisma.domainOptionValue.findUnique.mockRejectedValue(new Error('falha'))],
-            ['deleteOption', { params: { id: '10' } }, () => prisma.domainOptionValue.delete.mockRejectedValue(new Error('falha'))],
+            ['deleteOption', { params: { id: '10' } }, () => prisma.domainOptionValue.findUnique.mockRejectedValue(new Error('falha'))],
             ['listWorks', { query: {} }, () => prisma.$transaction.mockRejectedValue(new Error('falha'))],
             ['getWorkById', { params: { id: '1' } }, () => prisma.work.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateWork', { params: { id: '1' }, body: { title: 'Teste' } }, () => prisma.work.findUnique.mockRejectedValue(new Error('falha'))],

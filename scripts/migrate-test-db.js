@@ -4,6 +4,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Pool } = require('pg');
 
+const ADMIN_USERS_INDEXES_MIGRATION_PATH = path.join(
+    __dirname,
+    '..',
+    'prisma',
+    'migrations',
+    '20260630190000_admin_users_indexes',
+    'migration.sql'
+);
+
 const INTEGRITY_MIGRATION_PATH = path.join(
     __dirname,
     '..',
@@ -20,12 +29,28 @@ const SLUG_MIGRATION_PATH = path.join(
     '20260811150000_add_work_slugs',
     'migration.sql'
 );
+const PUBLIC_CATALOG_INDEXES_MIGRATION_PATH = path.join(
+    __dirname,
+    '..',
+    'prisma',
+    'migrations',
+    '20260812150000_public_catalog_indexes',
+    'migration.sql'
+);
+const VOLUME_RELEASE_DATE_MIGRATION_PATH = path.join(
+    __dirname,
+    '..',
+    'prisma',
+    'migrations',
+    '20260818120000_enforce_volume_release_date',
+    'migration.sql'
+);
 
 if (!process.env.DATABASE_URL_TEST) {
     throw new Error('DATABASE_URL_TEST nao configurada.');
 }
 
-async function ensureUuidExtension() {
+async function resetTestSchemaAndEnsureExtensions() {
     const pool = new Pool({
         connectionString: process.env.DATABASE_URL_TEST,
         ssl: process.env.DATABASE_SSL === 'false'
@@ -34,7 +59,12 @@ async function ensureUuidExtension() {
     });
 
     try {
-        await pool.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
+        await pool.query(`
+            DROP SCHEMA IF EXISTS public CASCADE;
+            CREATE SCHEMA public;
+            CREATE EXTENSION IF NOT EXISTS pgcrypto;
+            CREATE EXTENSION IF NOT EXISTS pg_trgm;
+        `);
     } finally {
         await pool.end();
     }
@@ -95,7 +125,13 @@ async function applyIntegrityMigration() {
     });
 
     try {
-        for (const migrationPath of [INTEGRITY_MIGRATION_PATH, SLUG_MIGRATION_PATH]) {
+        for (const migrationPath of [
+            ADMIN_USERS_INDEXES_MIGRATION_PATH,
+            INTEGRITY_MIGRATION_PATH,
+            SLUG_MIGRATION_PATH,
+            PUBLIC_CATALOG_INDEXES_MIGRATION_PATH,
+            VOLUME_RELEASE_DATE_MIGRATION_PATH
+        ]) {
             const migrationSql = fs.readFileSync(migrationPath, 'utf8');
             await pool.query(migrationSql);
         }
@@ -105,11 +141,11 @@ async function applyIntegrityMigration() {
 }
 
 async function run() {
-    await ensureUuidExtension();
+    await resetTestSchemaAndEnsureExtensions();
 
     const result = spawnSync(
         process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
-        ['db', 'push', '--force-reset', '--accept-data-loss'],
+        ['db', 'push', '--accept-data-loss'],
         {
             stdio: 'inherit',
             shell: true,

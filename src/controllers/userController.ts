@@ -10,6 +10,9 @@ const ACCESS_DENIED_MESSAGE = 'Acesso negado: Você não tem permissão para ace
 
 interface PrismaKnownError {
     code?: string;
+    meta?: {
+        target?: unknown;
+    };
 }
 
 interface UserResponseInput {
@@ -69,6 +72,33 @@ function getAuthenticatedSession(req: Request) {
     return req.session;
 }
 
+function getUniqueConflictField(error: PrismaKnownError): 'email' | 'username' | undefined {
+    if (error.code !== 'P2002') return undefined;
+
+    const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(' ')
+        : String(error.meta?.target || '');
+
+    if (target.includes('email')) return 'email';
+    if (target.includes('username')) return 'username';
+
+    return undefined;
+}
+
+function sendRegistrationConflict(res: Response, field: 'email' | 'username') {
+    if (field === 'email') {
+        return res.status(409).json({
+            error: 'Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.',
+            field
+        });
+    }
+
+    return res.status(409).json({
+        error: 'Este nome de usuário não está disponível. Por favor, escolha outro.',
+        field
+    });
+}
+
 const registerSchema = z.object({
     username: z.string()
         .regex(/^[a-zA-Z0-9_]{3,20}$/, 'Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais.'),
@@ -109,17 +139,11 @@ async function registerUser(req: Request, res: Response, next: NextFunction) {
         });
 
         if (conflict?.email === email) {
-            return res.status(409).json({
-                error: 'Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.',
-                field: 'email'
-            });
+            return sendRegistrationConflict(res, 'email');
         }
 
         if (conflict?.username === username) {
-            return res.status(409).json({
-                error: 'Este nome de usuário não está disponível. Por favor, escolha outro.',
-                field: 'username'
-            });
+            return sendRegistrationConflict(res, 'username');
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
@@ -153,6 +177,11 @@ async function registerUser(req: Request, res: Response, next: NextFunction) {
         return res.status(201).json({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativação.' });
 
     } catch (error) {
+        const conflictField = getUniqueConflictField(error as PrismaKnownError);
+        if (conflictField) {
+            return sendRegistrationConflict(res, conflictField);
+        }
+
         return next(error);
     }
 }
@@ -162,8 +191,12 @@ async function activateAccount(req: Request, res: Response, next: NextFunction) 
 
     try {
         const activationResult = await prisma.$transaction(async (tx) => {
+            const now = new Date();
             const user = await tx.user.findFirst({
-                where: { activationToken: token },
+                where: {
+                    activationToken: token,
+                    status: 'Pendente'
+                },
                 select: {
                     id: true,
                     activationExpiresAt: true
@@ -174,20 +207,29 @@ async function activateAccount(req: Request, res: Response, next: NextFunction) 
                 return { error: 'Link de ativação inválido!' };
             }
 
-            if (!user.activationExpiresAt || new Date() > user.activationExpiresAt) {
+            if (!user.activationExpiresAt || now > user.activationExpiresAt) {
                 return {
                     error: 'Este link de ativação expirou. Solicite um novo e-mail de ativação.'
                 };
             }
 
-            await tx.user.update({
-                where: { id: user.id },
+            const updateResult = await tx.user.updateMany({
+                where: {
+                    id: user.id,
+                    status: 'Pendente',
+                    activationToken: token,
+                    activationExpiresAt: { gt: now }
+                },
                 data: {
                     status: 'Ativada',
                     activationToken: null,
                     activationExpiresAt: null
                 }
             });
+
+            if (updateResult.count !== 1) {
+                return { error: 'Link de ativação inválido!' };
+            }
 
             return { activated: true };
         });
@@ -228,6 +270,12 @@ async function resendActivation(req: Request, res: Response, next: NextFunction)
 
         if (user.status === 'Ativada') {
             return res.status(400).json({ error: 'Este endereço de e-mail pertence a uma conta ativada.' });
+        }
+
+        if (user.status !== 'Pendente') {
+            return res.status(400).json({
+                error: 'Somente contas pendentes podem solicitar um novo link de ativação.'
+            });
         }
 
         const newActivationToken = crypto.randomBytes(32).toString('hex');
