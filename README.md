@@ -51,34 +51,16 @@ Falhas inesperadas são registradas no servidor com data, rota, método e identi
 Casos de uso dependem de contratos mínimos, localizados em `src/infrastructure/contracts`:
 
 - `MailService`: usa Nodemailer por meio de `NodemailerMailService`.
-- `MediaStorage`: mantém URLs HTTPS externas com `ExternalUrlMediaStorage` e permite a POC isolada do Cloudinary.
+- `MediaStorage`: persiste objetos internos no Cloudflare R2 por meio de `R2MediaStorage`, sem acoplar os módulos de catálogo ao SDK do provedor.
 - `RateLimitStore`: usa `MemoryRateLimitStore` no limitador de tentativas de login.
 
 Não existem consumidores reais de cache ou despacho assíncrono no MVP. Por isso, `CacheStore` e `TaskDispatcher` serão criados somente quando um caso de uso e métricas justificarem essas dependências. Redis, filas e cache distribuído não fazem parte da implementação atual.
 
-## Prova de conceito do Cloudinary
+## Capas internas no Cloudflare R2
 
-A POC é desativada por padrão, não altera as capas do catálogo e só pode ser acessada por administradores autenticados. Para habilitá-la em um ambiente controlado:
+O catálogo não aceita nem exibe URLs externas como capa. Um administrador informa uma URL HTTPS em `POST /api/admin/media/covers`; a API baixa a imagem com proteção contra SSRF, valida o conteúdo real, remove metadados, gera variantes WebP 2:3 e armazena objetos imutáveis no R2. Obras, Edições e Volumes persistem somente `coverAssetId`; `coverUrl` existe apenas como campo derivado de resposta.
 
-```text
-CLOUDINARY_POC_ENABLED=true
-CLOUDINARY_URL=cloudinary://API_KEY:API_SECRET@CLOUD_NAME
-CLOUDINARY_POC_FOLDER=comanga-poc
-CLOUDINARY_POC_MAX_BYTES=10485760
-```
-
-Rotas experimentais:
-
-```text
-POST   /api/admin/media/poc/covers
-PUT    /api/admin/media/poc/covers
-DELETE /api/admin/media/poc/covers
-GET    /api/admin/media/poc/metrics
-```
-
-Importação e substituição recebem `{ "url": "https://..." }`; substituição e exclusão também recebem `publicId`. A resposta contém somente metadados seguros, como `secureUrl`, `optimizedUrl`, dimensões e tamanho. Credenciais permanecem exclusivamente no backend.
-
-Os detalhes operacionais e a decisão atual estão em `docs/decisions/cloudinary-poc.md`.
+As credenciais do R2 são carregadas somente quando uma operação de mídia é solicitada. Assim, desenvolvimento e testes que não importam capas funcionam antes da criação da conta. A configuração do bucket, domínio público, CORS e variáveis está descrita em `docs/operations/internal-cover-media.md`.
 
 ## Operação e capacidade
 

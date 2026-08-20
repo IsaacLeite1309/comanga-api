@@ -63,6 +63,8 @@ const orderedWorkOptionSchema = z.union([
     })
 ]);
 
+const coverAssetIdSchema = z.string().uuid();
+
 const createWorkSchema = z.object({
     title: z.string().trim().min(1),
     originalTitle: z.string().trim().optional().nullable(),
@@ -74,7 +76,7 @@ const createWorkSchema = z.object({
     country: z.enum(WORK_COUNTRY_VALUES),
     originalPublisherIds: z.array(orderedWorkOptionSchema).optional().default([]),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES),
-    coverUrl: z.string().trim().url().optional().nullable(),
+    coverAssetId: coverAssetIdSchema.optional().nullable(),
     adultContent: z.boolean().optional().default(false),
     authors: z.array(workAuthorSchema).min(1),
     genreIds: z.array(z.coerce.number().int().positive()).optional().default([]),
@@ -93,7 +95,7 @@ const updateWorkSchema = z.object({
     country: z.enum(WORK_COUNTRY_VALUES).optional(),
     authors: z.array(workAuthorSchema).optional(),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES).optional().nullable(),
-    coverUrl: z.string().trim().url().optional().nullable(),
+    coverAssetId: coverAssetIdSchema.optional().nullable(),
     adultContent: z.boolean().optional(),
     genreIds: z.array(z.coerce.number().int().positive()).optional(),
     demographies: z.array(z.enum(WORK_DEMOGRAPHY_VALUES)).optional(),
@@ -123,8 +125,8 @@ const editionPayloadSchema = z.object({
     formatId: z.coerce.number().int().positive(),
     chronologicalNumber: z.coerce.number().int().positive(),
     brazilPublicationStatus: z.enum(EDITION_PUBLICATION_STATUS_VALUES),
-    coverUrl: z.string().trim().url().optional().nullable()
-});
+    coverAssetId: coverAssetIdSchema.optional().nullable()
+}).strict();
 
 const updateEditionSchema = editionPayloadSchema.partial().refine((value) => Object.keys(value).length > 0, {
     message: 'Informe ao menos um campo para alterar.'
@@ -139,14 +141,6 @@ const listEditionsQuerySchema = z.object({
 const updateEditionVisibilitySchema = z.object({
     visibility: z.enum(EDITION_VISIBILITY_VALUES)
 });
-
-const httpUrlSchema = z.string().trim().url().refine((value) => {
-    try {
-        return ['http:', 'https:'].includes(new URL(value).protocol);
-    } catch {
-        return false;
-    }
-}, { message: 'Informe uma URL HTTP ou HTTPS válida.' });
 
 function normalizeIsbn(value: string) {
     return value.replace(/[\s-]/g, '').toUpperCase();
@@ -182,7 +176,7 @@ const isbn13Schema = z.string().trim().max(20).refine(isValidIsbn13, {
 
 const volumePayloadBaseSchema = z.object({
     number: z.coerce.number().int().min(0),
-    coverUrl: httpUrlSchema,
+    coverAssetId: coverAssetIdSchema,
     singleVolume: z.boolean().optional().default(false),
     pages: z.coerce.number().int().positive().optional().nullable(),
     priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).optional().default('R$'),
@@ -195,7 +189,7 @@ const volumePayloadBaseSchema = z.object({
     isbn13: isbn13Schema.optional().nullable(),
     affiliateLink: z.string().trim().url().optional().nullable(),
     synopsis: z.string().trim().optional().nullable()
-});
+}).strict();
 
 function validateVolumeReleaseDate(
     value: {

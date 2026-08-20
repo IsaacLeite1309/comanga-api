@@ -66,8 +66,8 @@ describe('fronteiras do monolito modular', () => {
         );
 
         expect(authNotificationSource).not.toMatch(/NodemailerMailService/);
-        expect(adminMediaSource).not.toMatch(/CloudinaryMediaStorage/);
+        expect(adminMediaSource).not.toMatch(/R2MediaStorage/);
         expect(containerSource).toMatch(/NodemailerMailService/);
-        expect(containerSource).toMatch(/CloudinaryMediaStorage/);
+        expect(containerSource).toMatch(/R2MediaStorage/);
     });
 });

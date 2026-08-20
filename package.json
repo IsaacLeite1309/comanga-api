@@ -9,7 +9,7 @@
     "build": "tsc",
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",
-    "test:coverage:unit": "jest --runInBand app.unit.test.js database.unit.test.js userController.unit.test.js adminController.unit.test.js middlewares.unit.test.js mailer.unit.test.js moduleBoundaries.unit.test.js workSlug.unit.test.js infrastructureContracts.unit.test.js cloudinaryMediaStorage.unit.test.js adminMedia.unit.test.js operations.unit.test.js loadTest.unit.test.js prismaConnectionUrl.unit.test.js publicCatalog.unit.test.js optionalSessionMiddleware.unit.test.js publicCatalogIndexes.unit.test.js adminUsersIndexes.unit.test.js adminOptionsPolicy.unit.test.js adminSchemas.unit.test.js volumePersistence.unit.test.js --coverage",
+    "test:coverage:unit": "jest --runInBand app.unit.test.js database.unit.test.js userController.unit.test.js adminController.unit.test.js middlewares.unit.test.js mailer.unit.test.js moduleBoundaries.unit.test.js workSlug.unit.test.js infrastructureContracts.unit.test.js adminInternalMedia.unit.test.js coverImportService.unit.test.js coverRemovalService.unit.test.js remoteImageDownloader.unit.test.js coverImageProcessor.unit.test.js r2MediaStorage.unit.test.js mediaPublicUrl.unit.test.js operations.unit.test.js loadTest.unit.test.js prismaConnectionUrl.unit.test.js publicCatalog.unit.test.js optionalSessionMiddleware.unit.test.js publicCatalogIndexes.unit.test.js adminUsersIndexes.unit.test.js adminOptionsPolicy.unit.test.js adminSchemas.unit.test.js volumePersistence.unit.test.js internalCoverMediaSchema.unit.test.js --coverage",
     "lint": "eslint .",
     "load:test": "node scripts/load-test.js",
     "migrate": "prisma migrate deploy",
@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/IsaacLeite1309/comanga-api#readme",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1113.0",
     "@prisma/client": "^6.19.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
@@ -36,6 +37,7 @@
     "express": "^5.2.1",
     "nodemailer": "^8.0.7",
     "pg": "^8.20.0",
+    "sharp": "^0.35.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

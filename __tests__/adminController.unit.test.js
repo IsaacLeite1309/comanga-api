@@ -72,6 +72,11 @@
         updateMany: jest.fn(),
         delete: jest.fn()
     },
+    mediaAsset: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn()
+    },
     $transaction: jest.fn()
 };
 
@@ -101,6 +106,16 @@ function makeReq(overrides = {}) {
 describe('adminController unitario', () => {
     beforeEach(() => {
         jest.resetAllMocks();
+        prisma.mediaAsset.findUnique.mockResolvedValue({
+            id: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+            status: 'Pendente',
+            work: null,
+            edition: null,
+            volume: null
+        });
+        prisma.$transaction.mockImplementation(async (operation) => (
+            typeof operation === 'function' ? operation(prisma) : Promise.all(operation)
+        ));
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -867,7 +882,6 @@ describe('adminController unitario', () => {
             directRelease: false,
             visibility: 'Privado',
             adultContent: false,
-            coverUrl: 'https://cdn.comanga.test/naruto.jpg',
             type: { id: 1, label: 'Mangá' },
             country: 'Japão',
             originalPublishers: [
@@ -940,7 +954,6 @@ describe('adminController unitario', () => {
                     country: 'Japão',
                     originalPublisherIds: [{ id: 10, position: 0 }, { id: 9, position: 1 }],
                     originalPublicationStatus: 'Completo',
-                    coverUrl: 'https://cdn.comanga.test/naruto.jpg',
                     adultContent: false,
                     authors: [
                         { authorId: 4, roles: ['História e Arte'] },
@@ -1442,7 +1455,6 @@ describe('adminController unitario', () => {
             id: 20,
             workId: 1,
             chronologicalNumber: 1,
-            coverUrl: 'https://cdn.comanga.test/edição.jpg',
             visibility: 'Privado',
             brazilianPublisher: { id: 2, label: 'Panini' },
             editionType: { id: 3, label: 'Tankobon' },
@@ -1470,7 +1482,6 @@ describe('adminController unitario', () => {
                     formatId: 5,
                     chronologicalNumber: 1,
                     brazilPublicationStatus: 'Completo',
-                    coverUrl: 'https://cdn.comanga.test/edição.jpg'
                 }
             });
             const res = makeRes();
@@ -1637,7 +1648,6 @@ describe('adminController unitario', () => {
             id: 30,
             editionId: 20,
             number: 1,
-            coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
             singleVolume: true,
             pages: 200,
             price: 39.9,
@@ -1660,7 +1670,7 @@ describe('adminController unitario', () => {
                 params: { editionId: '20' },
                 body: {
                     number: 1,
-                    coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     singleVolume: true,
                     pages: 200,
                     price: 39.9,
@@ -1712,7 +1722,7 @@ describe('adminController unitario', () => {
                 params: { editionId: '20' },
                 body: {
                     number: 0,
-                    coverUrl: 'https://cdn.comanga.test/volume-0.jpg',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     releaseDatePrecision: 'Completa',
                     releaseYear: 2026,
                     releaseMonth: 1,
@@ -1765,9 +1775,9 @@ describe('adminController unitario', () => {
 
             await adminController.getVolumeById(req, res);
 
-            expect(prisma.volume.findUnique).toHaveBeenCalledWith({
+            expect(prisma.volume.findUnique).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 30 }
-            });
+            }));
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
                 volume: expect.objectContaining({ id: 30, number: 1 })
@@ -1797,13 +1807,11 @@ describe('adminController unitario', () => {
             formatId: 5,
             chronologicalNumber: 1,
             brazilPublicationStatus: 'Completo',
-            coverUrl: 'https://cdn.comanga.test/edicao.jpg'
         };
         const edition = {
             id: 20,
             workId: 1,
             chronologicalNumber: 1,
-            coverUrl: 'https://cdn.comanga.test/edicao.jpg',
             visibility: 'Privado',
             brazilianPublisher: { id: 2, label: 'Panini' },
             editionType: { id: 3, label: 'Tankobon' },
@@ -1814,7 +1822,7 @@ describe('adminController unitario', () => {
         };
         const volumeBody = {
             number: 1,
-            coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             releaseDatePrecision: 'Completa',
             releaseYear: 2026,
             releaseMonth: 8,
@@ -1824,7 +1832,6 @@ describe('adminController unitario', () => {
             id: 30,
             editionId: 20,
             number: 1,
-            coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
             singleVolume: false,
             pages: null,
             price: null,
@@ -1959,7 +1966,6 @@ describe('adminController unitario', () => {
                     ...editionBody,
                     chronologicalNumber: 2,
                     brazilPublicationStatus: 'Em andamento',
-                    coverUrl: null
                 }
             }), updateRes);
 
@@ -1968,7 +1974,6 @@ describe('adminController unitario', () => {
                 where: { id: 20 },
                 data: expect.objectContaining({
                     chronologicalNumber: 2,
-                    coverUrl: null
                 })
             }));
             expect(updateRes.status).toHaveBeenCalledWith(200);
@@ -2101,7 +2106,6 @@ describe('adminController unitario', () => {
                 directRelease: true,
                 visibility: 'Privado',
                 adultContent: false,
-                coverUrl: null,
                 type: null,
                 country: 'Japão',
                 originalPublicationStatus: null,
@@ -2156,7 +2160,6 @@ describe('adminController unitario', () => {
                 originalTitle: null,
                 visibility: 'Privado',
                 adultContent: false,
-                coverUrl: null,
                 type: { id: 1, label: 'Mangá' },
                 country: 'Japão',
                 editionsCount,
@@ -2323,7 +2326,6 @@ describe('adminController unitario', () => {
                 directRelease: false,
                 visibility,
                 adultContent: false,
-                coverUrl: null,
                 type: { id: 1, label: 'Mangá' },
                 country: 'Japão',
                 originalPublicationStatus: 'Completo',

@@ -2,9 +2,6 @@ const {
     NodemailerMailService
 } = require('../src/infrastructure/mail/NodemailerMailService');
 const {
-    ExternalUrlMediaStorage
-} = require('../src/infrastructure/media/ExternalUrlMediaStorage');
-const {
     MemoryRateLimitStore
 } = require('../src/infrastructure/rate-limit/MemoryRateLimitStore');
 const {
@@ -60,29 +57,6 @@ describe('contratos de infraestrutura substituivel', () => {
             'isaac',
             'token'
         );
-    });
-
-    it('mantem URLs HTTPS externas pela implementacao atual de MediaStorage', async () => {
-        const storage = new ExternalUrlMediaStorage();
-
-        await expect(storage.importFromUrl({
-            sourceUrl: 'https://cdn.exemplo.test/capa.jpg'
-        })).resolves.toEqual(expect.objectContaining({
-            provider: 'external-url',
-            secureUrl: 'https://cdn.exemplo.test/capa.jpg',
-            publicId: null
-        }));
-    });
-
-    it('recusa URL HTTP na implementacao externa', async () => {
-        const storage = new ExternalUrlMediaStorage();
-
-        await expect(storage.importFromUrl({
-            sourceUrl: 'http://cdn.exemplo.test/capa.jpg'
-        })).rejects.toMatchObject({
-            statusCode: 400,
-            code: 'MEDIA_SOURCE_URL_INVALID'
-        });
     });
 
     it('permite substituir o armazenamento em memoria por meio do contrato de rate limiting', () => {

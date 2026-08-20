@@ -1,38 +1,18 @@
-interface MediaAsset {
-    provider: string;
-    publicId: string | null;
-    secureUrl: string;
-    optimizedUrl?: string;
-    width?: number;
-    height?: number;
-    bytes?: number;
-    format?: string;
-    version?: number;
-}
-
-interface ImportMediaInput {
-    sourceUrl: string;
-}
-
-interface ReplaceMediaInput extends ImportMediaInput {
-    publicId: string;
-}
-
-interface DeleteMediaResult {
-    result: string;
+interface PutMediaObjectInput {
+    key: string;
+    body: Buffer;
+    contentType: string;
+    cacheControl: string;
 }
 
 interface MediaStorage {
-    importFromUrl(input: ImportMediaInput): Promise<MediaAsset>;
-    replaceFromUrl(input: ReplaceMediaInput): Promise<MediaAsset>;
-    delete(publicId: string): Promise<DeleteMediaResult>;
+    readonly provider: string;
+    putObject(input: PutMediaObjectInput): Promise<void>;
+    deleteObjects(keys: string[]): Promise<void>;
 }
 
 export type {
-    DeleteMediaResult,
-    ImportMediaInput,
-    MediaAsset,
-    ReplaceMediaInput
+    PutMediaObjectInput
 };
 
 export default MediaStorage;

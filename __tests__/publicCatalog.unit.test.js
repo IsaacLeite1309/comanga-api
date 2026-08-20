@@ -112,7 +112,7 @@ describe('contratos unitários do catálogo público', () => {
             slug: 'monster',
             title: 'Monster',
             originalTitle: null,
-            coverUrl: null,
+            coverAsset: null,
             country: 'Japão',
             type: { id: 2, label: 'Mangá' },
             authors: [{ author: { id: 3, label: 'Naoki Urasawa' } }],
@@ -122,7 +122,7 @@ describe('contratos unitários do catálogo público', () => {
         const edition = mapPublicEdition({
             id: 4,
             chronologicalNumber: 1,
-            coverUrl: null,
+            coverAsset: null,
             work: {
                 id: 1,
                 slug: 'monster',

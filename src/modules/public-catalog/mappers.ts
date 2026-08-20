@@ -1,4 +1,10 @@
 import type { PublicEditionInput, PublicOptionInput, PublicWorkInput } from './types';
+import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
+
+function mapCoverUrl(asset: PublicWorkInput['coverAsset']) {
+    if (!asset) return null;
+    return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
+}
 
 function mapOption(option: PublicOptionInput) {
     return {
@@ -17,7 +23,7 @@ function mapPublicWork(work: PublicWorkInput) {
         slug: work.slug,
         title: work.title,
         originalTitle: work.originalTitle,
-        coverUrl: work.coverUrl,
+        coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
         country: work.country,
         authors: mapAuthors(work.authors)
@@ -28,7 +34,7 @@ function mapPublicEdition(edition: PublicEditionInput) {
     return {
         id: edition.id,
         chronologicalNumber: edition.chronologicalNumber,
-        coverUrl: edition.coverUrl,
+        coverUrl: mapCoverUrl(edition.coverAsset),
         work: {
             id: edition.work.id,
             slug: edition.work.slug,

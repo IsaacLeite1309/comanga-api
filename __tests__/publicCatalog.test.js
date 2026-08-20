@@ -66,13 +66,12 @@ async function createWork({
             type_id,
             country,
             original_publication_status,
-            cover_url,
             visibility,
             adult_content,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, 'Completo', $6, $7, $8, NOW())
+         ) VALUES ($1, $2, $3, $4, $5, 'Completo', $6, $7, NOW())
          RETURNING id, slug, title`,
-        [slug, title, originalTitle, typeId, country, `https://example.com/${slug}.jpg`, visibility, adultContent]
+        [slug, title, originalTitle, typeId, country, visibility, adultContent]
     );
     const work = result.rows[0];
     fixture.workIds.push(work.id);
@@ -118,10 +117,9 @@ async function createEdition({
             format_id,
             chronological_number,
             brazil_publication_status,
-            cover_url,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, 'Completo', $7, $8, NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6, 'Completo', $7, NOW())
          RETURNING id`,
         [
             workId,
@@ -130,7 +128,6 @@ async function createEdition({
             coverTypeId,
             formatId,
             chronologicalNumber,
-            `https://example.com/edition-${workId}-${chronologicalNumber}.jpg`,
             visibility
         ]
     );
@@ -144,13 +141,12 @@ async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY) 
         `INSERT INTO volumes (
             edition_id,
             number,
-            cover_url,
             release_date_precision,
             release_year,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, 'Ano', 2026, $4, NOW())`,
-        [editionId, number, `https://example.com/volume-${editionId}-${number}.jpg`, visibility]
+         ) VALUES ($1, $2, 'Ano', 2026, $3, NOW())`,
+        [editionId, number, visibility]
     );
 }
 
@@ -296,7 +292,7 @@ describe('catálogo público', () => {
             slug: fixture.works.complete.slug,
             title: fixture.works.complete.title,
             originalTitle: `${fixturePrefix}_original-alpha`,
-            coverUrl: expect.any(String),
+            coverUrl: null,
             type: expect.objectContaining({ id: fixture.options.typeOne.id }),
             country: 'Jap\u00e3o',
             authors: [{
@@ -407,7 +403,7 @@ describe('catálogo público', () => {
         expect(response.body.editions[0]).toEqual(expect.objectContaining({
             id: fixture.editions.complete.id,
             chronologicalNumber: 1,
-            coverUrl: expect.any(String),
+            coverUrl: null,
             work: expect.objectContaining({
                 id: fixture.works.complete.id,
                 slug: fixture.works.complete.slug,

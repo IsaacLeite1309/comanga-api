@@ -7,12 +7,20 @@ interface PublicAuthorRelationInput {
     author: PublicOptionInput;
 }
 
+interface PublicCoverAssetInput {
+    objectKey: string;
+    variants: Array<{
+        kind: string;
+        objectKey: string;
+    }>;
+}
+
 interface PublicWorkInput {
     id: number;
     slug: string;
     title: string;
     originalTitle: string | null;
-    coverUrl: string | null;
+    coverAsset: PublicCoverAssetInput | null;
     country: string;
     type: PublicOptionInput;
     authors: PublicAuthorRelationInput[];
@@ -21,7 +29,7 @@ interface PublicWorkInput {
 interface PublicEditionInput {
     id: number;
     chronologicalNumber: number;
-    coverUrl: string | null;
+    coverAsset: PublicCoverAssetInput | null;
     work: Pick<PublicWorkInput, 'id' | 'slug' | 'title' | 'originalTitle' | 'authors'>;
     brazilianPublisher: PublicOptionInput;
     format: PublicOptionInput;
