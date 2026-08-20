@@ -128,7 +128,7 @@ describe('planos de consulta do catalogo publico', () => {
                AND adult_content = FALSE
                AND type_id = $1
                AND country = $2
-             ORDER BY id
+             ORDER BY visibility, adult_content, type_id, country, id
              LIMIT 50`,
             [2147483640, 'Japão']
         );
