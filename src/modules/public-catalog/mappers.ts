@@ -1,9 +1,61 @@
-import type { PublicEditionInput, PublicOptionInput, PublicWorkInput } from './types';
+import type {
+    PublicCoverAssetInput,
+    PublicEditionInput,
+    PublicOptionInput,
+    PublicWorkDetailInput,
+    PublicWorkInput
+} from './types';
 import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
 
-function mapCoverUrl(asset: PublicWorkInput['coverAsset']) {
+function mapCoverUrl(asset: PublicCoverAssetInput | null) {
     if (!asset) return null;
     return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
+}
+
+function mapPublicWorkDetails(work: PublicWorkDetailInput) {
+    return {
+        id: work.id,
+        slug: work.slug,
+        title: work.title,
+        originalTitle: work.originalTitle,
+        coverUrl: mapCoverUrl(work.coverAsset),
+        type: mapOption(work.type),
+        country: work.country,
+        originalPublicationStartYear: work.originalPublicationStartYear,
+        originalPublicationEndYear: work.originalPublicationEndYear,
+        originalVolumeCount: work.originalVolumeCount,
+        directRelease: work.directRelease,
+        originalPublicationStatus: work.originalPublicationStatus,
+        authors: work.authors.map(({ author, roles }) => ({
+            ...mapOption(author),
+            roles: roles.map(({ role }) => role)
+        })),
+        genres: work.genres.map(({ genre }) => mapOption(genre)),
+        demographics: work.demographics.map(({ demography }) => demography),
+        serializationMagazines: work.serializationMagazines.map(({ magazine }) => mapOption(magazine)),
+        originalPublishers: work.originalPublishers.map(({ publisher }) => mapOption(publisher)),
+        editions: work.editions.map((edition) => ({
+            id: edition.id,
+            chronologicalNumber: edition.chronologicalNumber,
+            coverUrl: mapCoverUrl(edition.coverAsset),
+            brazilianPublisher: mapOption(edition.brazilianPublisher),
+            editionType: mapOption(edition.editionType),
+            format: mapOption(edition.format),
+            coverType: mapOption(edition.coverType),
+            brazilPublicationStatus: edition.brazilPublicationStatus,
+            volumesCount: edition._count.volumes,
+            volumes: edition.volumes.map((volume) => ({
+                id: volume.id,
+                number: volume.number,
+                singleVolume: volume.singleVolume,
+                coverUrl: mapCoverUrl(volume.coverAsset),
+                releaseDatePrecision: volume.releaseDatePrecision,
+                releaseYear: volume.releaseYear,
+                releaseMonth: volume.releaseMonth,
+                releaseDay: volume.releaseDay
+            }))
+        }))
+    };
 }
 
 function mapOption(option: PublicOptionInput) {
@@ -52,5 +104,6 @@ function mapPublicEdition(edition: PublicEditionInput) {
 export {
     mapOption,
     mapPublicWork,
-    mapPublicEdition
+    mapPublicEdition,
+    mapPublicWorkDetails
 };

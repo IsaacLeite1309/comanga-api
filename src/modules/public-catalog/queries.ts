@@ -186,6 +186,87 @@ const publicEditionSelect = {
     }
 } satisfies Prisma.EditionSelect;
 
+const PUBLIC_VOLUME_PREVIEW_LIMIT = 3;
+
+const publicCoverAssetSelect = {
+    objectKey: true,
+    variants: {
+        select: { kind: true, objectKey: true }
+    }
+} satisfies Prisma.MediaAssetSelect;
+
+const publicWorkDetailSelect = {
+    id: true,
+    slug: true,
+    title: true,
+    originalTitle: true,
+    originalPublicationStartYear: true,
+    originalPublicationEndYear: true,
+    originalVolumeCount: true,
+    directRelease: true,
+    country: true,
+    originalPublicationStatus: true,
+    coverAsset: { select: publicCoverAssetSelect },
+    type: { select: { id: true, label: true } },
+    authors: {
+        select: {
+            author: { select: { id: true, label: true } },
+            roles: { select: { role: true }, orderBy: { role: 'asc' } }
+        },
+        orderBy: { author: { label: 'asc' } }
+    },
+    genres: {
+        select: { genre: { select: { id: true, label: true } } },
+        orderBy: { genre: { label: 'asc' } }
+    },
+    demographics: {
+        select: { demography: true },
+        orderBy: { demography: 'asc' }
+    },
+    serializationMagazines: {
+        select: { magazine: { select: { id: true, label: true } } },
+        orderBy: [{ position: 'asc' }, { magazineId: 'asc' }]
+    },
+    originalPublishers: {
+        select: { publisher: { select: { id: true, label: true } } },
+        orderBy: [{ position: 'asc' }, { publisherId: 'asc' }]
+    },
+    editions: {
+        where: { visibility: PUBLIC_VISIBILITY },
+        orderBy: [{ chronologicalNumber: 'asc' }, { id: 'asc' }],
+        select: {
+            id: true,
+            chronologicalNumber: true,
+            brazilPublicationStatus: true,
+            coverAsset: { select: publicCoverAssetSelect },
+            brazilianPublisher: { select: { id: true, label: true } },
+            editionType: { select: { id: true, label: true } },
+            format: { select: { id: true, label: true } },
+            coverType: { select: { id: true, label: true } },
+            volumes: {
+                where: { visibility: PUBLIC_VISIBILITY },
+                orderBy: [{ number: 'asc' }, { id: 'asc' }],
+                take: PUBLIC_VOLUME_PREVIEW_LIMIT,
+                select: {
+                    id: true,
+                    number: true,
+                    singleVolume: true,
+                    releaseDatePrecision: true,
+                    releaseYear: true,
+                    releaseMonth: true,
+                    releaseDay: true,
+                    coverAsset: { select: publicCoverAssetSelect }
+                }
+            },
+            _count: {
+                select: {
+                    volumes: { where: { visibility: PUBLIC_VISIBILITY } }
+                }
+            }
+        }
+    }
+} satisfies Prisma.WorkSelect;
+
 export {
     buildIdentitySearch,
     buildPublicWorkWhere,
@@ -193,5 +274,7 @@ export {
     buildPublicWorkOrderBy,
     buildPublicEditionOrderBy,
     publicWorkSelect,
-    publicEditionSelect
+    publicEditionSelect,
+    publicWorkDetailSelect,
+    PUBLIC_VOLUME_PREVIEW_LIMIT
 };

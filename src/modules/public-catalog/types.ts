@@ -15,6 +15,21 @@ interface PublicCoverAssetInput {
     }>;
 }
 
+interface PublicAuthorDetailRelationInput extends PublicAuthorRelationInput {
+    roles: Array<{ role: string }>;
+}
+
+interface PublicVolumePreviewInput {
+    id: number;
+    number: number;
+    singleVolume: boolean;
+    releaseDatePrecision: string;
+    releaseYear: number | null;
+    releaseMonth: number | null;
+    releaseDay: number | null;
+    coverAsset: PublicCoverAssetInput | null;
+}
+
 interface PublicWorkInput {
     id: number;
     slug: string;
@@ -39,8 +54,37 @@ interface PublicEditionInput {
     };
 }
 
+interface PublicEditionDetailInput {
+    id: number;
+    chronologicalNumber: number;
+    brazilPublicationStatus: string;
+    coverAsset: PublicCoverAssetInput | null;
+    brazilianPublisher: PublicOptionInput;
+    editionType: PublicOptionInput;
+    format: PublicOptionInput;
+    coverType: PublicOptionInput;
+    volumes: PublicVolumePreviewInput[];
+    _count: { volumes: number };
+}
+
+interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
+    originalPublicationStartYear: number | null;
+    originalPublicationEndYear: number | null;
+    originalVolumeCount: number | null;
+    directRelease: boolean;
+    originalPublicationStatus: string;
+    authors: PublicAuthorDetailRelationInput[];
+    genres: Array<{ genre: PublicOptionInput }>;
+    demographics: Array<{ demography: string }>;
+    serializationMagazines: Array<{ magazine: PublicOptionInput }>;
+    originalPublishers: Array<{ publisher: PublicOptionInput }>;
+    editions: PublicEditionDetailInput[];
+}
+
 export type {
     PublicOptionInput,
+    PublicCoverAssetInput,
     PublicWorkInput,
-    PublicEditionInput
+    PublicEditionInput,
+    PublicWorkDetailInput
 };
