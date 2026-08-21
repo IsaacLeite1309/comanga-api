@@ -10,6 +10,7 @@ import {
     mapPublicEdition,
     mapPublicEditionDetails,
     mapPublicEditionVolume,
+    mapPublicVolumeDetails,
     mapPublicWork,
     mapPublicWorkDetails
 } from './mappers';
@@ -17,11 +18,13 @@ import {
     buildPublicEditionDetailWhere,
     buildPublicEditionOrderBy,
     buildPublicEditionWhere,
+    buildPublicVolumeDetailWhere,
     buildPublicWorkOrderBy,
     buildPublicWorkWhere,
     publicEditionSelect,
     publicEditionDetailSelect,
     publicEditionVolumeSelect,
+    publicVolumeDetailSelect,
     publicWorkSelect,
     publicWorkDetailSelect
 } from './queries';
@@ -29,6 +32,7 @@ import {
     publicDetailsQuerySchema,
     publicEditionsQuerySchema,
     publicEntityIdParamsSchema,
+    publicVolumeIdParamsSchema,
     publicWorksQuerySchema
 } from './schemas';
 
@@ -191,6 +195,35 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
     }
 }
 
+async function getPublicVolumeDetails(req: Request, res: Response, next: NextFunction) {
+    const validation = publicVolumeIdParamsSchema.safeParse(req.params);
+
+    if (!validation.success) {
+        return res.status(400).json({ error: INVALID_PUBLIC_PARAMETERS_MESSAGE });
+    }
+
+    const where = buildPublicVolumeDetailWhere(
+        validation.data.volumeId,
+        canViewAdultContent(req)
+    );
+
+    try {
+        const volume = await prisma.volume.findFirst({
+            where,
+            select: publicVolumeDetailSelect
+        });
+
+        prepareViewerDependentResponse(res);
+        if (!volume) {
+            return res.status(404).json({ error: 'Volume não encontrado.' });
+        }
+
+        return res.status(200).json({ volume: mapPublicVolumeDetails(volume) });
+    } catch (error) {
+        return next(error);
+    }
+}
+
 async function getPublicCatalogOptions(_req: Request, res: Response, next: NextFunction) {
     const categorySlugs = Object.values(PUBLIC_CATALOG_OPTION_CATEGORIES);
 
@@ -241,5 +274,6 @@ export {
     getPublicWorkDetails,
     listPublicEditions,
     getPublicEditionDetails,
+    getPublicVolumeDetails,
     getPublicCatalogOptions
 };

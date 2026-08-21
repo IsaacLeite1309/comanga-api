@@ -56,6 +56,10 @@ const publicEntityIdParamsSchema = z.object({
     editionId: z.coerce.number().int().positive()
 });
 
+const publicVolumeIdParamsSchema = z.object({
+    volumeId: z.coerce.number().int().positive()
+});
+
 const publicDetailsQuerySchema = z.object({
     ...paginationShape
 });
@@ -65,5 +69,6 @@ export {
     publicWorksQuerySchema,
     publicEditionsQuerySchema,
     publicEntityIdParamsSchema,
+    publicVolumeIdParamsSchema,
     publicDetailsQuerySchema
 };

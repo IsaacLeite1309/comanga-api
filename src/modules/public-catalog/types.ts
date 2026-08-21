@@ -90,6 +90,34 @@ interface PublicEditionPageInput {
     _count: { volumes: number };
 }
 
+interface PublicVolumeDetailInput {
+    id: number;
+    number: number;
+    singleVolume: boolean;
+    coverAsset: PublicCoverAssetInput | null;
+    pages: number | null;
+    price: number | string | { toString(): string } | null;
+    priceCurrency: string;
+    releaseDatePrecision: string;
+    releaseYear: number | null;
+    releaseMonth: number | null;
+    releaseDay: number | null;
+    isbn10: string | null;
+    isbn13: string | null;
+    affiliateLink: string | null;
+    synopsis: string | null;
+    edition: {
+        id: number;
+        chronologicalNumber: number;
+        work: {
+            id: number;
+            slug: string;
+            title: string;
+            originalTitle: string | null;
+        };
+    };
+}
+
 interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
     originalPublicationStartYear: number | null;
     originalPublicationEndYear: number | null;
@@ -111,5 +139,6 @@ export type {
     PublicEditionInput,
     PublicWorkDetailInput,
     PublicEditionPageInput,
-    PublicEditionVolumeInput
+    PublicEditionVolumeInput,
+    PublicVolumeDetailInput
 };
