@@ -4,6 +4,7 @@ import type {
     PublicEditionPageInput,
     PublicEditionVolumeInput,
     PublicOptionInput,
+    PublicVolumeDetailInput,
     PublicWorkDetailInput,
     PublicWorkInput
 } from './types';
@@ -138,11 +139,42 @@ function mapPublicEditionVolume(volume: PublicEditionVolumeInput) {
     };
 }
 
+function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
+    return {
+        id: volume.id,
+        number: volume.number,
+        singleVolume: volume.singleVolume,
+        coverUrl: mapCoverUrl(volume.coverAsset),
+        pages: volume.pages,
+        price: volume.price === null ? null : Number(volume.price),
+        priceCurrency: volume.priceCurrency,
+        releaseDatePrecision: volume.releaseDatePrecision,
+        releaseYear: volume.releaseYear,
+        releaseMonth: volume.releaseMonth,
+        releaseDay: volume.releaseDay,
+        isbn10: volume.isbn10,
+        isbn13: volume.isbn13,
+        affiliateLink: volume.affiliateLink,
+        synopsis: volume.synopsis,
+        edition: {
+            id: volume.edition.id,
+            chronologicalNumber: volume.edition.chronologicalNumber,
+            work: {
+                id: volume.edition.work.id,
+                slug: volume.edition.work.slug,
+                title: volume.edition.work.title,
+                originalTitle: volume.edition.work.originalTitle
+            }
+        }
+    };
+}
+
 export {
     mapOption,
     mapPublicWork,
     mapPublicEdition,
     mapPublicWorkDetails,
     mapPublicEditionDetails,
-    mapPublicEditionVolume
+    mapPublicEditionVolume,
+    mapPublicVolumeDetails
 };

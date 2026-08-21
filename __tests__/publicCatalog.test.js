@@ -17,7 +17,8 @@ const fixture = {
     userIds: [],
     options: {},
     works: {},
-    editions: {}
+    editions: {},
+    volumes: {}
 };
 
 async function ensureCategory(slug) {
@@ -137,7 +138,7 @@ async function createEdition({
 }
 
 async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY) {
-    await db.query(
+    const result = await db.query(
         `INSERT INTO volumes (
             edition_id,
             number,
@@ -145,9 +146,12 @@ async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY) 
             release_year,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, 'Ano', 2026, $3, NOW())`,
+         ) VALUES ($1, $2, 'Ano', 2026, $3, NOW())
+         RETURNING id`,
         [editionId, number, visibility]
     );
+
+    return result.rows[0];
 }
 
 async function createSessionCookie({ status = 'Ativada', adultContent = false, suffix }) {
@@ -270,8 +274,47 @@ describe('catálogo público', () => {
             chronologicalNumber: 1
         });
 
-        await createVolume(fixture.editions.complete.id, 1, PUBLIC_VISIBILITY);
-        await createVolume(fixture.editions.complete.id, 2, PRIVATE_VISIBILITY);
+        fixture.volumes.complete = await createVolume(
+            fixture.editions.complete.id,
+            1,
+            PUBLIC_VISIBILITY
+        );
+        fixture.volumes.private = await createVolume(
+            fixture.editions.complete.id,
+            2,
+            PRIVATE_VISIBILITY
+        );
+        fixture.volumes.privateEdition = await createVolume(
+            fixture.editions.private.id,
+            1,
+            PUBLIC_VISIBILITY
+        );
+        fixture.volumes.privateWork = await createVolume(
+            fixture.editions.privateWork.id,
+            1,
+            PUBLIC_VISIBILITY
+        );
+        fixture.volumes.adult = await createVolume(
+            fixture.editions.adult.id,
+            1,
+            PUBLIC_VISIBILITY
+        );
+        await db.query(
+            `UPDATE volumes
+             SET pages = 416,
+                 price = 79.90,
+                 price_currency = 'R$',
+                 release_date_precision = 'Completa',
+                 release_year = 2026,
+                 release_month = 8,
+                 release_day = 20,
+                 isbn_10 = '1234567890',
+                 isbn_13 = '9781234567890',
+                 affiliate_link = 'https://shop.example/volume-1',
+                 synopsis = 'Uma sinopse pública.'
+             WHERE id = $1`,
+            [fixture.volumes.complete.id]
+        );
     });
 
     afterAll(deleteFixtures);
@@ -588,6 +631,79 @@ describe('catálogo público', () => {
         expect(allowed.body.edition.id).toBe(fixture.editions.adult.id);
         expect(invalidPagination.status).toBe(400);
         expect(invalidPagination.body).toEqual({ error: 'Parâmetros de consulta inválidos.' });
+    });
+    });
+
+    describe('GET /api/public/volumes/:volumeId', () => {
+    it('retorna todos os dados públicos e as referências da Edição e da Obra', async () => {
+        const response = await request(app)
+            .get(`/api/public/volumes/${fixture.volumes.complete.id}`);
+
+        expect(response.status).toBe(200);
+        expect(response.headers.vary).toContain('Cookie');
+        expect(response.headers['cache-control']).toBe('private, no-store');
+        expect(response.body.volume).toEqual({
+            id: fixture.volumes.complete.id,
+            number: 1,
+            singleVolume: false,
+            coverUrl: null,
+            pages: 416,
+            price: 79.9,
+            priceCurrency: 'R$',
+            releaseDatePrecision: 'Completa',
+            releaseYear: 2026,
+            releaseMonth: 8,
+            releaseDay: 20,
+            isbn10: '1234567890',
+            isbn13: '9781234567890',
+            affiliateLink: 'https://shop.example/volume-1',
+            synopsis: 'Uma sinopse pública.',
+            edition: {
+                id: fixture.editions.complete.id,
+                chronologicalNumber: 1,
+                work: {
+                    id: fixture.works.complete.id,
+                    slug: fixture.works.complete.slug,
+                    title: fixture.works.complete.title,
+                    originalTitle: `${fixturePrefix}_original-alpha`
+                }
+            }
+        });
+        expect(response.body.volume).not.toHaveProperty('visibility');
+        expect(response.body.volume.edition).not.toHaveProperty('visibility');
+    });
+
+    it('não distingue Volume, Edição ou Obra privados, conteúdo adulto indisponível e ID inexistente', async () => {
+        const responses = await Promise.all([
+            request(app).get(`/api/public/volumes/${fixture.volumes.private.id}`),
+            request(app).get(`/api/public/volumes/${fixture.volumes.privateEdition.id}`),
+            request(app).get(`/api/public/volumes/${fixture.volumes.privateWork.id}`),
+            request(app).get(`/api/public/volumes/${fixture.volumes.adult.id}`),
+            request(app).get('/api/public/volumes/2147483647')
+        ]);
+
+        for (const response of responses) {
+            expect(response.status).toBe(404);
+            expect(response.body).toEqual({ error: 'Volume não encontrado.' });
+        }
+    });
+
+    it('libera o Volume adulto apenas para sessão elegível e valida o ID', async () => {
+        const cookie = await createSessionCookie({
+            suffix: 'volume-detail-adult',
+            adultContent: true
+        });
+        const [allowed, invalidId] = await Promise.all([
+            request(app)
+                .get(`/api/public/volumes/${fixture.volumes.adult.id}`)
+                .set('Cookie', cookie),
+            request(app).get('/api/public/volumes/invalido')
+        ]);
+
+        expect(allowed.status).toBe(200);
+        expect(allowed.body.volume.id).toBe(fixture.volumes.adult.id);
+        expect(invalidId.status).toBe(400);
+        expect(invalidId.body).toEqual({ error: 'Parâmetros de consulta inválidos.' });
     });
     });
 
