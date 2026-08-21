@@ -72,6 +72,20 @@ function buildPublicEditionWhere(
     };
 }
 
+function buildPublicEditionDetailWhere(
+    editionId: number,
+    canViewAdultContent: boolean
+): Prisma.EditionWhereInput {
+    return {
+        id: editionId,
+        visibility: PUBLIC_VISIBILITY,
+        work: {
+            visibility: PUBLIC_VISIBILITY,
+            ...(!canViewAdultContent ? { adultContent: false } : {})
+        }
+    };
+}
+
 function buildPublicWorkOrderBy(
     sortBy: PublicWorksQuery['sortBy'],
     order: PublicWorksQuery['order']
@@ -267,14 +281,57 @@ const publicWorkDetailSelect = {
     }
 } satisfies Prisma.WorkSelect;
 
+const publicEditionDetailSelect = {
+    id: true,
+    chronologicalNumber: true,
+    brazilPublicationStatus: true,
+    coverAsset: { select: publicCoverAssetSelect },
+    brazilianPublisher: { select: { id: true, label: true } },
+    editionType: { select: { id: true, label: true } },
+    format: { select: { id: true, label: true } },
+    coverType: { select: { id: true, label: true } },
+    work: {
+        select: {
+            id: true,
+            slug: true,
+            title: true,
+            originalTitle: true,
+            authors: {
+                select: { author: { select: { id: true, label: true } } },
+                orderBy: { author: { label: 'asc' } }
+            }
+        }
+    },
+    _count: {
+        select: {
+            volumes: { where: { visibility: PUBLIC_VISIBILITY } }
+        }
+    }
+} satisfies Prisma.EditionSelect;
+
+const publicEditionVolumeSelect = {
+    id: true,
+    number: true,
+    singleVolume: true,
+    pages: true,
+    releaseDatePrecision: true,
+    releaseYear: true,
+    releaseMonth: true,
+    releaseDay: true,
+    coverAsset: { select: publicCoverAssetSelect }
+} satisfies Prisma.VolumeSelect;
+
 export {
     buildIdentitySearch,
     buildPublicWorkWhere,
     buildPublicEditionWhere,
+    buildPublicEditionDetailWhere,
     buildPublicWorkOrderBy,
     buildPublicEditionOrderBy,
     publicWorkSelect,
     publicEditionSelect,
     publicWorkDetailSelect,
+    publicEditionDetailSelect,
+    publicEditionVolumeSelect,
     PUBLIC_VOLUME_PREVIEW_LIMIT
 };

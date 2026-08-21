@@ -30,6 +30,10 @@ interface PublicVolumePreviewInput {
     coverAsset: PublicCoverAssetInput | null;
 }
 
+interface PublicEditionVolumeInput extends PublicVolumePreviewInput {
+    pages: number | null;
+}
+
 interface PublicWorkInput {
     id: number;
     slug: string;
@@ -67,6 +71,25 @@ interface PublicEditionDetailInput {
     _count: { volumes: number };
 }
 
+interface PublicEditionPageInput {
+    id: number;
+    chronologicalNumber: number;
+    brazilPublicationStatus: string;
+    coverAsset: PublicCoverAssetInput | null;
+    brazilianPublisher: PublicOptionInput;
+    editionType: PublicOptionInput;
+    format: PublicOptionInput;
+    coverType: PublicOptionInput;
+    work: {
+        id: number;
+        slug: string;
+        title: string;
+        originalTitle: string | null;
+        authors: PublicAuthorRelationInput[];
+    };
+    _count: { volumes: number };
+}
+
 interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
     originalPublicationStartYear: number | null;
     originalPublicationEndYear: number | null;
@@ -86,5 +109,7 @@ export type {
     PublicCoverAssetInput,
     PublicWorkInput,
     PublicEditionInput,
-    PublicWorkDetailInput
+    PublicWorkDetailInput,
+    PublicEditionPageInput,
+    PublicEditionVolumeInput
 };
