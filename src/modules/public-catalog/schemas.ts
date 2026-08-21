@@ -52,8 +52,18 @@ const publicEditionsQuerySchema = z.object({
     ...paginationShape
 });
 
+const publicEntityIdParamsSchema = z.object({
+    editionId: z.coerce.number().int().positive()
+});
+
+const publicDetailsQuerySchema = z.object({
+    ...paginationShape
+});
+
 export {
     parseListInput,
     publicWorksQuerySchema,
-    publicEditionsQuerySchema
+    publicEditionsQuerySchema,
+    publicEntityIdParamsSchema,
+    publicDetailsQuerySchema
 };

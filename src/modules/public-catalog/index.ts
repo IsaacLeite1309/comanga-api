@@ -5,19 +5,35 @@ import {
     PUBLIC_WORK_COUNTRIES,
     PUBLIC_WORK_DEMOGRAPHICS
 } from './constants';
-import { mapOption, mapPublicEdition, mapPublicWork, mapPublicWorkDetails } from './mappers';
 import {
+    mapOption,
+    mapPublicEdition,
+    mapPublicEditionDetails,
+    mapPublicEditionVolume,
+    mapPublicWork,
+    mapPublicWorkDetails
+} from './mappers';
+import {
+    buildPublicEditionDetailWhere,
     buildPublicEditionOrderBy,
     buildPublicEditionWhere,
     buildPublicWorkOrderBy,
     buildPublicWorkWhere,
     publicEditionSelect,
+    publicEditionDetailSelect,
+    publicEditionVolumeSelect,
     publicWorkSelect,
     publicWorkDetailSelect
 } from './queries';
-import { publicEditionsQuerySchema, publicWorksQuerySchema } from './schemas';
+import {
+    publicDetailsQuerySchema,
+    publicEditionsQuerySchema,
+    publicEntityIdParamsSchema,
+    publicWorksQuerySchema
+} from './schemas';
 
 const INVALID_PUBLIC_FILTERS_MESSAGE = 'Filtros de consulta inválidos.';
+const INVALID_PUBLIC_PARAMETERS_MESSAGE = 'Parâmetros de consulta inválidos.';
 
 function canViewAdultContent(req: Request): boolean {
     return req.publicCatalogViewer?.canViewAdultContent === true;
@@ -126,6 +142,55 @@ async function listPublicEditions(req: Request, res: Response, next: NextFunctio
     }
 }
 
+async function getPublicEditionDetails(req: Request, res: Response, next: NextFunction) {
+    const paramsValidation = publicEntityIdParamsSchema.safeParse(req.params);
+    const queryValidation = publicDetailsQuerySchema.safeParse(req.query);
+
+    if (!paramsValidation.success || !queryValidation.success) {
+        return res.status(400).json({ error: INVALID_PUBLIC_PARAMETERS_MESSAGE });
+    }
+
+    const { editionId } = paramsValidation.data;
+    const { page, limit } = queryValidation.data;
+    const editionWhere = buildPublicEditionDetailWhere(
+        editionId,
+        canViewAdultContent(req)
+    );
+
+    try {
+        const [edition, volumes] = await prisma.$transaction([
+            prisma.edition.findFirst({
+                where: editionWhere,
+                select: publicEditionDetailSelect
+            }),
+            prisma.volume.findMany({
+                where: {
+                    visibility: 'Público',
+                    edition: editionWhere
+                },
+                select: publicEditionVolumeSelect,
+                orderBy: [{ number: 'asc' }, { id: 'asc' }],
+                skip: (page - 1) * limit,
+                take: limit
+            })
+        ]);
+
+        prepareViewerDependentResponse(res);
+        if (!edition) {
+            return res.status(404).json({ error: 'Edição não encontrada.' });
+        }
+
+        const total = edition._count.volumes;
+        return res.status(200).json({
+            edition: mapPublicEditionDetails(edition),
+            volumes: volumes.map(mapPublicEditionVolume),
+            pagination: pagination(page, limit, total)
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
 async function getPublicCatalogOptions(_req: Request, res: Response, next: NextFunction) {
     const categorySlugs = Object.values(PUBLIC_CATALOG_OPTION_CATEGORIES);
 
@@ -175,5 +240,6 @@ export {
     listPublicWorks,
     getPublicWorkDetails,
     listPublicEditions,
+    getPublicEditionDetails,
     getPublicCatalogOptions
 };

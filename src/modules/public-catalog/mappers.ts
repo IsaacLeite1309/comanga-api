@@ -1,6 +1,8 @@
 import type {
     PublicCoverAssetInput,
     PublicEditionInput,
+    PublicEditionPageInput,
+    PublicEditionVolumeInput,
     PublicOptionInput,
     PublicWorkDetailInput,
     PublicWorkInput
@@ -101,9 +103,46 @@ function mapPublicEdition(edition: PublicEditionInput) {
     };
 }
 
+function mapPublicEditionDetails(edition: PublicEditionPageInput) {
+    return {
+        id: edition.id,
+        chronologicalNumber: edition.chronologicalNumber,
+        coverUrl: mapCoverUrl(edition.coverAsset),
+        brazilianPublisher: mapOption(edition.brazilianPublisher),
+        editionType: mapOption(edition.editionType),
+        format: mapOption(edition.format),
+        coverType: mapOption(edition.coverType),
+        brazilPublicationStatus: edition.brazilPublicationStatus,
+        volumesCount: edition._count.volumes,
+        work: {
+            id: edition.work.id,
+            slug: edition.work.slug,
+            title: edition.work.title,
+            originalTitle: edition.work.originalTitle,
+            authors: mapAuthors(edition.work.authors)
+        }
+    };
+}
+
+function mapPublicEditionVolume(volume: PublicEditionVolumeInput) {
+    return {
+        id: volume.id,
+        number: volume.number,
+        singleVolume: volume.singleVolume,
+        coverUrl: mapCoverUrl(volume.coverAsset),
+        pages: volume.pages,
+        releaseDatePrecision: volume.releaseDatePrecision,
+        releaseYear: volume.releaseYear,
+        releaseMonth: volume.releaseMonth,
+        releaseDay: volume.releaseDay
+    };
+}
+
 export {
     mapOption,
     mapPublicWork,
     mapPublicEdition,
-    mapPublicWorkDetails
+    mapPublicWorkDetails,
+    mapPublicEditionDetails,
+    mapPublicEditionVolume
 };

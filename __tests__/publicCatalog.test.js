@@ -524,6 +524,73 @@ describe('catálogo público', () => {
     });
     });
 
+    describe('GET /api/public/editions/:editionId', () => {
+    it('retorna a ficha da Edição com somente Volumes públicos paginados', async () => {
+        const response = await request(app)
+            .get(`/api/public/editions/${fixture.editions.complete.id}`)
+            .query({ page: 1, limit: 1 });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.vary).toContain('Cookie');
+        expect(response.body.edition).toEqual(expect.objectContaining({
+            id: fixture.editions.complete.id,
+            chronologicalNumber: 1,
+            coverUrl: null,
+            brazilianPublisher: fixture.options.publisherOne,
+            editionType: fixture.options.editionType,
+            format: fixture.options.formatOne,
+            coverType: fixture.options.coverOne,
+            volumesCount: 1,
+            work: expect.objectContaining({
+                id: fixture.works.complete.id,
+                slug: fixture.works.complete.slug,
+                title: fixture.works.complete.title
+            })
+        }));
+        expect(response.body.volumes).toEqual([
+            expect.objectContaining({ number: 1, coverUrl: null })
+        ]);
+        expect(response.body.pagination).toEqual({
+            page: 1,
+            limit: 1,
+            total: 1,
+            totalPages: 1
+        });
+        expect(response.body.edition).not.toHaveProperty('visibility');
+    });
+
+    it('não distingue hierarquia privada, adulta indisponível ou ID inexistente', async () => {
+        const [privateEdition, privateWork, adultEdition, missingEdition] = await Promise.all([
+            request(app).get(`/api/public/editions/${fixture.editions.private.id}`),
+            request(app).get(`/api/public/editions/${fixture.editions.privateWork.id}`),
+            request(app).get(`/api/public/editions/${fixture.editions.adult.id}`),
+            request(app).get('/api/public/editions/2147483647')
+        ]);
+
+        for (const response of [privateEdition, privateWork, adultEdition, missingEdition]) {
+            expect(response.status).toBe(404);
+            expect(response.body).toEqual({ error: 'Edição não encontrada.' });
+        }
+    });
+
+    it('libera a Edição adulta apenas com sessão elegível e valida paginação', async () => {
+        const cookie = await createSessionCookie({ suffix: 'edition-detail-adult', adultContent: true });
+        const [allowed, invalidPagination] = await Promise.all([
+            request(app)
+                .get(`/api/public/editions/${fixture.editions.adult.id}`)
+                .set('Cookie', cookie),
+            request(app)
+                .get(`/api/public/editions/${fixture.editions.complete.id}`)
+                .query({ limit: 51 })
+        ]);
+
+        expect(allowed.status).toBe(200);
+        expect(allowed.body.edition.id).toBe(fixture.editions.adult.id);
+        expect(invalidPagination.status).toBe(400);
+        expect(invalidPagination.body).toEqual({ error: 'Parâmetros de consulta inválidos.' });
+    });
+    });
+
     describe('GET /api/public/catalog-options', () => {
     it('oferece apenas op\u00e7\u00f5es ativas necess\u00e1rias \u00e0s duas vitrines', async () => {
         const response = await request(app).get('/api/public/catalog-options');
