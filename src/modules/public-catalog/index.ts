@@ -5,14 +5,15 @@ import {
     PUBLIC_WORK_COUNTRIES,
     PUBLIC_WORK_DEMOGRAPHICS
 } from './constants';
-import { mapOption, mapPublicEdition, mapPublicWork } from './mappers';
+import { mapOption, mapPublicEdition, mapPublicWork, mapPublicWorkDetails } from './mappers';
 import {
     buildPublicEditionOrderBy,
     buildPublicEditionWhere,
     buildPublicWorkOrderBy,
     buildPublicWorkWhere,
     publicEditionSelect,
-    publicWorkSelect
+    publicWorkSelect,
+    publicWorkDetailSelect
 } from './queries';
 import { publicEditionsQuerySchema, publicWorksQuerySchema } from './schemas';
 
@@ -63,6 +64,31 @@ async function listPublicWorks(req: Request, res: Response, next: NextFunction) 
             works: works.map(mapPublicWork),
             pagination: pagination(query.page, query.limit, total)
         });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function getPublicWorkDetails(req: Request, res: Response, next: NextFunction) {
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
+    const where = {
+        slug,
+        visibility: 'Público',
+        ...(!canViewAdultContent(req) ? { adultContent: false } : {})
+    };
+
+    try {
+        const work = await prisma.work.findFirst({
+            where,
+            select: publicWorkDetailSelect
+        });
+
+        prepareViewerDependentResponse(res);
+        if (!work) {
+            return res.status(404).json({ error: 'Obra não encontrada.' });
+        }
+
+        return res.status(200).json({ work: mapPublicWorkDetails(work) });
     } catch (error) {
         return next(error);
     }
@@ -147,6 +173,7 @@ async function getPublicCatalogOptions(_req: Request, res: Response, next: NextF
 
 export {
     listPublicWorks,
+    getPublicWorkDetails,
     listPublicEditions,
     getPublicCatalogOptions
 };

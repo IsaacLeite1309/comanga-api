@@ -389,6 +389,70 @@ describe('catálogo público', () => {
     });
     });
 
+    describe('GET /api/public/works/:slug', () => {
+    it('entrega os detalhes anonimamente e limita Edições e Volumes aos vínculos públicos', async () => {
+        const response = await request(app)
+            .get(`/api/public/works/${fixture.works.complete.slug}`);
+
+        expect(response.status).toBe(200);
+        expect(response.headers.vary).toContain('Cookie');
+        expect(response.headers['cache-control']).toBe('private, no-store');
+        expect(response.body.work).toEqual(expect.objectContaining({
+            id: fixture.works.complete.id,
+            slug: fixture.works.complete.slug,
+            title: fixture.works.complete.title,
+            originalTitle: `${fixturePrefix}_original-alpha`,
+            coverUrl: null,
+            type: fixture.options.typeOne,
+            country: 'Japão',
+            authors: [{
+                id: fixture.options.authorOne.id,
+                label: fixture.options.authorOne.label,
+                roles: []
+            }],
+            genres: expect.arrayContaining([fixture.options.genreOne, fixture.options.genreTwo]),
+            demographics: ['Seinen', 'Shonen']
+        }));
+        expect(response.body.work.editions).toHaveLength(1);
+        expect(response.body.work.editions[0]).toEqual(expect.objectContaining({
+            id: fixture.editions.complete.id,
+            chronologicalNumber: 1,
+            volumesCount: 1
+        }));
+        expect(response.body.work.editions[0].volumes).toEqual([
+            expect.objectContaining({ number: 1, coverUrl: null })
+        ]);
+        expect(response.body.work).not.toHaveProperty('visibility');
+        expect(response.body.work).not.toHaveProperty('adultContent');
+    });
+
+    it('responde da mesma forma para Obra privada, adulta indisponível e slug inexistente', async () => {
+        const [privateWork, adultWork, missingWork] = await Promise.all([
+            request(app).get(`/api/public/works/${fixture.works.private.slug}`),
+            request(app).get(`/api/public/works/${fixture.works.adult.slug}`),
+            request(app).get('/api/public/works/slug-inexistente')
+        ]);
+
+        for (const response of [privateWork, adultWork, missingWork]) {
+            expect(response.status).toBe(404);
+            expect(response.body).toEqual({ error: 'Obra não encontrada.' });
+        }
+    });
+
+    it('libera detalhes adultos somente para sessão elegível', async () => {
+        const cookie = await createSessionCookie({ suffix: 'work-detail-adult', adultContent: true });
+        const response = await request(app)
+            .get(`/api/public/works/${fixture.works.adult.slug}`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.work.id).toBe(fixture.works.adult.id);
+        expect(response.body.work.editions.map((edition) => edition.id)).toEqual([
+            fixture.editions.adult.id
+        ]);
+    });
+    });
+
     describe('GET /api/public/editions', () => {
     it('busca pela identidade da Obra, exige ambas as visibilidades e herda a regra adulta', async () => {
         const response = await request(app)
