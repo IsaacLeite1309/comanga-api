@@ -122,10 +122,10 @@ describe('app unitario', () => {
         });
     });
 
-    it('protege a prova de conceito de midia com autenticacao administrativa', async () => {
+    it('protege a importacao interna de midia com autenticacao administrativa', async () => {
         const response = await request(app)
-            .post('/api/admin/media/poc/covers')
-            .send({ url: 'https://origem.test/capa.jpg' });
+            .post('/api/admin/media/covers')
+            .send({ sourceUrl: 'https://origem.test/capa.jpg' });
 
         expect(response.status).toBe(401);
         expect(response.body).toEqual({

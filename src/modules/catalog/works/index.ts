@@ -3,6 +3,10 @@ import { z } from 'zod';
 import prisma from '../../../prisma';
 import { createUniqueWorkSlug } from './workSlug';
 import {
+    deleteOrphanedCoverAsset,
+    isCoverAssetAttachable
+} from '../../admin/media/coverAssetLifecycle';
+import {
     AUTHOR_DUPLICATED_MESSAGE,
     WORK_DUPLICATED_MESSAGE,
     REQUIRED_WORK_FIELDS_MESSAGE,
@@ -95,6 +99,10 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
             return res.status(400).json({ error: INVALID_DOMAIN_REFERENCE_MESSAGE });
         }
 
+        if (data.coverAssetId && !await isCoverAssetAttachable(data.coverAssetId)) {
+            return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
+        }
+
         const slug = await createUniqueWorkSlug(data.title, prisma.work);
 
         const workId = await prisma.$transaction(async (tx) => {
@@ -110,7 +118,7 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
                     typeId: data.typeId,
                     country: data.country,
                     originalPublicationStatus: data.originalPublicationStatus,
-                    coverUrl: data.coverUrl || null,
+                    coverAssetId: data.coverAssetId || null,
                     adultContent: data.adultContent,
                     visibility: 'Privado',
                     authors: {
@@ -158,6 +166,13 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
                     }))
                 ))
             });
+
+            if (data.coverAssetId) {
+                await tx.mediaAsset.update({
+                    where: { id: data.coverAssetId },
+                    data: { status: 'Ativo', ativadoEm: new Date() }
+                });
+            }
 
             return createdWork.id;
         });
@@ -410,6 +425,7 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
             where: { id: workId },
             select: {
                 id: true,
+                coverAssetId: true,
                 country: true,
                 typeId: true,
                 authors: {
@@ -432,6 +448,13 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
 
         if (!existingWork) {
             return res.status(404).json({ error: 'Obra não encontrada.' });
+        }
+
+        if (
+            data.coverAssetId
+            && !await isCoverAssetAttachable(data.coverAssetId, existingWork.coverAssetId)
+        ) {
+            return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
         }
 
         if (data.title) {
@@ -472,7 +495,7 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
         if (data.typeId !== undefined) updateData.typeId = data.typeId;
         if (data.country !== undefined) updateData.country = data.country;
         if (data.originalPublicationStatus !== undefined) updateData.originalPublicationStatus = data.originalPublicationStatus;
-        if (data.coverUrl !== undefined) updateData.coverUrl = data.coverUrl || null;
+        if (data.coverAssetId !== undefined) updateData.coverAssetId = data.coverAssetId || null;
         if (data.adultContent !== undefined) updateData.adultContent = data.adultContent;
 
         const updateOperations = [
@@ -540,10 +563,20 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
                         }))
                     })
                 ]
+                : []),
+            ...(data.coverAssetId && data.coverAssetId !== existingWork.coverAssetId
+                ? [prisma.mediaAsset.update({
+                    where: { id: data.coverAssetId },
+                    data: { status: 'Ativo', ativadoEm: new Date() }
+                })]
                 : [])
         ];
 
         await prisma.$transaction(updateOperations);
+
+        if (data.coverAssetId !== undefined && existingWork.coverAssetId !== data.coverAssetId) {
+            await deleteOrphanedCoverAsset(existingWork.coverAssetId);
+        }
 
         const work = await prisma.work.findUnique({
             where: { id: workId },
@@ -575,7 +608,7 @@ async function deleteWork(req: Request, res: Response, next: NextFunction) {
     try {
         const work = await prisma.work.findUnique({
             where: { id: workId },
-            select: { id: true, visibility: true }
+            select: { id: true, visibility: true, coverAssetId: true }
         });
 
         if (!work) {
@@ -597,6 +630,8 @@ async function deleteWork(req: Request, res: Response, next: NextFunction) {
         await prisma.$transaction([
             prisma.work.delete({ where: { id: workId } })
         ]);
+
+        await deleteOrphanedCoverAsset(work.coverAssetId);
 
         return res.status(200).json({ message: 'Obra excluída com sucesso.' });
 

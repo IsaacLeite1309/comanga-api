@@ -119,7 +119,14 @@ const publicWorkSelect = {
     slug: true,
     title: true,
     originalTitle: true,
-    coverUrl: true,
+    coverAsset: {
+        select: {
+            objectKey: true,
+            variants: {
+                select: { kind: true, objectKey: true }
+            }
+        }
+    },
     country: true,
     type: {
         select: { id: true, label: true }
@@ -139,7 +146,14 @@ const publicWorkSelect = {
 const publicEditionSelect = {
     id: true,
     chronologicalNumber: true,
-    coverUrl: true,
+    coverAsset: {
+        select: {
+            objectKey: true,
+            variants: {
+                select: { kind: true, objectKey: true }
+            }
+        }
+    },
     work: {
         select: {
             id: true,

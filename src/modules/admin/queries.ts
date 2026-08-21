@@ -42,6 +42,15 @@ function getOptionValueSelect(includeDependencies: boolean) {
 
 function getWorkSummaryInclude() {
     return {
+        coverAsset: {
+            select: {
+                id: true,
+                objectKey: true,
+                variants: {
+                    select: { kind: true, objectKey: true }
+                }
+            }
+        },
         _count: {
             select: {
                 editions: true
@@ -70,6 +79,15 @@ function getWorkSummaryInclude() {
 
 function getEditionInclude() {
     return {
+        coverAsset: {
+            select: {
+                id: true,
+                objectKey: true,
+                variants: {
+                    select: { kind: true, objectKey: true }
+                }
+            }
+        },
         _count: {
             select: {
                 volumes: true

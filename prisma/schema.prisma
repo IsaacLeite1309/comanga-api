@@ -19,6 +19,7 @@ model User {
   conteudoAdulto      Boolean   @default(false) @map("conteudo_adulto")
   criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz
   sessions            Session[]
+  mediaAssets         MediaAsset[]
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_username_trgm")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_email_trgm")
@@ -97,7 +98,7 @@ model Work {
   typeId Int @map("type_id")
   country String @db.VarChar(40)
   originalPublicationStatus String @map("original_publication_status") @db.VarChar(40)
-  coverUrl String? @map("cover_url") @db.VarChar(2048)
+  coverAssetId String? @unique @map("cover_asset_id") @db.Uuid
   visibility String @default("Privado") @db.VarChar(20)
   adultContent Boolean @default(false) @map("adult_content")
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
@@ -109,6 +110,7 @@ model Work {
   serializationMagazines WorkSerializationMagazine[]
   originalPublishers WorkOriginalPublisher[]
   editions Edition[]
+  coverAsset MediaAsset? @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([title], map: "idx_works_title")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_title_trgm")
@@ -131,7 +133,7 @@ model Edition {
   formatId Int @map("format_id")
   chronologicalNumber Int @map("chronological_number")
   brazilPublicationStatus String @map("brazil_publication_status") @db.VarChar(30)
-  coverUrl String? @map("cover_url") @db.VarChar(2048)
+  coverAssetId String? @unique @map("cover_asset_id") @db.Uuid
   visibility String @default("Privado") @db.VarChar(20)
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
   atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
@@ -141,6 +143,7 @@ model Edition {
   coverType DomainOptionValue @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   format DomainOptionValue @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   volumes Volume[]
+  coverAsset MediaAsset? @relation("EditionCover", fields: [coverAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
   @@index([workId, chronologicalNumber], map: "idx_editions_work_chronological")
@@ -155,7 +158,7 @@ model Volume {
   id Int @id @default(autoincrement())
   editionId Int @map("edition_id")
   number Int
-  coverUrl String? @map("cover_url") @db.VarChar(2048)
+  coverAssetId String? @unique @map("cover_asset_id") @db.Uuid
   singleVolume Boolean @default(false) @map("single_volume")
   pages Int?
   price Decimal? @db.Decimal(10, 2)
@@ -172,12 +175,55 @@ model Volume {
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
   atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
   edition Edition @relation(fields: [editionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  coverAsset MediaAsset? @relation("VolumeCover", fields: [coverAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")
   @@index([visibility], map: "idx_volumes_visibility")
   @@index([visibility, releaseYear, releaseMonth, releaseDay, id, editionId], map: "idx_volumes_calendar_release")
   @@map("volumes")
+}
+
+model MediaAsset {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider        String         @db.VarChar(40)
+  objectKey       String         @unique @map("object_key") @db.VarChar(512)
+  sourceUrl       String?        @map("source_url") @db.VarChar(2048)
+  mimeType        String         @map("mime_type") @db.VarChar(100)
+  format          String         @db.VarChar(20)
+  width           Int
+  height          Int
+  bytes           Int
+  checksum        String         @db.VarChar(64)
+  status          String         @default("Pendente") @db.VarChar(20)
+  createdByUserId String?        @map("created_by_user_id") @db.Uuid
+  criadoEm        DateTime       @default(now()) @map("criado_em") @db.Timestamptz
+  ativadoEm       DateTime?      @map("ativado_em") @db.Timestamptz
+  createdBy       User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  variants        MediaVariant[]
+  work            Work?          @relation("WorkCover")
+  edition         Edition?       @relation("EditionCover")
+  volume          Volume?        @relation("VolumeCover")
+
+  @@index([status, criadoEm], map: "idx_media_assets_status_created")
+  @@index([createdByUserId], map: "idx_media_assets_created_by")
+  @@map("media_assets")
+}
+
+model MediaVariant {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mediaAssetId String     @map("media_asset_id") @db.Uuid
+  kind         String     @db.VarChar(40)
+  objectKey    String     @unique @map("object_key") @db.VarChar(512)
+  mimeType     String     @map("mime_type") @db.VarChar(100)
+  width        Int
+  height       Int
+  bytes        Int
+  asset        MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([mediaAssetId, kind], map: "media_variants_media_asset_id_kind_key")
+  @@index([mediaAssetId], map: "idx_media_variants_asset")
+  @@map("media_variants")
 }
 
 model WorkOriginalPublisher {

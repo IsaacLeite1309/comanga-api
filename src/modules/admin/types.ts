@@ -7,6 +7,15 @@ interface OptionSummary {
     label: string;
 }
 
+interface CoverAssetInput {
+    id: string;
+    objectKey: string;
+    variants: Array<{
+        kind: string;
+        objectKey: string;
+    }>;
+}
+
 interface WorkSummaryInput {
     id: number;
     slug: string;
@@ -14,7 +23,8 @@ interface WorkSummaryInput {
     originalTitle: string | null;
     visibility: string;
     adultContent: boolean;
-    coverUrl: string | null;
+    coverAssetId: string | null;
+    coverAsset: CoverAssetInput | null;
     editionsCount?: number;
     type: OptionSummary;
     country: string;
@@ -61,7 +71,8 @@ interface EditionInput {
     id: number;
     workId: number;
     chronologicalNumber: number;
-    coverUrl: string | null;
+    coverAssetId: string | null;
+    coverAsset: CoverAssetInput | null;
     visibility: string;
     brazilianPublisher: OptionSummary;
     editionType: OptionSummary;
@@ -77,7 +88,8 @@ interface VolumeInput {
     id: number;
     editionId: number;
     number: number;
-    coverUrl: string | null;
+    coverAssetId: string | null;
+    coverAsset: CoverAssetInput | null;
     singleVolume: boolean;
     pages: number | null;
     price: unknown;
@@ -96,6 +108,7 @@ interface VolumeInput {
 export type {
     PrismaKnownError,
     OptionSummary,
+    CoverAssetInput,
     WorkSummaryInput,
     WorkDetailInput,
     EditionInput,

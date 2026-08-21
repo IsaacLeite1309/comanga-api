@@ -5,7 +5,7 @@ const {
 
 const validVolume = {
     number: 1,
-    coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
+    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
     releaseDatePrecision: 'Completa',
     releaseYear: 2024,
     releaseMonth: 2,
@@ -15,14 +15,12 @@ const validVolume = {
 };
 
 describe('schemas administrativos de Volume', () => {
-    it.each([
-        'data:image/png;base64,AAAA',
-        'ftp://cdn.comanga.test/volume-1.jpg',
-        'file:///tmp/volume-1.jpg'
-    ])('rejeita capa fora de HTTP/HTTPS: %s', (coverUrl) => {
-        const result = volumePayloadSchema.safeParse({ ...validVolume, coverUrl });
-
-        expect(result.success).toBe(false);
+    it('aceita somente a identidade UUID de uma capa interna', () => {
+        expect(volumePayloadSchema.safeParse(validVolume).success).toBe(true);
+        expect(volumePayloadSchema.safeParse({ ...validVolume, coverAssetId: undefined }).success).toBe(false);
+        expect(volumePayloadSchema.safeParse({ ...validVolume, coverAssetId: null }).success).toBe(false);
+        expect(volumePayloadSchema.safeParse({ ...validVolume, coverAssetId: 'capa-externa' }).success).toBe(false);
+        expect(volumePayloadSchema.safeParse({ ...validVolume, coverUrl: 'https://externo.test/capa.jpg' }).success).toBe(false);
     });
 
     it.each([
@@ -52,7 +50,9 @@ describe('schemas administrativos de Volume', () => {
     });
 
     it('aplica as mesmas validacoes no patch', () => {
-        expect(updateVolumeSchema.safeParse({ coverUrl: 'data:image/jpeg;base64,AAAA' }).success).toBe(false);
+        expect(updateVolumeSchema.safeParse({ coverAssetId: 'capa-externa' }).success).toBe(false);
+        expect(updateVolumeSchema.safeParse({ coverAssetId: null }).success).toBe(false);
+        expect(updateVolumeSchema.safeParse({ coverUrl: 'https://externo.test/capa.jpg' }).success).toBe(false);
         expect(updateVolumeSchema.safeParse({ isbn13: '9780306406158' }).success).toBe(false);
     });
 });

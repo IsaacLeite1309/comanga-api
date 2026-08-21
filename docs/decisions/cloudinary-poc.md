@@ -1,5 +1,7 @@
 # Prova de conceito de capas com Cloudinary
 
+> **Status: substituída em 19/08/2026.** A POC e suas rotas foram removidas. A decisão vigente é armazenar capas internas no Cloudflare R2, conforme `docs/operations/internal-cover-media.md`. O conteúdo abaixo permanece apenas como registro histórico da avaliação.
+
 ## Objetivo
 
 Avaliar a importação controlada de capas externas sem substituir o mecanismo atual do catálogo nem realizar migração em massa.
@@ -36,6 +38,6 @@ Registrar para cada rodada:
 
 Também devem ser verificados: importação por URL, entrega otimizada, substituição mantendo `publicId`, invalidação da versão anterior e exclusão do ativo.
 
-## Decisão atual: Adiar
+## Decisão histórica: Adiar
 
 O Cloudinary foi isolado atrás de `MediaStorage` e está tecnicamente pronto para uma prova controlada. Ele ainda não é o armazenamento padrão porque o catálogo possui poucos registros reais e não há medição representativa de consumo ou benefício. A decisão deve ser reavaliada após cadastrar uma amostra de capas e comparar estabilidade, armazenamento, transformações e largura de banda com os limites gratuitos vigentes.

@@ -1,5 +1,11 @@
 import { AUTHOR_ROLE_VALUES } from './constants';
 import type { EditionInput, OptionSummary, VolumeInput, WorkDetailInput, WorkSummaryInput } from './types';
+import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
+
+function normalizeCoverUrl(asset: WorkSummaryInput['coverAsset']) {
+    if (!asset) return null;
+    return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
+}
 
 function normalizeUser(user: {
     id: string;
@@ -111,7 +117,8 @@ function normalizeWorkSummary(work: WorkSummaryInput) {
         country: work.country,
         visibility: work.visibility,
         adultContent: work.adultContent,
-        coverUrl: work.coverUrl,
+        coverAssetId: work.coverAssetId,
+        coverUrl: normalizeCoverUrl(work.coverAsset),
         editionsCount: work.editionsCount ?? work._count?.editions ?? 0,
         authors: sortAuthorsByRolePriority(work.authors || []).map((item) => normalizeOptionSummary(item.author))
     };
@@ -141,7 +148,8 @@ function normalizeEdition(edition: EditionInput) {
         id: edition.id,
         workId: edition.workId,
         chronologicalNumber: edition.chronologicalNumber,
-        coverUrl: edition.coverUrl,
+        coverAssetId: edition.coverAssetId,
+        coverUrl: normalizeCoverUrl(edition.coverAsset),
         visibility: edition.visibility,
         brazilianPublisher: normalizeOptionSummary(edition.brazilianPublisher),
         editionType: normalizeOptionSummary(edition.editionType),
@@ -157,7 +165,8 @@ function normalizeVolume(volume: VolumeInput) {
         id: volume.id,
         editionId: volume.editionId,
         number: volume.number,
-        coverUrl: volume.coverUrl,
+        coverAssetId: volume.coverAssetId,
+        coverUrl: normalizeCoverUrl(volume.coverAsset),
         singleVolume: volume.singleVolume,
         pages: volume.pages,
         price: volume.price === null || volume.price === undefined ? null : Number(volume.price),

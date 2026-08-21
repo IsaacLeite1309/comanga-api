@@ -3,6 +3,10 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../../../prisma';
 import {
+    deleteOrphanedCoverAsset,
+    isCoverAssetAttachable
+} from '../../admin/media/coverAssetLifecycle';
+import {
     VOLUME_DUPLICATED_MESSAGE,
     PUBLIC_VOLUME_DELETE_MESSAGE,
     PrismaKnownError,
@@ -19,7 +23,7 @@ import {
 function buildVolumeData(data: Partial<z.infer<typeof volumePayloadBaseSchema>>, mode: 'create' | 'update' = 'create') {
     const payload: Record<string, unknown> = {
         number: data.number,
-        coverUrl: data.coverUrl === undefined ? undefined : data.coverUrl || null,
+        coverAssetId: data.coverAssetId === undefined ? undefined : data.coverAssetId || null,
         singleVolume: data.singleVolume === undefined && mode === 'create' ? false : data.singleVolume,
         pages: data.pages ?? null,
         price: data.price ?? null,
@@ -69,13 +73,36 @@ async function createVolume(req: Request, res: Response, next: NextFunction) {
             return res.status(404).json({ error: 'Edição não encontrada.' });
         }
 
-        const volume = await prisma.volume.create({
-            data: {
-                editionId,
-                ...buildVolumeData(validation.data),
-                visibility: edition.visibility
-            } as Prisma.VolumeUncheckedCreateInput
-        });
+        if (validation.data.coverAssetId && !await isCoverAssetAttachable(validation.data.coverAssetId)) {
+            return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
+        }
+
+        const createVolumeRecord = (client: typeof prisma) => client.volume.create({
+                data: {
+                    editionId,
+                    ...buildVolumeData(validation.data),
+                    visibility: edition.visibility
+                } as Prisma.VolumeUncheckedCreateInput,
+                include: {
+                    coverAsset: {
+                        select: {
+                            id: true,
+                            objectKey: true,
+                            variants: { select: { kind: true, objectKey: true } }
+                        }
+                    }
+                }
+            });
+        const volume = validation.data.coverAssetId
+            ? await prisma.$transaction(async (tx) => {
+                const createdVolume = await createVolumeRecord(tx as typeof prisma);
+                await tx.mediaAsset.update({
+                    where: { id: validation.data.coverAssetId as string },
+                    data: { status: 'Ativo', ativadoEm: new Date() }
+                });
+                return createdVolume;
+            })
+            : await createVolumeRecord(prisma);
 
         return res.status(201).json({ volume: normalizeVolume(volume as unknown as VolumeInput) });
     } catch (error) {
@@ -119,7 +146,16 @@ async function listVolumesByEdition(req: Request, res: Response, next: NextFunct
                 where: { editionId },
                 orderBy: { number: order.toLowerCase() as 'asc' | 'desc' },
                 skip: (page - 1) * limit,
-                take: limit
+                take: limit,
+                include: {
+                    coverAsset: {
+                        select: {
+                            id: true,
+                            objectKey: true,
+                            variants: { select: { kind: true, objectKey: true } }
+                        }
+                    }
+                }
             }),
             prisma.volume.count({ where: { editionId } })
         ]);
@@ -147,7 +183,16 @@ async function getVolumeById(req: Request, res: Response, next: NextFunction) {
 
     try {
         const volume = await prisma.volume.findUnique({
-            where: { id: volumeId }
+            where: { id: volumeId },
+            include: {
+                coverAsset: {
+                    select: {
+                        id: true,
+                        objectKey: true,
+                        variants: { select: { kind: true, objectKey: true } }
+                    }
+                }
+            }
         });
 
         if (!volume) {
@@ -176,17 +221,51 @@ async function updateVolume(req: Request, res: Response, next: NextFunction) {
     try {
         const existingVolume = await prisma.volume.findUnique({
             where: { id: volumeId },
-            select: { id: true }
+            select: { id: true, coverAssetId: true }
         });
 
         if (!existingVolume) {
             return res.status(404).json({ error: 'Volume não encontrado.' });
         }
 
-        const volume = await prisma.volume.update({
-            where: { id: volumeId },
-            data: buildVolumeData(validation.data, 'update')
-        });
+        if (
+            validation.data.coverAssetId
+            && !await isCoverAssetAttachable(validation.data.coverAssetId, existingVolume.coverAssetId)
+        ) {
+            return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
+        }
+
+        const updateVolumeRecord = (client: typeof prisma) => client.volume.update({
+                where: { id: volumeId },
+                data: buildVolumeData(validation.data, 'update'),
+                include: {
+                    coverAsset: {
+                        select: {
+                            id: true,
+                            objectKey: true,
+                            variants: { select: { kind: true, objectKey: true } }
+                        }
+                    }
+                }
+            });
+        const shouldActivateCover = Boolean(
+            validation.data.coverAssetId
+            && validation.data.coverAssetId !== existingVolume.coverAssetId
+        );
+        const volume = shouldActivateCover
+            ? await prisma.$transaction(async (tx) => {
+                const updatedVolume = await updateVolumeRecord(tx as typeof prisma);
+                await tx.mediaAsset.update({
+                    where: { id: validation.data.coverAssetId as string },
+                    data: { status: 'Ativo', ativadoEm: new Date() }
+                });
+                return updatedVolume;
+            })
+            : await updateVolumeRecord(prisma);
+
+        if (validation.data.coverAssetId !== undefined && existingVolume.coverAssetId !== validation.data.coverAssetId) {
+            await deleteOrphanedCoverAsset(existingVolume.coverAssetId);
+        }
 
         return res.status(200).json({ volume: normalizeVolume(volume as unknown as VolumeInput) });
     } catch (error) {
@@ -210,7 +289,7 @@ async function deleteVolume(req: Request, res: Response, next: NextFunction) {
     try {
         const volume = await prisma.volume.findUnique({
             where: { id: volumeId },
-            select: { id: true, visibility: true }
+            select: { id: true, visibility: true, coverAssetId: true }
         });
 
         if (!volume) {
@@ -224,6 +303,8 @@ async function deleteVolume(req: Request, res: Response, next: NextFunction) {
         await prisma.volume.delete({
             where: { id: volumeId }
         });
+
+        await deleteOrphanedCoverAsset(volume.coverAssetId);
 
         return res.status(200).json({ message: 'Volume excluido com sucesso.' });
     } catch (error) {

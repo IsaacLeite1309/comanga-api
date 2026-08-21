@@ -144,6 +144,20 @@ async function applyIntegrityMigration() {
             const migrationSql = fs.readFileSync(migrationPath, 'utf8');
             await pool.query(migrationSql);
         }
+
+        await pool.query(`
+            ALTER TABLE media_assets DROP CONSTRAINT IF EXISTS media_assets_dimensions_check;
+            ALTER TABLE media_assets ADD CONSTRAINT media_assets_dimensions_check
+                CHECK (width > 0 AND height > 0);
+            ALTER TABLE media_assets DROP CONSTRAINT IF EXISTS media_assets_bytes_check;
+            ALTER TABLE media_assets ADD CONSTRAINT media_assets_bytes_check CHECK (bytes > 0);
+            ALTER TABLE media_assets DROP CONSTRAINT IF EXISTS media_assets_status_check;
+            ALTER TABLE media_assets ADD CONSTRAINT media_assets_status_check
+                CHECK (status IN ('Pendente', 'Ativo'));
+            ALTER TABLE media_variants DROP CONSTRAINT IF EXISTS media_variants_dimensions_check;
+            ALTER TABLE media_variants ADD CONSTRAINT media_variants_dimensions_check
+                CHECK (width > 0 AND height > 0 AND bytes > 0);
+        `);
     } finally {
         await pool.end();
     }
