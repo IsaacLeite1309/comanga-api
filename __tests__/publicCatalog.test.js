@@ -634,6 +634,71 @@ describe('catálogo público', () => {
     });
     });
 
+    describe('GET /api/public/authors/:authorId/works', () => {
+    it('retorna o Autor e somente suas Obras públicas permitidas ao visitante', async () => {
+        const response = await request(app)
+            .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .query({ page: 1, limit: 1 });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.vary).toContain('Cookie');
+        expect(response.body.author).toEqual(fixture.options.authorOne);
+        expect(response.body.works).toEqual([
+            expect.objectContaining({
+                id: fixture.works.complete.id,
+                slug: fixture.works.complete.slug,
+                authors: expect.arrayContaining([fixture.options.authorOne])
+            })
+        ]);
+        expect(response.body.pagination).toEqual({
+            page: 1,
+            limit: 1,
+            total: 1,
+            totalPages: 1
+        });
+        expect(response.body.works[0]).not.toHaveProperty('visibility');
+        expect(response.body.works[0]).not.toHaveProperty('adultContent');
+    });
+
+    it('libera Obras adultas apenas para sessão elegível', async () => {
+        const cookie = await createSessionCookie({
+            suffix: 'author-works-adult',
+            adultContent: true
+        });
+        const response = await request(app)
+            .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .set('Cookie', cookie)
+            .query({ limit: 50 });
+
+        expect(response.status).toBe(200);
+        expect(response.body.works.map((work) => work.id)).toEqual(expect.arrayContaining([
+            fixture.works.complete.id,
+            fixture.works.adult.id
+        ]));
+        expect(response.body.works.map((work) => work.id)).not.toContain(fixture.works.private.id);
+    });
+
+    it('não aceita outra categoria, ID inexistente ou parâmetros inválidos', async () => {
+        const [otherCategory, missing, invalidId, invalidLimit] = await Promise.all([
+            request(app).get(`/api/public/authors/${fixture.options.typeOne.id}/works`),
+            request(app).get('/api/public/authors/2147483647/works'),
+            request(app).get('/api/public/authors/invalido/works'),
+            request(app)
+                .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+                .query({ limit: 51 })
+        ]);
+
+        for (const response of [otherCategory, missing]) {
+            expect(response.status).toBe(404);
+            expect(response.body).toEqual({ error: 'Autor não encontrado.' });
+        }
+        for (const response of [invalidId, invalidLimit]) {
+            expect(response.status).toBe(400);
+            expect(response.body).toEqual({ error: 'Parâmetros de consulta inválidos.' });
+        }
+    });
+    });
+
     describe('GET /api/public/volumes/:volumeId', () => {
     it('retorna todos os dados públicos e as referências da Edição e da Obra', async () => {
         const response = await request(app)

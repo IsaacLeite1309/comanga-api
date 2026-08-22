@@ -1,10 +1,15 @@
 import type { Prisma } from '@prisma/client';
 import type { z } from 'zod';
 import { PUBLIC_VISIBILITY } from './constants';
-import { publicEditionsQuerySchema, publicWorksQuerySchema } from './schemas';
+import {
+    publicAuthorWorksQuerySchema,
+    publicEditionsQuerySchema,
+    publicWorksQuerySchema
+} from './schemas';
 
 type PublicWorksQuery = z.infer<typeof publicWorksQuerySchema>;
 type PublicEditionsQuery = z.infer<typeof publicEditionsQuerySchema>;
+type PublicAuthorWorksQuery = z.infer<typeof publicAuthorWorksQuerySchema>;
 
 function buildIdentitySearch(term: string): Prisma.WorkWhereInput {
     return {
@@ -86,6 +91,17 @@ function buildPublicEditionDetailWhere(
     };
 }
 
+function buildPublicAuthorWorksWhere(
+    authorId: number,
+    canViewAdultContent: boolean
+): Prisma.WorkWhereInput {
+    return {
+        visibility: PUBLIC_VISIBILITY,
+        ...(!canViewAdultContent ? { adultContent: false } : {}),
+        authors: { some: { authorId } }
+    };
+}
+
 function buildPublicVolumeDetailWhere(
     volumeId: number,
     canViewAdultContent: boolean
@@ -104,8 +120,8 @@ function buildPublicVolumeDetailWhere(
 }
 
 function buildPublicWorkOrderBy(
-    sortBy: PublicWorksQuery['sortBy'],
-    order: PublicWorksQuery['order']
+    sortBy: PublicWorksQuery['sortBy'] | PublicAuthorWorksQuery['sortBy'],
+    order: PublicWorksQuery['order'] | PublicAuthorWorksQuery['order']
 ): Prisma.WorkOrderByWithRelationInput[] {
     const direction = order.toLowerCase() as Prisma.SortOrder;
 
@@ -375,6 +391,7 @@ export {
     buildPublicWorkWhere,
     buildPublicEditionWhere,
     buildPublicEditionDetailWhere,
+    buildPublicAuthorWorksWhere,
     buildPublicVolumeDetailWhere,
     buildPublicWorkOrderBy,
     buildPublicEditionOrderBy,

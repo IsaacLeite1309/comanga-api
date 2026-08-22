@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import prisma from '../../prisma';
 import {
+    PUBLIC_AUTHOR_CATEGORY,
     PUBLIC_CATALOG_OPTION_CATEGORIES,
     PUBLIC_WORK_COUNTRIES,
     PUBLIC_WORK_DEMOGRAPHICS
@@ -18,6 +19,7 @@ import {
     buildPublicEditionDetailWhere,
     buildPublicEditionOrderBy,
     buildPublicEditionWhere,
+    buildPublicAuthorWorksWhere,
     buildPublicVolumeDetailWhere,
     buildPublicWorkOrderBy,
     buildPublicWorkWhere,
@@ -29,6 +31,8 @@ import {
     publicWorkDetailSelect
 } from './queries';
 import {
+    publicAuthorIdParamsSchema,
+    publicAuthorWorksQuerySchema,
     publicDetailsQuerySchema,
     publicEditionsQuerySchema,
     publicEntityIdParamsSchema,
@@ -81,6 +85,49 @@ async function listPublicWorks(req: Request, res: Response, next: NextFunction) 
 
         prepareViewerDependentResponse(res);
         return res.status(200).json({
+            works: works.map(mapPublicWork),
+            pagination: pagination(query.page, query.limit, total)
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function listPublicAuthorWorks(req: Request, res: Response, next: NextFunction) {
+    const paramsValidation = publicAuthorIdParamsSchema.safeParse(req.params);
+    const queryValidation = publicAuthorWorksQuerySchema.safeParse(req.query);
+
+    if (!paramsValidation.success || !queryValidation.success) {
+        return res.status(400).json({ error: INVALID_PUBLIC_PARAMETERS_MESSAGE });
+    }
+
+    const { authorId } = paramsValidation.data;
+    const query = queryValidation.data;
+    const where = buildPublicAuthorWorksWhere(authorId, canViewAdultContent(req));
+
+    try {
+        const [author, works, total] = await prisma.$transaction([
+            prisma.domainOptionValue.findFirst({
+                where: { id: authorId, category: { slug: PUBLIC_AUTHOR_CATEGORY } },
+                select: { id: true, label: true }
+            }),
+            prisma.work.findMany({
+                where,
+                select: publicWorkSelect,
+                orderBy: buildPublicWorkOrderBy(query.sortBy, query.order),
+                skip: (query.page - 1) * query.limit,
+                take: query.limit
+            }),
+            prisma.work.count({ where })
+        ]);
+
+        prepareViewerDependentResponse(res);
+        if (!author) {
+            return res.status(404).json({ error: 'Autor não encontrado.' });
+        }
+
+        return res.status(200).json({
+            author: mapOption(author),
             works: works.map(mapPublicWork),
             pagination: pagination(query.page, query.limit, total)
         });
@@ -271,6 +318,7 @@ async function getPublicCatalogOptions(_req: Request, res: Response, next: NextF
 
 export {
     listPublicWorks,
+    listPublicAuthorWorks,
     getPublicWorkDetails,
     listPublicEditions,
     getPublicEditionDetails,
