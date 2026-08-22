@@ -3,6 +3,7 @@ import optionalSessionMiddleware from '../middlewares/optionalSessionMiddleware'
 import {
     getPublicCatalogOptions,
     getPublicEditionDetails,
+    getPublicVolumeDetails,
     getPublicWorkDetails,
     listPublicEditions,
     listPublicAuthorWorks,
@@ -17,5 +18,6 @@ router.get('/works/:slug', optionalSessionMiddleware, getPublicWorkDetails);
 router.get('/authors/:authorId/works', optionalSessionMiddleware, listPublicAuthorWorks);
 router.get('/editions', optionalSessionMiddleware, listPublicEditions);
 router.get('/editions/:editionId', optionalSessionMiddleware, getPublicEditionDetails);
+router.get('/volumes/:volumeId', optionalSessionMiddleware, getPublicVolumeDetails);
 
 export default router;

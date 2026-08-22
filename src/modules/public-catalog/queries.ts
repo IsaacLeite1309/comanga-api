@@ -102,6 +102,23 @@ function buildPublicAuthorWorksWhere(
     };
 }
 
+function buildPublicVolumeDetailWhere(
+    volumeId: number,
+    canViewAdultContent: boolean
+): Prisma.VolumeWhereInput {
+    return {
+        id: volumeId,
+        visibility: PUBLIC_VISIBILITY,
+        edition: {
+            visibility: PUBLIC_VISIBILITY,
+            work: {
+                visibility: PUBLIC_VISIBILITY,
+                ...(!canViewAdultContent ? { adultContent: false } : {})
+            }
+        }
+    };
+}
+
 function buildPublicWorkOrderBy(
     sortBy: PublicWorksQuery['sortBy'] | PublicAuthorWorksQuery['sortBy'],
     order: PublicWorksQuery['order'] | PublicAuthorWorksQuery['order']
@@ -337,12 +354,45 @@ const publicEditionVolumeSelect = {
     coverAsset: { select: publicCoverAssetSelect }
 } satisfies Prisma.VolumeSelect;
 
+const publicVolumeDetailSelect = {
+    id: true,
+    number: true,
+    singleVolume: true,
+    coverAsset: { select: publicCoverAssetSelect },
+    pages: true,
+    price: true,
+    priceCurrency: true,
+    releaseDatePrecision: true,
+    releaseYear: true,
+    releaseMonth: true,
+    releaseDay: true,
+    isbn10: true,
+    isbn13: true,
+    affiliateLink: true,
+    synopsis: true,
+    edition: {
+        select: {
+            id: true,
+            chronologicalNumber: true,
+            work: {
+                select: {
+                    id: true,
+                    slug: true,
+                    title: true,
+                    originalTitle: true
+                }
+            }
+        }
+    }
+} satisfies Prisma.VolumeSelect;
+
 export {
     buildIdentitySearch,
     buildPublicWorkWhere,
     buildPublicEditionWhere,
     buildPublicEditionDetailWhere,
     buildPublicAuthorWorksWhere,
+    buildPublicVolumeDetailWhere,
     buildPublicWorkOrderBy,
     buildPublicEditionOrderBy,
     publicWorkSelect,
@@ -350,5 +400,6 @@ export {
     publicWorkDetailSelect,
     publicEditionDetailSelect,
     publicEditionVolumeSelect,
+    publicVolumeDetailSelect,
     PUBLIC_VOLUME_PREVIEW_LIMIT
 };
