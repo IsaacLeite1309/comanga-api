@@ -56,6 +56,16 @@ const publicEntityIdParamsSchema = z.object({
     editionId: z.coerce.number().int().positive()
 });
 
+const publicAuthorIdParamsSchema = z.object({
+    authorId: z.coerce.number().int().positive()
+});
+
+const publicAuthorWorksQuerySchema = z.object({
+    sortBy: z.enum(['title', 'originalTitle', 'createdAt']).default('title'),
+    order: z.enum(['ASC', 'DESC']).default('ASC'),
+    ...paginationShape
+});
+
 const publicDetailsQuerySchema = z.object({
     ...paginationShape
 });
@@ -65,5 +75,7 @@ export {
     publicWorksQuerySchema,
     publicEditionsQuerySchema,
     publicEntityIdParamsSchema,
+    publicAuthorIdParamsSchema,
+    publicAuthorWorksQuerySchema,
     publicDetailsQuerySchema
 };
