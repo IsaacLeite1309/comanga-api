@@ -1,41 +1,73 @@
 # CoMangá API
 
-API REST do CoMangá, construída com Node.js, Express, TypeScript, Prisma ORM e PostgreSQL.
+API REST do CoMangá, plataforma para catalogação e gerenciamento de coleções físicas de mangás. A aplicação centraliza autenticação, administração do catálogo, importação de capas e a experiência pública de consulta.
 
-## Organização
+![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5%2B-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma&logoColor=white)
 
-O backend é um monólito modular. Os fluxos são organizados pelos domínios de autenticação, usuários, opções administrativas, Obras, Edições e Volumes. `src/controllers/adminController.ts` permanece somente como fachada de compatibilidade para as rotas administrativas.
+## Visão geral
 
-## Contrato de Editoras originais
-
-Obras possuem uma lista ordenada de Editoras originais. Os contratos de cadastro e alteração aceitam exclusivamente `originalPublisherIds`:
-
-```json
-{
-  "originalPublisherIds": [
-    { "id": 10, "position": 0 },
-    { "id": 9, "position": 1 }
-  ]
-}
-```
-
-O campo singular legado `originalPublisherId` não faz parte do contrato. As respostas retornam `originalPublishers` na ordem persistida.
-
-## Identidade pública das Obras
-
-Cada Obra possui um `slug` único, normalizado e imutável. No cadastro, colisões recebem sufixos numéricos (`pluto`, `pluto-2`, `pluto-3`). Alterar o título não altera o slug, preservando links já compartilhados.
-
-A consulta administrativa canônica é direta:
+O backend é um **monólito modular** construído com Node.js, Express e TypeScript. Ele é publicado na Render, persiste dados no PostgreSQL do Neon por meio do Prisma e armazena capas internas no Cloudflare R2.
 
 ```text
-GET /api/admin/works/slug/:slug
+Frontend React/Vercel -> API REST/Render -> Prisma -> PostgreSQL/Neon
+                                         -> Cloudflare R2 (capas)
+                                         -> SMTP/Nodemailer (e-mails de conta)
 ```
 
-O cliente não precisa listar Obras nem comparar títulos para descobrir um identificador interno.
+O código é organizado por domínio em `src/modules`, com módulos de autenticação, usuários, catálogo, administração e catálogo público. A aplicação se inspira em Clean Architecture e Ports and Adapters de forma pragmática; módulos existentes ainda usam Prisma diretamente quando isso é adequado ao estágio atual do projeto.
 
-## Erros
+## Funcionalidades implementadas
 
-Erros HTTP seguem o formato:
+### Contas, sessão e segurança
+
+- Cadastro, ativação e reenvio de ativação de conta.
+- Login, logout e consulta da sessão atual.
+- Sessão **stateful**: o token opaco fica em cookie HttpOnly e somente seu hash SHA-256 é persistido na tabela `sessions`.
+- Senhas protegidas com bcrypt; logout revoga a sessão no banco.
+- Perfil do usuário, preferência de conteúdo adulto e exclusão da própria conta.
+- Controle de acesso por papel, com rotas administrativas protegidas.
+- CORS configurável, rate limiting de login, validação de entrada com Zod e respostas de erro com códigos estáveis.
+
+### Administração do catálogo
+
+- Gestão de usuários e de papéis de acesso.
+- Gestão de opções de domínio: autores, gêneros, tipos, editoras, formatos, acabamentos, países e demais classificações.
+- Cadastro, consulta, edição, exclusão e visibilidade de Obras, Edições e Volumes.
+- Identidade pública de Obra por `slug` único e imutável.
+- Relações ordenadas de editoras originais, autores e papéis de autoria.
+
+### Capas internas
+
+- Importação individual de capa por URL HTTPS, exclusivamente para administradores.
+- Validação da URL e da imagem de origem, proteção contra SSRF, limite de tamanho/pixels e remoção de metadados.
+- Processamento com Sharp e geração de variantes WebP no formato 2:3.
+- Persistência dos arquivos no Cloudflare R2; PostgreSQL mantém somente metadados e referências internas.
+- URLs externas de capa não são preservadas nem expostas pelo catálogo. A URL pública é derivada do R2.
+
+### Catálogo público
+
+- Vitrine paginada de Obras e Edições, com busca, filtros combináveis, ordenação e limite máximo de 50 registros por página.
+- Busca por título, título original e autor; filtros de Obra por tipo, país, demografia e gênero; filtros de Edição por editora brasileira, formato e acabamento.
+- Interseção lógica `E` entre filtros múltiplos.
+- Detalhes públicos de Obra, Edição e Volume.
+- Listagem pública de Obras por Autor.
+- Visitantes podem navegar pelo catálogo. Obras e Edições privadas nunca são retornadas; conteúdo adulto é omitido para visitantes e para usuários com a preferência desativada.
+
+## Rotas principais
+
+| Grupo | Exemplos |
+| --- | --- |
+| Saúde | `GET /health/live`, `GET /health/ready`, `GET /ping` |
+| Autenticação | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
+| Usuário | `GET /api/users/me`, `PATCH /api/users/me/adult-content`, `DELETE /api/users/me` |
+| Administração | `GET /api/admin/users`, `GET/POST/PATCH/DELETE /api/admin/options`, CRUD de Obras, Edições e Volumes |
+| Mídia | `POST /api/admin/media/covers`, `DELETE /api/admin/media/covers/:assetId` |
+| Catálogo público | `GET /api/public/catalog-options`, `/works`, `/works/:slug`, `/authors/:authorId/works`, `/editions`, `/editions/:editionId`, `/volumes/:volumeId` |
+
+O contrato completo é definido nas rotas, schemas Zod e testes de integração. Erros seguem o formato:
 
 ```json
 {
@@ -44,64 +76,96 @@ Erros HTTP seguem o formato:
 }
 ```
 
-Falhas inesperadas são registradas no servidor com data, rota, método e identificador da requisição, sem exposição de stack trace ao cliente.
+## Requisitos
 
-## Infraestrutura substituível
+- Node.js 22 ou superior.
+- PostgreSQL acessível via `DATABASE_URL` - no desenvolvimento, use o banco Neon exclusivo de desenvolvimento.
+- Credenciais SMTP para fluxos de ativação de conta.
+- Credenciais Cloudflare R2 somente para importar ou remover capas.
 
-Casos de uso dependem de contratos mínimos, localizados em `src/infrastructure/contracts`:
+## Configuração local
 
-- `MailService`: usa Nodemailer por meio de `NodemailerMailService`.
-- `MediaStorage`: persiste objetos internos no Cloudflare R2 por meio de `R2MediaStorage`, sem acoplar os módulos de catálogo ao SDK do provedor.
-- `RateLimitStore`: usa `MemoryRateLimitStore` no limitador de tentativas de login.
+1. Instale as dependências:
 
-Não existem consumidores reais de cache ou despacho assíncrono no MVP. Por isso, `CacheStore` e `TaskDispatcher` serão criados somente quando um caso de uso e métricas justificarem essas dependências. Redis, filas e cache distribuído não fazem parte da implementação atual.
+   ```bash
+   npm ci
+   ```
 
-## Capas internas no Cloudflare R2
+2. Copie `.env.example` para `.env` e preencha os valores necessários. Nunca versione `.env` ou credenciais.
 
-O catálogo não aceita nem exibe URLs externas como capa. Um administrador informa uma URL HTTPS em `POST /api/admin/media/covers`; a API baixa a imagem com proteção contra SSRF, valida o conteúdo real, remove metadados, gera variantes WebP 2:3 e armazena objetos imutáveis no R2. Obras, Edições e Volumes persistem somente `coverAssetId`; `coverUrl` existe apenas como campo derivado de resposta.
+   ```env
+   DATABASE_URL=
+   CORS_ORIGIN=http://localhost:8080
+   FRONTEND_URL=http://localhost:8080
+   SESSION_COOKIE_NAME=comanga_session
 
-As credenciais do R2 são carregadas somente quando uma operação de mídia é solicitada. Assim, desenvolvimento e testes que não importam capas funcionam antes da criação da conta. A configuração do bucket, domínio público, CORS e variáveis está descrita em `docs/operations/internal-cover-media.md`.
+   SMTP_HOST=
+   SMTP_PORT=587
+   SMTP_USER=
+   SMTP_PASS=
+   SMTP_SECURE=false
+   SMTP_FROM=
 
-## Operação e capacidade
+   R2_ACCOUNT_ID=
+   R2_ACCESS_KEY_ID=
+   R2_SECRET_ACCESS_KEY=
+   R2_BUCKET=
+   MEDIA_PUBLIC_BASE_URL=
+   ```
 
-A API disponibiliza dois health checks independentes:
+3. Aplique migrations **somente** no banco de desenvolvimento configurado:
 
-```text
-GET /health/live   # confirma que o processo HTTP está vivo; não consulta o banco
-GET /health/ready  # confirma que a aplicação consegue consultar o PostgreSQL
-```
+   ```bash
+   npm run migrate:dev
+   ```
 
-O encerramento por `SIGTERM` ou `SIGINT` deixa de aceitar novas conexões, aguarda as requisições HTTP em andamento e desconecta o Prisma. O limite padrão é de 10 segundos e pode ser ajustado com `GRACEFUL_SHUTDOWN_TIMEOUT_MS`.
+4. Inicie a API:
 
-As requisições recebem `x-request-id` e são registradas em JSON com método, rota, status e duração. Em testes, o log de requisições permanece desativado por padrão; `REQUEST_LOGGING_ENABLED=true` permite habilitá-lo explicitamente.
+   ```bash
+   npm run dev
+   ```
 
-Para reduzir gravações desnecessárias, `sessions.last_used_at` é atualizado no máximo uma vez a cada cinco minutos por sessão. O intervalo pode ser ajustado com `SESSION_TOUCH_INTERVAL_MS`.
+A API local usa a porta `3000` por padrão. O frontend local deve apontar `VITE_API_URL` para `http://localhost:3000/api`.
 
-O pool do Prisma recebe defaults conservadores de `connection_limit=5` e `pool_timeout=10` quando esses parâmetros não estiverem presentes em `DATABASE_URL`. É possível alterar os defaults com `PRISMA_CONNECTION_LIMIT` e `PRISMA_POOL_TIMEOUT_SECONDS`; parâmetros explícitos na URL sempre prevalecem.
+> Nunca altere uma migration já aplicada e não execute `prisma migrate reset` em banco com dados que precisem ser preservados. Toda correção de schema deve ser uma migration nova.
 
-### Métricas protegidas
+## Comandos
 
-Ao configurar `OPS_METRICS_TOKEN`, a rota abaixo passa a expor CPU acumulada do processo, memória e quantidade de conexões PostgreSQL para o teste controlado de capacidade:
+| Comando | Finalidade |
+| --- | --- |
+| `npm run dev` | Inicia a API em desenvolvimento com recarga. |
+| `npm run build` | Compila TypeScript para `dist`. |
+| `npm start` | Executa a versão compilada. |
+| `npm test` | Executa testes Jest e Supertest. |
+| `npm run test:coverage` | Gera cobertura de todos os testes. |
+| `npm run lint` | Executa ESLint. |
+| `npm run prisma:generate` | Gera o Prisma Client. |
+| `npm run migrate:dev` | Cria/aplica migration no banco de desenvolvimento. |
+| `npm run migrate:test` | Aplica migrations no banco de teste. |
+| `npm run migrate` | Aplica migrations já versionadas no ambiente de deploy. |
+| `npm run load:test` | Executa teste progressivo de carga, com alvo explicitamente confirmado. |
 
-```text
-GET /health/metrics
-Header: x-ops-token: <valor de OPS_METRICS_TOKEN>
-```
+## Operação, desempenho e testes
 
-Sem a variável configurada, a rota responde como inexistente. A chave deve permanecer somente no Render e na máquina que executa o teste.
+- `GET /health/live` confirma que o processo HTTP está ativo, sem consultar o banco.
+- `GET /health/ready` confirma conectividade com o PostgreSQL.
+- Logs estruturados JSON possuem `x-request-id`, rota, status e duração.
+- O encerramento gracioso aguarda requisições pendentes e desconecta o Prisma.
+- Índices PostgreSQL e `pg_trgm` apoiam busca e filtros públicos; testes validam integridade e planos de consulta relevantes.
+- Jest e Supertest cobrem regras de negócio, middlewares, contratos de infraestrutura, rotas administrativas, mídia e catálogo público.
+- O GitHub Actions instala dependências, aplica migrations no PostgreSQL de teste, executa build, testes, cobertura e lint.
 
-### Teste progressivo de carga
+Os procedimentos de mídia e capacidade estão em [`docs/operations`](./docs/operations/).
 
-O teste nunca é executado pelo CI nem possui alvo padrão. O operador deve informar e confirmar explicitamente o host:
+## Deploy
 
-```powershell
-$env:LOAD_TEST_URL="https://api-de-homologacao.exemplo/api/public/works?page=1&limit=50"
-$env:LOAD_TEST_CONFIRM_HOST="api-de-homologacao.exemplo"
-$env:LOAD_TEST_METRICS_URL="https://api-de-homologacao.exemplo/health/metrics"
-$env:OPS_METRICS_TOKEN="use-o-mesmo-segredo-configurado-no-render"
-npm run load:test
-```
+O backend é hospedado na Render. O fluxo de produção gera o Prisma Client, aplica migrations versionadas e compila TypeScript antes de executar `npm start`. Variáveis de ambiente e segredos devem ser configurados na plataforma, nunca no repositório.
 
-Por padrão, são executados estágios de 10, 25, 50 e 100 usuários virtuais, com 30 segundos por estágio e teto de 100 usuários. O relatório é salvo em `docs/operations/results/capacity-latest.json` e compara os resultados com RNF01, RNF02 e RNF03.
+## Escopo ainda planejado
 
-O procedimento completo, as precauções e o estado das medições estão em `docs/operations/capacity-test.md`.
+Calendário público, Estante Digital, Lista de Desejos, enriquecimento autenticado do catálogo e a evolução para serviços distribuídos ainda não fazem parte desta API. O planejamento e os critérios de aceite vivem no repositório [`comanga-docs`](https://github.com/IsaacLeite1309/comanga-docs).
+
+## Repositórios relacionados
+
+- [comanga-web](https://github.com/IsaacLeite1309/comanga-web) - SPA React.
+- [comanga-docs](https://github.com/IsaacLeite1309/comanga-docs) - documentação técnica, requisitos e planejamento.
