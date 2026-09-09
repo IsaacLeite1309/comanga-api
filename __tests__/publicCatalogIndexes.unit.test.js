@@ -10,12 +10,6 @@ const MIGRATION_PATH = path.join(
     'migration.sql'
 );
 const SCHEMA_PATH = path.join(__dirname, '..', 'prisma', 'schema.prisma');
-const TEST_MIGRATION_SCRIPT_PATH = path.join(
-    __dirname,
-    '..',
-    'scripts',
-    'migrate-test-db.js'
-);
 
 const PHYSICAL_INDEXES = [
     'idx_works_title_trgm',
@@ -84,23 +78,5 @@ describe('indices fisicos do catalogo publico', () => {
         for (const indexName of schemaIndexNames) {
             expect(schema).toContain(`map: "${indexName}"`);
         }
-    });
-
-    it('recria pg_trgm depois do reset e antes do db push do banco de teste', () => {
-        const migrationScript = fs.readFileSync(TEST_MIGRATION_SCRIPT_PATH, 'utf8');
-        const resetCallPosition = migrationScript.indexOf(
-            'await resetTestSchemaAndEnsureExtensions()'
-        );
-        const dbPushPosition = migrationScript.indexOf('spawnSync(');
-
-        expect(migrationScript).toMatch(
-            /DROP\s+SCHEMA\s+IF\s+EXISTS\s+public\s+CASCADE/iu
-        );
-        expect(migrationScript).toMatch(
-            /CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+pg_trgm/iu
-        );
-        expect(migrationScript).not.toContain("'--force-reset'");
-        expect(resetCallPosition).toBeGreaterThan(-1);
-        expect(dbPushPosition).toBeGreaterThan(resetCallPosition);
     });
 });

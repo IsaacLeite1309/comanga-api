@@ -196,7 +196,7 @@ describe('integridade dos valores fechados do dominio', () => {
                     ($2, NULL, $3, 'Japão', 'Completo', NOW())`,
                 [
                     `integrity_${runId}_Ação Total`,
-                    `integrity_${runId}_Ação Total`,
+                    `integrity_${runId}_Acao Total`,
                     typeId
                 ]
             );
@@ -206,9 +206,9 @@ describe('integridade dos valores fechados do dominio', () => {
             const migrated = await client.query(
                 `SELECT slug
                  FROM works
-                 WHERE title = $1
+                 WHERE title IN ($1, $2)
                  ORDER BY slug`,
-                [`integrity_${runId}_Ação Total`]
+                [`integrity_${runId}_Ação Total`, `integrity_${runId}_Acao Total`]
             );
 
             expect(migrated.rows).toEqual([

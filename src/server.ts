@@ -1,5 +1,5 @@
-import app = require('./app');
-import prisma = require('./prisma');
+import app from './app';
+import prisma from './prisma';
 import structuredLogger from './infrastructure/logging/structuredLogger';
 import { installGracefulShutdown } from './infrastructure/operations/gracefulShutdown';
 
