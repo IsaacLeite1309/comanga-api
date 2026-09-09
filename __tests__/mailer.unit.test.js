@@ -38,6 +38,18 @@ describe('mailer unitario', () => {
         process.env = originalEnv;
     });
 
+    it('gera a mensagem de ativacao com o Nodemailer real sem enviar pela rede', async () => {
+        const nodemailer = jest.requireActual('nodemailer');
+        const transport = nodemailer.createTransport({ streamTransport: true, buffer: true });
+        sendMail.mockImplementationOnce((options) => transport.sendMail(options));
+
+        await mailer.sendActivationEmail('destino@teste.local', 'leitor', 'token-compat');
+        const result = await sendMail.mock.results[0].value;
+
+        expect(result.envelope.to).toEqual(['destino@teste.local']);
+        expect(result.message.toString()).toContain('/activate/token-compat');
+    });
+
     it('envia e-mail de ativacao com link do frontend configurado', async () => {
         sendMail.mockResolvedValue({});
 

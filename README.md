@@ -145,6 +145,23 @@ A API local usa a porta `3000` por padrão. O frontend local deve apontar `VITE_
 | `npm run migrate` | Aplica migrations já versionadas no ambiente de deploy. |
 | `npm run load:test` | Executa teste progressivo de carga, com alvo explicitamente confirmado. |
 
+## Verificações de qualidade
+
+Use Node.js 22 e `npm ci` para instalar as versões do lockfile.
+
+- `npm run check`: lint sem avisos, build e cobertura mínima de 80% em cada métrica.
+- `npm run check:online`: auditoria de todas as dependências, incluindo ferramentas de desenvolvimento.
+- `npm run test:unit`: todos os testes unitários, sem credenciais ou banco real.
+- `npm run check:integration`: aplica o histórico de migrations e executa todos os testes com cobertura.
+
+Para integração, configure `DATABASE_URL_TEST` com um banco exclusivo cujo nome seja `test`, comece com `test_` ou termine em `_test`. Ele deve ser diferente de `DATABASE_URL` e `DIRECT_URL`. Os testes criam e excluem seus próprios registros; nunca use dados reais. `migrate:test` aplica migrations com `prisma migrate deploy`, preservando o schema e o histórico existente.
+
+O override de `deepmerge-ts` em `@prisma/config` corrige o alerta de recursão sem rebaixar o Prisma. O override de `test-exclude` mantém a cobertura em uma versão sem o `glob` obsoleto. A compatibilidade dessas exceções deve ser conferida com cobertura, geração do cliente e migrations ao atualizar dependências.
+
+O GitHub Actions executa as verificações nos PRs e nos pushes para `develop` e `main`.
+
+A proteção de `develop` e `main` deve ser configurada pelo dono diretamente no GitHub.
+
 ## Operação, desempenho e testes
 
 - `GET /health/live` confirma que o processo HTTP está ativo, sem consultar o banco.
