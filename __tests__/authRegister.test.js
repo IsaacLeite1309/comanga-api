@@ -17,6 +17,7 @@ function makePayload(overrides = {}) {
         username: `novo_user_${runId}`.slice(0, 20),
         email: `novo_${runId}@${testEmailDomain}`,
         password: 'SenhaForte123!',
+        birthDate: '2000-01-01',
         confirmPassword: 'SenhaForte123!',
         ...overrides
     };
@@ -103,6 +104,7 @@ describe('POST /api/auth/register', () => {
             .post('/api/auth/register')
             .send(makePayload({
                 password: 'fraca12',
+                birthDate: '2000-01-01',
                 confirmPassword: 'fraca12'
             }));
 
@@ -111,6 +113,16 @@ describe('POST /api/auth/register', () => {
             error: 'Utilize no mínimo 8 caracteres, incluindo pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial.',
             field: 'password'
         });
+    });
+
+    it.each(['A1!' + 'a'.repeat(70), 'Aa1!' + 'é'.repeat(35)])('recusa senha acima de 72 bytes antes de criar conta', async password => {
+        const response = await request(app).post('/api/auth/register').send(makePayload({ password, confirmPassword: password }));
+        expect(response.status).toBe(400);
+        expect(response.body.field).toBe('password');
+        expect(response.body.error).toContain('72 bytes');
+        expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+        const users = await db.query('SELECT id FROM users WHERE email=$1', [makePayload().email]);
+        expect(users.rows).toHaveLength(0);
     });
 
     it('rejeita e-mail duplicado RN0003 com HTTP 409', async () => {

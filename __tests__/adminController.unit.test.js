@@ -872,6 +872,7 @@ describe('adminController unitario', () => {
 
     describe('obras administrativas', () => {
         const work = {
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             id: 1,
             slug: 'naruto',
             title: 'Naruto',
@@ -932,6 +933,7 @@ describe('adminController unitario', () => {
             prisma.work.findFirst.mockResolvedValue(null);
             mockValidDomainReferences();
             prisma.$transaction.mockImplementation(async (callback) => callback({
+                mediaAsset: prisma.mediaAsset,
                 work: {
                     create: prisma.work.create,
                     findUniqueOrThrow: prisma.work.findUniqueOrThrow
@@ -953,6 +955,7 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherIds: [{ id: 10, position: 0 }, { id: 9, position: 1 }],
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     adultContent: false,
                     authors: [
@@ -974,6 +977,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     originalPublishers: {
                         createMany: {
@@ -1011,6 +1015,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     authors: [
                         expect.objectContaining({
@@ -1060,6 +1065,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     authors: [
                         { authorId: 4, roles: ['História'] },
@@ -1097,6 +1103,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     authors: [{ authorId: 4, roles: ['História'] }],
                     genreIds: [6]
@@ -1117,6 +1124,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Estados Unidos',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
                     genreIds: [6],
@@ -1138,6 +1146,7 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherId: 9,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     authors: [{ authorId: 4, roles: ['História e Arte'] }]
                 }
@@ -1238,6 +1247,7 @@ describe('adminController unitario', () => {
                 .mockResolvedValueOnce({
                     ...work,
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         {
@@ -1258,6 +1268,7 @@ describe('adminController unitario', () => {
                 params: { id: '1' },
                 body: {
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         { authorId: 4, roles: ['História', 'Arte'] },
@@ -1274,6 +1285,7 @@ describe('adminController unitario', () => {
                 where: { id: 1 },
                 data: {
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento'
                 }
             }));
@@ -1298,6 +1310,7 @@ describe('adminController unitario', () => {
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         expect.objectContaining({
@@ -1380,6 +1393,7 @@ describe('adminController unitario', () => {
                 params: { id: '1' },
                 body: {
                     country: 'Brasil',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
                     demographies: ['Adulto']
@@ -1476,6 +1490,7 @@ describe('adminController unitario', () => {
             const req = makeReq({
                 params: { workId: '1' },
                 body: {
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     brazilianPublisherId: 2,
                     editionTypeId: 3,
                     coverTypeId: 4,
@@ -1513,6 +1528,7 @@ describe('adminController unitario', () => {
             const req = makeReq({
                 params: { workId: '1' },
                 body: {
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     brazilianPublisherId: 2,
                     editionTypeId: 3,
                     coverTypeId: 4,
@@ -1801,6 +1817,7 @@ describe('adminController unitario', () => {
 
     describe('caminhos alternativos do catalogo administrativo', () => {
         const editionBody = {
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             brazilianPublisherId: 2,
             editionTypeId: 3,
             coverTypeId: 4,
@@ -2289,6 +2306,7 @@ describe('adminController unitario', () => {
                     title: 'Repetida',
                     typeId: 1,
                     country: 'Japão',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completo',
                     authors: [{ authorId: 1, roles: ['História'] }]
                 }

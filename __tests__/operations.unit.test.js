@@ -83,6 +83,7 @@ describe('operacao da API', () => {
             requestId: 'req-456',
             method: 'GET',
             originalUrl: '/api/public/works?page=1',
+            baseUrl: '/api/public', route: { path: '/works' },
             ip: '203.0.113.10'
         };
         const res = {
@@ -100,7 +101,7 @@ describe('operacao da API', () => {
         expect(logger.info).toHaveBeenCalledWith('http.request.completed', {
             requestId: 'req-456',
             method: 'GET',
-            route: '/api/public/works?page=1',
+            route: '/api/public/works',
             statusCode: 200,
             durationMs: 35,
             ip: '203.0.113.10'

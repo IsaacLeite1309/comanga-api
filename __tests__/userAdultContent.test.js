@@ -26,8 +26,8 @@ async function insertUser(user) {
     const passwordHash = await bcrypt.hash(user.password, 10);
 
     return db.query(
-        `INSERT INTO users (username, email, password_hash, status, nivel_acesso, conteudo_adulto)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO users (username, email, password_hash, status, nivel_acesso, birth_date, conteudo_adulto)
+         VALUES ($1, $2, $3, $4, $5, '2000-01-01', $6)
          RETURNING id, username, email, conteudo_adulto`,
         [
             user.username,

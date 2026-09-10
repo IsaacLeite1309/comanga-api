@@ -12,6 +12,7 @@ const prisma = {
         create: jest.fn(),
         updateMany: jest.fn()
     },
+    $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn()
 };
 
@@ -49,6 +50,7 @@ function makeReq(overrides = {}) {
 describe('userController unitario', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        prisma.$transaction.mockImplementation(callback => callback(prisma));
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -62,6 +64,7 @@ describe('userController unitario', () => {
             username: 'usuario_teste',
             email: 'usuario@teste.local',
             password: 'SenhaForte123!',
+            birthDate: '2000-01-01',
             confirmPassword: 'SenhaForte123!'
         };
 
@@ -438,7 +441,7 @@ describe('userController unitario', () => {
             prisma.user.findUnique.mockResolvedValue({
                 username: 'isaac',
                 email: 'user@teste.local',
-                conteudoAdulto: true
+                birthDate: new Date('2000-01-01'), conteudoAdulto: true
             });
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
@@ -514,6 +517,7 @@ describe('userController unitario', () => {
         });
 
         it('atualiza preferencia +18 do usuario autenticado', async () => {
+            prisma.user.findUnique.mockResolvedValue({ birthDate: new Date('2000-01-01') });
             prisma.user.update.mockResolvedValue({ conteudoAdulto: true });
             const req = makeReq({
                 body: { conteudo_adulto: true },
@@ -531,6 +535,7 @@ describe('userController unitario', () => {
         });
 
         it('retorna 404 quando usuario da preferencia +18 nao existe mais', async () => {
+            prisma.user.findUnique.mockResolvedValue(null);
             prisma.user.update.mockRejectedValue({ code: 'P2025' });
             const req = makeReq({
                 body: { conteudo_adulto: true },
