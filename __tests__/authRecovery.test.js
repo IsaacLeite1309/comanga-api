@@ -1,3 +1,4 @@
+process.env.MEDIA_PUBLIC_BASE_URL = 'https://media.example.test';
 const bcrypt = require('bcrypt');
 const request = require('supertest');
 const db = require('../src/database');
