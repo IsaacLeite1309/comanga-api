@@ -1,6 +1,11 @@
 import type { RequestHandler } from 'express';
 import structuredLogger, { type StructuredLogger } from '../infrastructure/logging/structuredLogger';
 
+// Use only the registered route template: URLs, queries and unmatched paths may contain secrets.
+export function safeRequestPath(req: { baseUrl?: string; route?: { path?: unknown } }): string {
+    return typeof req.route?.path === 'string' ? `${req.baseUrl || ''}${req.route.path}` : '[unmatched]';
+}
+
 interface RequestLoggerOptions {
     logger?: StructuredLogger;
     now?: () => number;
@@ -17,7 +22,7 @@ export function createRequestLogger(options: RequestLoggerOptions = {}): Request
             logger.info('http.request.completed', {
                 requestId: req.requestId || 'not-provided',
                 method: req.method,
-                route: req.originalUrl || req.url,
+                route: safeRequestPath(req),
                 statusCode: res.statusCode,
                 durationMs: Math.max(0, now() - startedAt),
                 ip: req.ip || req.socket.remoteAddress || 'not-provided'

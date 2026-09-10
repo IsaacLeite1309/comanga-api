@@ -1,3 +1,4 @@
+const { createTestCover } = require('./helpers/cover');
 const fs = require('node:fs');
 const path = require('node:path');
 const db = require('../src/database');
@@ -24,6 +25,7 @@ const testEmailDomain = 'domain-integrity-test.local';
 
 async function deleteFixtures() {
     await db.query('DELETE FROM works WHERE title LIKE $1', [`integrity_${runId}%`]);
+    await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`integrity_${runId}/%`]);
     await db.query('DELETE FROM users WHERE email LIKE $1', [`%@${testEmailDomain}`]);
     await db.query('DELETE FROM domain_option_values WHERE label LIKE $1', [`integrity_${runId}%`]);
 }
@@ -79,6 +81,7 @@ describe('integridade dos valores fechados do dominio', () => {
 
         await expect(db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
@@ -86,7 +89,7 @@ describe('integridade dos valores fechados do dominio', () => {
                 original_publication_status,
                 visibility,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', 'Oculto', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completo', 'Oculto', NOW())`,
             [`integrity_${runId}_invalid_visibility`, `integrity-${runId}-invalid-visibility`, typeId]
         )).rejects.toMatchObject({ code: '23514' });
     });
@@ -96,13 +99,14 @@ describe('integridade dos valores fechados do dominio', () => {
         const publisherId = await createOptionId('editoras-originais');
         const workResult = await db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completo', NOW())
              RETURNING id`,
             [`integrity_${runId}_publisher`, `integrity-${runId}-publisher`, typeId]
         );
@@ -144,26 +148,28 @@ describe('integridade dos valores fechados do dominio', () => {
 
         const inserted = await db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completo', NOW())
              RETURNING id, slug`,
             [title, slug, typeId]
         );
 
         await expect(db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completo', NOW())`,
             [`${title}_duplicated`, slug, typeId]
         )).rejects.toMatchObject({ code: '23505' });
 
@@ -185,6 +191,7 @@ describe('integridade dos valores fechados do dominio', () => {
             await client.query('ALTER TABLE works ALTER COLUMN slug DROP NOT NULL');
             await client.query(
                 `INSERT INTO works (
+                cover_asset_id,
                     title,
                     slug,
                     type_id,
@@ -192,8 +199,8 @@ describe('integridade dos valores fechados do dominio', () => {
                     original_publication_status,
                     atualizado_em
                  ) VALUES
-                    ($1, NULL, $3, 'Japão', 'Completo', NOW()),
-                    ($2, NULL, $3, 'Japão', 'Completo', NOW())`,
+                    ('${await createTestCover(client)}', $1, NULL, $3, 'Japão', 'Completo', NOW()),
+                    ('${await createTestCover(client)}', $2, NULL, $3, 'Japão', 'Completo', NOW())`,
                 [
                     `integrity_${runId}_Ação Total`,
                     `integrity_${runId}_Acao Total`,

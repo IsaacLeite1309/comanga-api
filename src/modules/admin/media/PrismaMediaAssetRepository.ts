@@ -45,33 +45,22 @@ class PrismaMediaAssetRepository implements MediaAssetRepository, CoverRemovalRe
         });
     }
 
-    async findRemovable(assetId: string, userId: string) {
-        const asset = await prisma.mediaAsset.findFirst({
-            where: {
-                id: assetId,
-                createdByUserId: userId,
-                status: 'Pendente'
-            },
-            select: {
-                id: true,
-                objectKey: true,
-                variants: { select: { objectKey: true } },
-                work: { select: { id: true } },
-                edition: { select: { id: true } },
-                volume: { select: { id: true } }
-            }
+    async claimRemoval(assetId: string, userId?: string) {
+        return prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(9142026)::text`;
+            const asset = await tx.mediaAsset.findFirst({
+                where: { id: assetId, ...(userId ? { createdByUserId: userId, status: { in: ['Pendente', 'Descartando'] } } : {}) },
+                select: { id: true, objectKey: true, variants: { select: { objectKey: true } }, work: { select: { id: true } }, edition: { select: { id: true } }, volume: { select: { id: true } } }
+            });
+            if (!asset) return null;
+            const attached = Boolean(asset.work || asset.edition || asset.volume);
+            if (!attached) await tx.mediaAsset.update({ where: { id: asset.id }, data: { status: 'Descartando' } });
+            return { id: asset.id, objectKey: asset.objectKey, variants: asset.variants, attached };
         });
-        if (!asset) return null;
-        return {
-            id: asset.id,
-            objectKey: asset.objectKey,
-            variants: asset.variants,
-            attached: Boolean(asset.work || asset.edition || asset.volume)
-        };
     }
 
     async delete(assetId: string): Promise<void> {
-        await prisma.mediaAsset.delete({ where: { id: assetId } });
+        await prisma.mediaAsset.deleteMany({ where: { id: assetId, status: 'Descartando' } });
     }
 }
 

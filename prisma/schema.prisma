@@ -18,6 +18,8 @@ model User {
   activationExpiresAt DateTime? @map("activation_expires_at") @db.Timestamptz
   conteudoAdulto      Boolean   @default(false) @map("conteudo_adulto")
   criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz
+  birthDate           DateTime? @map("birth_date") @db.Date
+  passwordResetTokens PasswordResetToken[]
   sessions            Session[]
   mediaAssets         MediaAsset[]
 
@@ -25,6 +27,19 @@ model User {
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_email_trgm")
   @@index([username], map: "idx_users_username_sort")
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  tokenHash String @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  usedAt    DateTime? @map("used_at") @db.Timestamptz
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model Session {
@@ -98,7 +113,7 @@ model Work {
   typeId Int @map("type_id")
   country String @db.VarChar(40)
   originalPublicationStatus String @map("original_publication_status") @db.VarChar(40)
-  coverAssetId String? @unique @map("cover_asset_id") @db.Uuid
+  coverAssetId String @unique @map("cover_asset_id") @db.Uuid
   visibility String @default("Privado") @db.VarChar(20)
   adultContent Boolean @default(false) @map("adult_content")
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
@@ -110,7 +125,7 @@ model Work {
   serializationMagazines WorkSerializationMagazine[]
   originalPublishers WorkOriginalPublisher[]
   editions Edition[]
-  coverAsset MediaAsset? @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  coverAsset MediaAsset @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([title], map: "idx_works_title")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_title_trgm")
@@ -133,7 +148,7 @@ model Edition {
   formatId Int @map("format_id")
   chronologicalNumber Int @map("chronological_number")
   brazilPublicationStatus String @map("brazil_publication_status") @db.VarChar(30)
-  coverAssetId String? @unique @map("cover_asset_id") @db.Uuid
+  coverAssetId String @unique @map("cover_asset_id") @db.Uuid
   visibility String @default("Privado") @db.VarChar(20)
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
   atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
@@ -143,7 +158,7 @@ model Edition {
   coverType DomainOptionValue @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   format DomainOptionValue @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   volumes Volume[]
-  coverAsset MediaAsset? @relation("EditionCover", fields: [coverAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  coverAsset MediaAsset @relation("EditionCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
   @@index([workId, chronologicalNumber], map: "idx_editions_work_chronological")
@@ -158,7 +173,7 @@ model Volume {
   id Int @id @default(autoincrement())
   editionId Int @map("edition_id")
   number Int
-  coverAssetId String? @unique @map("cover_asset_id") @db.Uuid
+  coverAssetId String @unique @map("cover_asset_id") @db.Uuid
   singleVolume Boolean @default(false) @map("single_volume")
   pages Int?
   price Decimal? @db.Decimal(10, 2)
@@ -175,7 +190,7 @@ model Volume {
   criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
   atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
   edition Edition @relation(fields: [editionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  coverAsset MediaAsset? @relation("VolumeCover", fields: [coverAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  coverAsset MediaAsset @relation("VolumeCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")

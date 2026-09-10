@@ -23,7 +23,7 @@ import {
 function buildVolumeData(data: Partial<z.infer<typeof volumePayloadBaseSchema>>, mode: 'create' | 'update' = 'create') {
     const payload: Record<string, unknown> = {
         number: data.number,
-        coverAssetId: data.coverAssetId === undefined ? undefined : data.coverAssetId || null,
+        coverAssetId: data.coverAssetId,
         singleVolume: data.singleVolume === undefined && mode === 'create' ? false : data.singleVolume,
         pages: data.pages ?? null,
         price: data.price ?? null,

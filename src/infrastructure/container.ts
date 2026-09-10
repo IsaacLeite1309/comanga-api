@@ -1,4 +1,4 @@
-import { NodemailerMailService } from './mail/NodemailerMailService';
+import { ResendMailService } from './mail/ResendMailService';
 import { R2MediaStorage, r2ConfigFromEnvironment } from './media/R2MediaStorage';
 import { downloadRemoteImage } from './media/RemoteImageDownloader';
 import { processCoverImage } from './media/CoverImageProcessor';
@@ -9,7 +9,7 @@ import { PrismaMediaAssetRepository } from '../modules/admin/media/PrismaMediaAs
 import { CoverRemovalService } from '../modules/admin/media/CoverRemovalService';
 
 const authNotificationService = createAuthNotificationService({
-    mailService: new NodemailerMailService()
+    mailService: new ResendMailService()
 });
 
 let mediaStorage: R2MediaStorage | undefined;

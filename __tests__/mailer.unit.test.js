@@ -1,135 +1,41 @@
-const sendMail = jest.fn();
-const createTransport = jest.fn(() => ({ sendMail }));
-const resolve4 = jest.fn();
-const setDefaultResultOrder = jest.fn();
-
-jest.mock('node:dns', () => ({
-    promises: {
-        resolve4
-    },
-    setDefaultResultOrder
-}));
-
-jest.mock('nodemailer', () => ({
-    createTransport
-}));
-
 const mailer = require('../src/utils/mailer');
 
-describe('mailer unitario', () => {
-    const originalEnv = process.env;
-
+describe('Resend por HTTPS', () => {
+    const env = process.env;
     beforeEach(() => {
-        jest.clearAllMocks();
-        resolve4.mockResolvedValue(['142.250.0.109']);
-        process.env = {
-            ...originalEnv,
-            SMTP_HOST: 'smtp.test.local',
-            SMTP_PORT: '2525',
-            SMTP_USER: 'usuario',
-            SMTP_PASS: 'senha',
-            SMTP_SECURE: 'false',
-            SMTP_FROM: '"Equipe CoManga" <noreply@teste.local>',
-            FRONTEND_URL: 'https://comanga-web.vercel.app/'
-        };
+        process.env = { ...env, RESEND_API_KEY: 're_test', RESEND_FROM: 'CoMangá <email@example.com>', FRONTEND_URL: 'https://example.com/' };
+        jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true });
     });
-
-    afterAll(() => {
-        process.env = originalEnv;
+    afterEach(() => { process.env = env; jest.restoreAllMocks(); });
+    it.each([['sendActivationEmail', 'activate'], ['sendPasswordResetEmail', 'redefinir-senha']])('envia %s sem SMTP', async (method, route) => {
+        await mailer[method]('destino@example.com', '<leitor>', 'token');
+        const [url, options] = global.fetch.mock.calls[0];
+        expect(url).toBe('https://api.resend.com/emails');
+        expect(options.headers.Authorization).toBe('Bearer re_test');
+        expect(options.signal).toBeDefined();
+        const body = JSON.parse(options.body);
+        expect(body.to).toEqual(['destino@example.com']);
+        expect(body.html).toContain('&lt;leitor&gt;');
+        expect(body.html).toContain(`https://example.com/${route}/token`);
+        expect(body.text).toContain(`https://example.com/${route}/token`);
     });
-
-    it('gera a mensagem de ativacao com o Nodemailer real sem enviar pela rede', async () => {
-        const nodemailer = jest.requireActual('nodemailer');
-        const transport = nodemailer.createTransport({ streamTransport: true, buffer: true });
-        sendMail.mockImplementationOnce((options) => transport.sendMail(options));
-
-        await mailer.sendActivationEmail('destino@teste.local', 'leitor', 'token-compat');
-        const result = await sendMail.mock.results[0].value;
-
-        expect(result.envelope.to).toEqual(['destino@teste.local']);
-        expect(result.message.toString()).toContain('/activate/token-compat');
+    it.each(['RESEND_API_KEY', 'RESEND_FROM'])('recusa ausência de %s sem rede', async key => {
+        delete process.env[key];
+        await expect(mailer.sendActivationEmail('a@b.c', 'a', 't')).rejects.toMatchObject({ code: 'EMAIL_NOT_CONFIGURED' });
+        expect(global.fetch).not.toHaveBeenCalled();
     });
-
-    it('envia e-mail de ativacao com link do frontend configurado', async () => {
-        sendMail.mockResolvedValue({});
-
-        await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-123');
-
-        expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
-            host: '142.250.0.109',
-            port: 2525,
-            secure: false,
-            requireTLS: true,
-            family: 4,
-            tls: { servername: 'smtp.test.local' },
-            auth: { user: 'usuario', pass: 'senha' }
-        }));
-        expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
-            from: '"Equipe CoManga" <noreply@teste.local>',
-            to: 'destino@teste.local',
-            html: expect.stringContaining('https://comanga-web.vercel.app/activate/token-123')
-        }));
-    });
-
-    it('usa CORS_ORIGIN como fallback de URL do frontend', async () => {
+    it('preserva fallback local e CORS para o link', async () => {
         delete process.env.FRONTEND_URL;
-        process.env.CORS_ORIGIN = 'https://front-a.vercel.app,https://front-b.vercel.app';
-        sendMail.mockResolvedValue({});
-
-        await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-abc');
-
-        expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
-            html: expect.stringContaining('https://front-a.vercel.app/activate/token-abc')
-        }));
-    });
-
-    it('usa porta padrao, remetente padrao e localhost quando variaveis opcionais nao existem', async () => {
-        delete process.env.SMTP_PORT;
-        delete process.env.SMTP_FROM;
-        delete process.env.FRONTEND_URL;
+        process.env.CORS_ORIGIN = 'https://front.example.com,https://second.example.com';
+        await mailer.sendActivationEmail('a@b.c', 'a', 't');
+        expect(JSON.parse(global.fetch.mock.calls[0][1].body).text).toContain('https://front.example.com/activate/t');
         delete process.env.CORS_ORIGIN;
-        sendMail.mockResolvedValue({});
-
-        await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-local');
-
-        expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
-            port: 587
-        }));
-        expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
-            from: '"Equipe CoMangá" <noreply@comanga.com>',
-            html: expect.stringContaining('http://localhost:8080/activate/token-local')
-        }));
+        await mailer.sendActivationEmail('a@b.c', 'a', 't');
+        expect(JSON.parse(global.fetch.mock.calls[1][1].body).text).toContain('http://localhost:8080/activate/t');
     });
-
-    it('marca transporte como seguro quando SMTP_SECURE=true', async () => {
-        process.env.SMTP_SECURE = 'true';
-        sendMail.mockResolvedValue({});
-
-        await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-seguro');
-
-        expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
-            secure: true,
-            requireTLS: false
-        }));
-    });
-
-    it('usa host original quando resolucao IPv4 falha', async () => {
-        resolve4.mockRejectedValueOnce(new Error('DNS indisponivel'));
-        sendMail.mockResolvedValue({});
-
-        await mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token-dns');
-
-        expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({
-            host: 'smtp.test.local',
-            tls: { servername: 'smtp.test.local' }
-        }));
-    });
-
-    it('falha explicitamente quando SMTP nao esta configurado', async () => {
-        delete process.env.SMTP_HOST;
-
-        await expect(mailer.sendActivationEmail('destino@teste.local', 'isaac', 'token'))
-            .rejects.toMatchObject({ code: 'SMTP_NOT_CONFIGURED' });
-        expect(sendMail).not.toHaveBeenCalled();
+    it.each([false, true])('não propaga erro/resposta com segredos; falha de rede=%s', async network => {
+        if (network) global.fetch.mockRejectedValue(new Error('re_secret token private@example.com'));
+        else global.fetch.mockResolvedValue({ ok: false, text: async () => 're_secret' });
+        await expect(mailer.sendActivationEmail('a@b.c', 'a', 't')).rejects.toMatchObject({ code: 'EMAIL_DELIVERY_FAILED', message: 'Não foi possível enviar o e-mail.' });
     });
 });

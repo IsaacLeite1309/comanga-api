@@ -9,7 +9,7 @@ interface RemovableCoverAsset {
 }
 
 interface CoverRemovalRepository {
-    findRemovable(assetId: string, userId: string): Promise<RemovableCoverAsset | null>;
+    claimRemoval(assetId: string, userId: string): Promise<RemovableCoverAsset | null>;
     delete(assetId: string): Promise<void>;
 }
 
@@ -22,7 +22,8 @@ class CoverRemovalService {
     constructor(private readonly dependencies: CoverRemovalDependencies) {}
 
     async removePending({ assetId, userId }: { assetId: string; userId: string }): Promise<void> {
-        const asset = await this.dependencies.repository.findRemovable(assetId, userId);
+        // This atomic claim makes the asset unattachable before touching storage.
+        const asset = await this.dependencies.repository.claimRemoval(assetId, userId);
         if (!asset) {
             throw new ApplicationError({
                 statusCode: 404,

@@ -1,3 +1,4 @@
+import { safeRequestPath } from './requestLogger';
 import type { ErrorRequestHandler } from 'express';
 import structuredLogger from '../infrastructure/logging/structuredLogger';
 
@@ -18,17 +19,21 @@ function getDefaultCode(statusCode: number) {
 }
 
 const errorHandler: ErrorRequestHandler = (error: HttpError, req, res, _next) => {
+    if (['P2003', 'P2004'].includes(error.code || '')) {
+        return res.status(409).json({ error: 'A alteração conflita com um registro associado ou uma regra do catálogo.', code: 'DATA_INTEGRITY_CONFLICT' });
+    }
     const statusCode = error.statusCode || error.status || 500;
     const safeStatusCode = statusCode >= 400 && statusCode < 600 ? statusCode : 500;
     const isServerError = safeStatusCode >= 500;
     const code = error.code || getDefaultCode(safeStatusCode);
 
     if (isServerError) {
+        const isAuthenticationRoute = ['/activate/:token', '/register', '/resend-activation', '/forgot-password', '/reset-password', '/login'].includes(req.route?.path);
         structuredLogger.error('api.unhandled_error', {
             requestId: req.requestId || 'não informado',
             method: req.method || 'não informado',
-            route: req.originalUrl || req.url || 'não informada'
-        }, error);
+            route: safeRequestPath(req) || 'não informada'
+        }, isAuthenticationRoute ? undefined : error);
     }
 
     return res.status(safeStatusCode).json({
