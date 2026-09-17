@@ -121,6 +121,7 @@ model Work {
   @@index([visibility], map: "idx_works_visibility")
   @@index([visibility, adultContent, typeId, country, id], map: "idx_works_public_filters")
   @@index([visibility, title, id], map: "idx_works_visibility_title")
+  @@index([visibility, originalPublicationStatus, id], map: "idx_works_visibility_original_status")
   @@map("works")
 }
 
@@ -151,6 +152,8 @@ model Edition {
   @@index([visibility, brazilianPublisherId, id], map: "idx_editions_visibility_publisher")
   @@index([visibility, formatId, id], map: "idx_editions_visibility_format")
   @@index([visibility, coverTypeId, id], map: "idx_editions_visibility_cover_type")
+  @@index([visibility, chronologicalNumber, id], map: "idx_editions_visibility_chronological")
+  @@index([visibility, brazilPublicationStatus, id], map: "idx_editions_visibility_publication_status")
   @@map("editions")
 }
 
@@ -179,6 +182,7 @@ model Volume {
 
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")
+  @@index([editionId, visibility, number, releaseYear], map: "idx_volumes_edition_visibility_number_year")
   @@index([visibility], map: "idx_volumes_visibility")
   @@index([visibility, releaseYear, releaseMonth, releaseDay, id, editionId], map: "idx_volumes_calendar_release")
   @@map("volumes")

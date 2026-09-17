@@ -86,7 +86,7 @@ describe('integridade dos valores fechados do dominio', () => {
                 original_publication_status,
                 visibility,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', 'Oculto', NOW())`,
+             ) VALUES ($1, $2, $3, 'Japão', 'Completa', 'Oculto', NOW())`,
             [`integrity_${runId}_invalid_visibility`, `integrity-${runId}-invalid-visibility`, typeId]
         )).rejects.toMatchObject({ code: '23514' });
     });
@@ -102,7 +102,7 @@ describe('integridade dos valores fechados do dominio', () => {
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())
+             ) VALUES ($1, $2, $3, 'Japão', 'Completa', NOW())
              RETURNING id`,
             [`integrity_${runId}_publisher`, `integrity-${runId}-publisher`, typeId]
         );
@@ -150,7 +150,7 @@ describe('integridade dos valores fechados do dominio', () => {
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())
+             ) VALUES ($1, $2, $3, 'Japão', 'Completa', NOW())
              RETURNING id, slug`,
             [title, slug, typeId]
         );
@@ -163,7 +163,7 @@ describe('integridade dos valores fechados do dominio', () => {
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())`,
+             ) VALUES ($1, $2, $3, 'Japão', 'Completa', NOW())`,
             [`${title}_duplicated`, slug, typeId]
         )).rejects.toMatchObject({ code: '23505' });
 
@@ -192,8 +192,8 @@ describe('integridade dos valores fechados do dominio', () => {
                     original_publication_status,
                     atualizado_em
                  ) VALUES
-                    ($1, NULL, $3, 'Japão', 'Completo', NOW()),
-                    ($2, NULL, $3, 'Japão', 'Completo', NOW())`,
+                    ($1, NULL, $3, 'Japão', 'Completa', NOW()),
+                    ($2, NULL, $3, 'Japão', 'Completa', NOW())`,
                 [
                     `integrity_${runId}_Ação Total`,
                     `integrity_${runId}_Acao Total`,

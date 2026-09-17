@@ -1,4 +1,4 @@
-﻿const prisma = {
+const prisma = {
     user: {
         findMany: jest.fn(),
         count: jest.fn(),
@@ -888,7 +888,7 @@ describe('adminController unitario', () => {
                 { position: 0, publisher: { id: 9, label: 'Shueisha' } },
                 { position: 1, publisher: { id: 10, label: 'Shogakukan' } }
             ],
-            originalPublicationStatus: 'Completo',
+            originalPublicationStatus: 'Completa',
             authors: [
                 {
                     author: { id: 4, label: 'Masashi Kishimoto' },
@@ -953,7 +953,7 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherIds: [{ id: 10, position: 0 }, { id: 9, position: 1 }],
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     adultContent: false,
                     authors: [
                         { authorId: 4, roles: ['História e Arte'] },
@@ -974,7 +974,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     originalPublishers: {
                         createMany: {
                             data: [{ publisherId: 10, position: 0 }, { publisherId: 9, position: 1 }]
@@ -1011,7 +1011,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     authors: [
                         expect.objectContaining({
                             author: { id: 4, label: 'Masashi Kishimoto' },
@@ -1060,7 +1060,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     authors: [
                         { authorId: 4, roles: ['História'] },
                         { authorId: 4, roles: ['Arte'] }
@@ -1097,7 +1097,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 4, roles: ['História'] }],
                     genreIds: [6]
                 }
@@ -1138,7 +1138,7 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherId: 9,
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 4, roles: ['História e Arte'] }]
                 }
             });
@@ -1460,7 +1460,7 @@ describe('adminController unitario', () => {
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            brazilPublicationStatus: 'Completo'
+            brazilPublicationStatus: 'Completa'
         };
 
         function mockValidEditionReferences() {
@@ -1481,7 +1481,7 @@ describe('adminController unitario', () => {
                     coverTypeId: 4,
                     formatId: 5,
                     chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completo',
+                    brazilPublicationStatus: 'Completa',
                 }
             });
             const res = makeRes();
@@ -1518,7 +1518,7 @@ describe('adminController unitario', () => {
                     coverTypeId: 4,
                     formatId: 5,
                     chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completo'
+                    brazilPublicationStatus: 'Completa'
                 }
             });
             const res = makeRes();
@@ -1806,7 +1806,7 @@ describe('adminController unitario', () => {
             coverTypeId: 4,
             formatId: 5,
             chronologicalNumber: 1,
-            brazilPublicationStatus: 'Completo',
+            brazilPublicationStatus: 'Completa',
         };
         const edition = {
             id: 20,
@@ -1817,7 +1817,7 @@ describe('adminController unitario', () => {
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            brazilPublicationStatus: 'Completo',
+            brazilPublicationStatus: 'Completa',
             _count: { volumes: 0 }
         };
         const volumeBody = {
@@ -2261,7 +2261,7 @@ describe('adminController unitario', () => {
                 title: 'Teste',
                 typeId: 1,
                 country: 'Japão',
-                originalPublicationStatus: 'Completo',
+                originalPublicationStatus: 'Completa',
                 authors: [{ authorId: 1, roles: ['História'] }]
             };
 
@@ -2289,7 +2289,7 @@ describe('adminController unitario', () => {
                     title: 'Repetida',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 1, roles: ['História'] }]
                 }
             }), res);
@@ -2328,7 +2328,7 @@ describe('adminController unitario', () => {
                 adultContent: false,
                 type: { id: 1, label: 'Mangá' },
                 country: 'Japão',
-                originalPublicationStatus: 'Completo',
+                originalPublicationStatus: 'Completa',
                 authors: [],
                 genres: [],
                 demographics: [],

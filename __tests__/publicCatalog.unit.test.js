@@ -35,13 +35,39 @@ describe('contratos unitários do catálogo público', () => {
         expect(publicEditionsQuerySchema.safeParse({ limit: 0 }).success).toBe(false);
     });
 
+    it('rejeita status desconhecidos e número de Edição não positivo', () => {
+        expect(publicWorksQuerySchema.safeParse({
+            originalPublicationStatus: 'Desconhecido'
+        }).success).toBe(false);
+        expect(publicEditionsQuerySchema.safeParse({
+            brazilPublicationStatus: 'Desconhecido'
+        }).success).toBe(false);
+        expect(publicEditionsQuerySchema.safeParse({
+            chronologicalNumber: 0
+        }).success).toBe(false);
+        expect(publicWorksQuerySchema.safeParse({
+            originalPublicationStartYear: 1899
+        }).success).toBe(false);
+        expect(publicEditionsQuerySchema.safeParse({
+            brazilPublicationEndYear: new Date().getFullYear() + 2
+        }).success).toBe(false);
+        expect(publicWorksQuerySchema.safeParse({
+            originalPublicationEndYear: new Date().getFullYear() + 1
+        }).success).toBe(true);
+    });
+
     it('representa cada Gênero e Demografia como uma condição obrigatória independente', () => {
         const query = publicWorksQuerySchema.parse({
             term: 'Urasawa',
             typeId: 3,
             country: 'Japão',
             genreIds: '11,12',
-            demographics: 'Shonen,Seinen'
+            demographics: 'Shonen,Seinen',
+            originalPublisherId: 31,
+            serializationMagazineId: 32,
+            originalPublicationStatus: 'Em andamento',
+            originalPublicationStartYear: 1999,
+            originalPublicationEndYear: 2014
         });
         const where = buildPublicWorkWhere(query, false);
 
@@ -49,7 +75,12 @@ describe('contratos unitários do catálogo público', () => {
             visibility: 'Público',
             adultContent: false,
             typeId: 3,
-            country: 'Japão'
+            country: 'Japão',
+            originalPublishers: { some: { publisherId: 31 } },
+            serializationMagazines: { some: { magazineId: 32 } },
+            originalPublicationStatus: 'Em andamento',
+            originalPublicationStartYear: 1999,
+            originalPublicationEndYear: 2014
         }));
         expect(where.AND).toEqual(expect.arrayContaining([
             { genres: { some: { genreId: 11 } } },
@@ -76,16 +107,28 @@ describe('contratos unitários do catálogo público', () => {
         const query = publicEditionsQuerySchema.parse({
             term: 'Monster',
             brazilianPublisherId: 21,
+            editionTypeId: 24,
             formatId: 22,
-            coverTypeId: 23
+            coverTypeId: 23,
+            chronologicalNumber: 2,
+            brazilPublicationStatus: 'Em hiato',
+            brazilPublicationStartYear: 2020,
+            brazilPublicationEndYear: 2024
         });
+        expect(query).toEqual(expect.objectContaining({
+            brazilPublicationStartYear: 2020,
+            brazilPublicationEndYear: 2024
+        }));
         const where = buildPublicEditionWhere(query, false);
 
         expect(where).toEqual(expect.objectContaining({
             visibility: 'Público',
             brazilianPublisherId: 21,
+            editionTypeId: 24,
             formatId: 22,
             coverTypeId: 23,
+            chronologicalNumber: 2,
+            brazilPublicationStatus: 'Em hiato',
             work: expect.objectContaining({
                 visibility: 'Público',
                 adultContent: false,

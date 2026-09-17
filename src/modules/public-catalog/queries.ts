@@ -52,6 +52,21 @@ function buildPublicWorkWhere(
         ...(!canViewAdultContent ? { adultContent: false } : {}),
         ...(query.typeId ? { typeId: query.typeId } : {}),
         ...(query.country ? { country: query.country } : {}),
+        ...(query.originalPublisherId
+            ? { originalPublishers: { some: { publisherId: query.originalPublisherId } } }
+            : {}),
+        ...(query.serializationMagazineId
+            ? { serializationMagazines: { some: { magazineId: query.serializationMagazineId } } }
+            : {}),
+        ...(query.originalPublicationStatus
+            ? { originalPublicationStatus: query.originalPublicationStatus }
+            : {}),
+        ...(query.originalPublicationStartYear
+            ? { originalPublicationStartYear: query.originalPublicationStartYear }
+            : {}),
+        ...(query.originalPublicationEndYear
+            ? { originalPublicationEndYear: query.originalPublicationEndYear }
+            : {}),
         ...(andFilters.length > 0 ? { AND: andFilters } : {})
     };
 }
@@ -72,8 +87,15 @@ function buildPublicEditionWhere(
         ...(query.brazilianPublisherId
             ? { brazilianPublisherId: query.brazilianPublisherId }
             : {}),
+        ...(query.editionTypeId ? { editionTypeId: query.editionTypeId } : {}),
         ...(query.formatId ? { formatId: query.formatId } : {}),
-        ...(query.coverTypeId ? { coverTypeId: query.coverTypeId } : {})
+        ...(query.coverTypeId ? { coverTypeId: query.coverTypeId } : {}),
+        ...(query.chronologicalNumber
+            ? { chronologicalNumber: query.chronologicalNumber }
+            : {}),
+        ...(query.brazilPublicationStatus
+            ? { brazilPublicationStatus: query.brazilPublicationStatus }
+            : {})
     };
 }
 
@@ -302,6 +324,7 @@ const publicWorkDetailSelect = {
                     releaseYear: true,
                     releaseMonth: true,
                     releaseDay: true,
+                    synopsis: true,
                     coverAsset: { select: publicCoverAssetSelect }
                 }
             },
