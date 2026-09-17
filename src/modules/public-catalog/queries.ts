@@ -251,7 +251,7 @@ const publicEditionSelect = {
         select: { id: true, label: true }
     },
     _count: {
-        select: { volumes: true }
+        select: { volumes: { where: { visibility: PUBLIC_VISIBILITY } } }
     }
 } satisfies Prisma.EditionSelect;
 

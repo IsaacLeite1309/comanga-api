@@ -67,7 +67,7 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
             formatId: data.formatId,
             chronologicalNumber: data.chronologicalNumber,
             brazilPublicationStatus: data.brazilPublicationStatus,
-            coverAssetId: data.coverAssetId || null,
+            coverAssetId: data.coverAssetId,
             visibility: 'Privado'
         };
         const edition = data.coverAssetId
@@ -223,7 +223,7 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
                     ...(data.formatId !== undefined ? { formatId: data.formatId } : {}),
                     ...(data.chronologicalNumber !== undefined ? { chronologicalNumber: data.chronologicalNumber } : {}),
                     ...(data.brazilPublicationStatus !== undefined ? { brazilPublicationStatus: data.brazilPublicationStatus } : {}),
-                    ...(data.coverAssetId !== undefined ? { coverAssetId: data.coverAssetId || null } : {})
+                    ...(data.coverAssetId !== undefined ? { coverAssetId: data.coverAssetId } : {})
                 },
                 include: getEditionInclude()
             });

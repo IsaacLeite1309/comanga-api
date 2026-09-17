@@ -65,9 +65,9 @@ describe('fronteiras do monolito modular', () => {
             'utf8'
         );
 
-        expect(authNotificationSource).not.toMatch(/NodemailerMailService/);
+        expect(authNotificationSource).not.toMatch(/ResendMailService/);
         expect(adminMediaSource).not.toMatch(/R2MediaStorage/);
-        expect(containerSource).toMatch(/NodemailerMailService/);
+        expect(containerSource).toMatch(/ResendMailService/);
         expect(containerSource).toMatch(/R2MediaStorage/);
     });
 });

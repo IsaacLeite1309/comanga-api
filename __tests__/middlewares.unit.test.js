@@ -252,7 +252,7 @@ describe('middlewares unitarios', () => {
                 level: 'error',
                 event: 'api.unhandled_error',
                 method: 'GET',
-                route: '/api/admin/works',
+                route: '[unmatched]',
                 requestId: 'req-test-123',
                 timestamp: expect.any(String),
                 error: expect.objectContaining({

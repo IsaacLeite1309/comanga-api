@@ -47,7 +47,7 @@ describe('sessão opcional do catálogo público', () => {
             user: {
                 id: 'user-1',
                 status: 'Bloqueada',
-                conteudoAdulto: true
+                birthDate: new Date('2000-01-01'), conteudoAdulto: true
             }
         });
         const req = { headers: { cookie: 'comanga_session=blocked' } };
@@ -64,7 +64,7 @@ describe('sessão opcional do catálogo público', () => {
             user: {
                 id: 'user-2',
                 status: 'Ativada',
-                conteudoAdulto: true
+                birthDate: new Date('2000-01-01'), conteudoAdulto: true
             }
         });
         const req = { headers: { cookie: 'tema=dark; comanga_session=valid-token' } };

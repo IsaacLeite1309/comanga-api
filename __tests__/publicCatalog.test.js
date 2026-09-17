@@ -1,3 +1,5 @@
+process.env.MEDIA_PUBLIC_BASE_URL = 'https://media.example.test';
+const { createTestCover } = require('./helpers/cover');
 const crypto = require('node:crypto');
 const request = require('supertest');
 
@@ -66,6 +68,7 @@ async function createWork({
     const slug = `${fixturePrefix}-${suffix}`.toLowerCase().replace(/_/g, '-');
     const result = await db.query(
         `INSERT INTO works (
+            cover_asset_id,
             slug,
             title,
             original_title,
@@ -77,7 +80,7 @@ async function createWork({
             visibility,
             adult_content,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
          RETURNING id, slug, title`,
         [
             slug,
@@ -145,6 +148,7 @@ async function createEdition({
 }) {
     const result = await db.query(
         `INSERT INTO editions (
+            cover_asset_id,
             work_id,
             brazilian_publisher_id,
             edition_type_id,
@@ -154,7 +158,7 @@ async function createEdition({
             brazil_publication_status,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, NOW())
          RETURNING id`,
         [
             workId,
@@ -175,13 +179,14 @@ async function createEdition({
 async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY, releaseYear = 2026) {
     const result = await db.query(
         `INSERT INTO volumes (
+            cover_asset_id,
             edition_id,
             number,
             release_date_precision,
             release_year,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, 'Ano', $3, $4, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, 'Ano', $3, $4, NOW())
          RETURNING id`,
         [editionId, number, releaseYear, visibility]
     );
@@ -197,8 +202,8 @@ async function createSessionCookie({ status = 'Ativada', adultContent = false, s
             password_hash,
             status,
             nivel_acesso,
-            conteudo_adulto
-         ) VALUES ($1, $2, 'not-used', $3, 'Usu\u00e1rio Padr\u00e3o', $4)
+            birth_date, conteudo_adulto
+         ) VALUES ($1, $2, 'not-used', $3, 'Usu\u00e1rio Padr\u00e3o', '2000-01-01', $4)
         RETURNING id`,
         [
             `${suffix}_${fixturePrefix}`.slice(0, 50),
@@ -237,6 +242,7 @@ async function deleteFixtures() {
     if (fixture.optionIds.length > 0) {
         await db.query('DELETE FROM domain_option_values WHERE id = ANY($1::int[])', [fixture.optionIds]);
     }
+    await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`${fixturePrefix}/%`]);
 }
 
 describe('catálogo público', () => {
@@ -411,7 +417,7 @@ describe('catálogo público', () => {
             slug: fixture.works.complete.slug,
             title: fixture.works.complete.title,
             originalTitle: `${fixturePrefix}_original-alpha`,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             type: expect.objectContaining({ id: fixture.options.typeOne.id }),
             country: 'Jap\u00e3o',
             authors: [{
@@ -544,7 +550,7 @@ describe('catálogo público', () => {
             slug: fixture.works.complete.slug,
             title: fixture.works.complete.title,
             originalTitle: `${fixturePrefix}_original-alpha`,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             type: fixture.options.typeOne,
             country: 'Japão',
             authors: [{
@@ -562,7 +568,7 @@ describe('catálogo público', () => {
             volumesCount: 1
         }));
         expect(response.body.work.editions[0].volumes).toEqual([
-            expect.objectContaining({ number: 1, coverUrl: null })
+            expect.objectContaining({ number: 1, coverUrl: expect.any(String) })
         ]);
         expect(response.body.work).not.toHaveProperty('visibility');
         expect(response.body.work).not.toHaveProperty('adultContent');
@@ -609,7 +615,7 @@ describe('catálogo público', () => {
         expect(response.body.editions[0]).toEqual(expect.objectContaining({
             id: fixture.editions.complete.id,
             chronologicalNumber: 1,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             work: expect.objectContaining({
                 id: fixture.works.complete.id,
                 slug: fixture.works.complete.slug,
@@ -631,7 +637,7 @@ describe('catálogo público', () => {
                 id: fixture.options.coverOne.id,
                 label: fixture.options.coverOne.label
             },
-            volumesCount: 2
+            volumesCount: 1
         }));
         expect(response.body.editions[0]).not.toHaveProperty('visibility');
     });
@@ -706,7 +712,7 @@ describe('catálogo público', () => {
         expect(response.body.edition).toEqual(expect.objectContaining({
             id: fixture.editions.complete.id,
             chronologicalNumber: 1,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             brazilianPublisher: fixture.options.publisherOne,
             editionType: fixture.options.editionType,
             format: fixture.options.formatOne,
@@ -719,7 +725,7 @@ describe('catálogo público', () => {
             })
         }));
         expect(response.body.volumes).toEqual([
-            expect.objectContaining({ number: 1, coverUrl: null })
+            expect.objectContaining({ number: 1, coverUrl: expect.any(String) })
         ]);
         expect(response.body.pagination).toEqual({
             page: 1,
@@ -839,7 +845,7 @@ describe('catálogo público', () => {
             id: fixture.volumes.complete.id,
             number: 1,
             singleVolume: false,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             pages: 416,
             price: 79.9,
             priceCurrency: 'R$',

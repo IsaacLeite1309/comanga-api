@@ -4,7 +4,12 @@ import usersModule from '../modules/users';
 import authMiddleware from '../middlewares/authMiddleware';
 import loginRateLimiter from '../middlewares/loginRateLimiter';
 
+import { requestPasswordReset, resetPassword } from '../modules/auth/passwordRecovery';
+import { createRecoveryRateLimiter } from '../middlewares/recoveryRateLimiter';
+
 const router = express.Router();
+router.post('/forgot-password', createRecoveryRateLimiter(), requestPasswordReset);
+router.post('/reset-password', createRecoveryRateLimiter(), resetPassword);
 
 router.post('/register', authModule.registerUser);
 router.get('/activate/:token', authModule.activateAccount);
