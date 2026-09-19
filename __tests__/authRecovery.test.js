@@ -16,7 +16,7 @@ const covers = [];
 async function cover() { const id = await createTestCover(db, prefix); covers.push(id); return id; }
 async function work(id, suffix) {
     return db.query(`INSERT INTO works (title, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
-        VALUES ($1, $1, $2, 'Japão', 'Completo', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
+        VALUES ($1, $1, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
 }
 describe('integração de autenticação e capas', () => {
 beforeAll(async () => {
@@ -120,7 +120,7 @@ describe('capas com concorrência e restrições reais', () => {
         const outcomes = await Promise.allSettled([
             work(shared, 'cross-work'),
             db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, edition_type_id, cover_type_id, format_id, chronological_number, brazil_publication_status, cover_asset_id, atualizado_em)
-                VALUES ($1,$2,$2,$2,$2,1,'Completo',$3,NOW()) RETURNING id`, [parent.rows[0].id, typeId, shared])
+                VALUES ($1,$2,$2,$2,$2,1,'Completa',$3,NOW()) RETURNING id`, [parent.rows[0].id, typeId, shared])
         ]);
         expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
         expect(outcomes.filter(result => result.status === 'rejected')).toHaveLength(1);

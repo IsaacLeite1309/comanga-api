@@ -47,6 +47,7 @@ function volumeFixture(overrides = {}) {
         edition: {
             id: 20,
             chronologicalNumber: 2,
+            brazilianPublisher: { id: 4, label: 'Panini' },
             work: {
                 id: 8,
                 slug: 'monster',
@@ -113,6 +114,7 @@ describe('detalhes públicos do Volume', () => {
                 edition: {
                     id: 20,
                     chronologicalNumber: 2,
+                    brazilianPublisher: { id: 4, label: 'Panini' },
                     work: {
                         id: 8,
                         slug: 'monster',

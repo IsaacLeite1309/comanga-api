@@ -860,6 +860,7 @@ describe('catálogo público', () => {
             edition: {
                 id: fixture.editions.complete.id,
                 chronologicalNumber: 1,
+                brazilianPublisher: fixture.options.publisherOne,
                 work: {
                     id: fixture.works.complete.id,
                     slug: fixture.works.complete.slug,
