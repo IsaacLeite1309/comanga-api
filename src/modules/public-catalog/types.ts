@@ -110,6 +110,7 @@ interface PublicVolumeDetailInput {
     edition: {
         id: number;
         chronologicalNumber: number;
+        brazilianPublisher: PublicOptionInput;
         work: {
             id: number;
             slug: string;

@@ -163,6 +163,7 @@ function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
         edition: {
             id: volume.edition.id,
             chronologicalNumber: volume.edition.chronologicalNumber,
+            brazilianPublisher: mapOption(volume.edition.brazilianPublisher),
             work: {
                 id: volume.edition.work.id,
                 slug: volume.edition.work.slug,

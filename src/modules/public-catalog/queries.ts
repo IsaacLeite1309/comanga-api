@@ -397,6 +397,7 @@ const publicVolumeDetailSelect = {
         select: {
             id: true,
             chronologicalNumber: true,
+            brazilianPublisher: { select: { id: true, label: true } },
             work: {
                 select: {
                     id: true,
