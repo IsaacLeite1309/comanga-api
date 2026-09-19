@@ -1,9 +1,18 @@
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import prisma from '../prisma';
+import structuredLogger from '../infrastructure/logging/structuredLogger';
 
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'comanga_session';
 const INVALID_SESSION_MESSAGE = 'Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.';
+const DEFAULT_SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+
+function readSessionTouchInterval(): number {
+    const configured = Number(process.env.SESSION_TOUCH_INTERVAL_MS);
+    return Number.isInteger(configured) && configured >= 0
+        ? configured
+        : DEFAULT_SESSION_TOUCH_INTERVAL_MS;
+}
 
 function parseCookies(cookieHeader = ''): Record<string, string> {
     return cookieHeader.split(';').reduce<Record<string, string>>((cookies, pair) => {
@@ -64,10 +73,19 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
             });
         }
 
-        await prisma.session.update({
-            where: { id: session.id },
-            data: { lastUsedAt: new Date() }
-        });
+        const now = new Date();
+        const touchInterval = readSessionTouchInterval();
+        const touchThreshold = new Date(now.getTime() - touchInterval);
+
+        if (!session.lastUsedAt || session.lastUsedAt < touchThreshold) {
+            await prisma.session.updateMany({
+                where: {
+                    id: session.id,
+                    lastUsedAt: { lt: touchThreshold }
+                },
+                data: { lastUsedAt: now }
+            });
+        }
 
         req.user = {
             userId: String(session.user.id),
@@ -82,7 +100,9 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
 
         return next();
     } catch (error) {
-        console.error('Erro ao validar sessao:', error);
+        structuredLogger.error('auth.session.validation_failed', {
+            requestId: req.requestId || 'not-provided'
+        }, error);
         return res.status(401).json({
             error: INVALID_SESSION_MESSAGE
         });

@@ -1,4 +1,4 @@
-﻿const prisma = {
+const prisma = {
     user: {
         findMany: jest.fn(),
         count: jest.fn(),
@@ -72,6 +72,11 @@
         updateMany: jest.fn(),
         delete: jest.fn()
     },
+    mediaAsset: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn()
+    },
     $transaction: jest.fn()
 };
 
@@ -101,6 +106,16 @@ function makeReq(overrides = {}) {
 describe('adminController unitario', () => {
     beforeEach(() => {
         jest.resetAllMocks();
+        prisma.mediaAsset.findUnique.mockResolvedValue({
+            id: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+            status: 'Pendente',
+            work: null,
+            edition: null,
+            volume: null
+        });
+        prisma.$transaction.mockImplementation(async (operation) => (
+            typeof operation === 'function' ? operation(prisma) : Promise.all(operation)
+        ));
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -180,17 +195,17 @@ describe('adminController unitario', () => {
             expect(prisma.user.findMany).not.toHaveBeenCalled();
         });
 
-        it('retorna erro interno quando a consulta de usuarios falha', async () => {
-            prisma.$transaction.mockRejectedValue(new Error('falha no banco'));
+        it('encaminha falha inesperada da consulta de usuarios ao handler global', async () => {
+            const error = new Error('falha no banco');
+            prisma.$transaction.mockRejectedValue(error);
             const req = makeReq();
             const res = makeRes();
+            const next = jest.fn();
 
-            await adminController.listUsers(req, res);
+            await adminController.listUsers(req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith({
-                error: 'Erro interno ao listar usuários.'
-            });
+            expect(next).toHaveBeenCalledWith(error);
+            expect(res.status).not.toHaveBeenCalledWith(500);
         });
     });
 
@@ -269,20 +284,20 @@ describe('adminController unitario', () => {
             expect(res.status).toHaveBeenCalledWith(404);
         });
 
-        it('retorna erro interno quando a atualizacao de nivel falha', async () => {
-            prisma.user.update.mockRejectedValue(new Error('falha inesperada'));
+        it('encaminha falha inesperada da atualizacao de nivel ao handler global', async () => {
+            const error = new Error('falha inesperada');
+            prisma.user.update.mockRejectedValue(error);
             const req = makeReq({
                 params: { id: 'user-2' },
                 body: { role: 'Administrador' }
             });
             const res = makeRes();
+            const next = jest.fn();
 
-            await adminController.updateUserRole(req, res);
+            await adminController.updateUserRole(req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith({
-                error: 'Erro interno ao atualizar nível de acesso.'
-            });
+            expect(next).toHaveBeenCalledWith(error);
+            expect(res.status).not.toHaveBeenCalledWith(500);
         });
     });
 
@@ -290,7 +305,7 @@ describe('adminController unitario', () => {
         const category = {
             id: 1,
             slug: 'generos',
-            name: 'GÃªneros'
+            name: 'Gêneros'
         };
 
         it('lista valores ativos de uma categoria em ordem alfabetica', async () => {
@@ -338,7 +353,7 @@ describe('adminController unitario', () => {
             expect(res.json).toHaveBeenCalledWith({
                 category: {
                     slug: 'generos',
-                    name: 'GÃªneros'
+                    name: 'Gêneros'
                 },
                 values: [
                     {
@@ -346,7 +361,7 @@ describe('adminController unitario', () => {
                         label: 'Ação',
                         category: {
                             slug: 'generos',
-                            name: 'GÃªneros'
+                            name: 'Gêneros'
                         },
                         depends_on: []
                     }
@@ -791,6 +806,10 @@ describe('adminController unitario', () => {
         });
 
         it('bloqueia exclusão quando o valor está em uso por FK', async () => {
+            prisma.domainOptionValue.findUnique.mockResolvedValue({
+                id: 10,
+                category: { slug: 'generos' }
+            });
             prisma.domainOptionValue.delete.mockRejectedValue({ code: 'P2003' });
             const req = makeReq({ params: { id: '10' } });
             const res = makeRes();
@@ -802,11 +821,60 @@ describe('adminController unitario', () => {
                 error: 'Esse valor está vinculado a um mangá, não pode ser excluído!'
             });
         });
+
+        it('permite listar paises como referencia e recusa cadastrar categorias internas', async () => {
+            const listRes = makeRes();
+            const createRes = makeRes();
+            prisma.domainOptionCategory.findUnique.mockResolvedValueOnce({
+                id: 4,
+                slug: 'paises-origem',
+                name: 'País de origem'
+            });
+            prisma.$transaction.mockResolvedValueOnce([[], 0]);
+
+            await adminController.listOptions(makeReq({
+                params: { category: 'paises-origem' },
+                query: {}
+            }), listRes);
+            await adminController.createOption(makeReq({
+                body: { category: 'miolos', label: 'Offset' }
+            }), createRes);
+
+            expect(listRes.status).toHaveBeenCalledWith(200);
+            expect(createRes.status).toHaveBeenCalledWith(404);
+            expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledTimes(1);
+            expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledWith({
+                where: { slug: 'paises-origem' }
+            });
+        });
+
+        it('recusa alterar ou excluir um valor de categoria interna', async () => {
+            prisma.domainOptionValue.findUnique.mockResolvedValue({
+                id: 10,
+                categoryId: 99,
+                category: { slug: 'paises-origem' }
+            });
+            const updateRes = makeRes();
+            const deleteRes = makeRes();
+
+            await adminController.updateOption(makeReq({
+                params: { id: '10' },
+                body: { label: 'Brasil' }
+            }), updateRes);
+            await adminController.deleteOption(makeReq({ params: { id: '10' } }), deleteRes);
+
+            expect(updateRes.status).toHaveBeenCalledWith(404);
+            expect(deleteRes.status).toHaveBeenCalledWith(404);
+            expect(prisma.domainOptionValue.update).not.toHaveBeenCalled();
+            expect(prisma.domainOptionValue.delete).not.toHaveBeenCalled();
+        });
     });
 
     describe('obras administrativas', () => {
         const work = {
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             id: 1,
+            slug: 'naruto',
             title: 'Naruto',
             originalTitle: 'Naruto',
             originalPublicationStartYear: 1999,
@@ -815,15 +883,13 @@ describe('adminController unitario', () => {
             directRelease: false,
             visibility: 'Privado',
             adultContent: false,
-            coverUrl: 'https://cdn.comanga.test/naruto.jpg',
             type: { id: 1, label: 'Mangá' },
             country: 'Japão',
-            originalPublisher: { id: 9, label: 'Shueisha' },
             originalPublishers: [
                 { position: 0, publisher: { id: 9, label: 'Shueisha' } },
                 { position: 1, publisher: { id: 10, label: 'Shogakukan' } }
             ],
-            originalPublicationStatus: 'Completo',
+            originalPublicationStatus: 'Completa',
             authors: [
                 {
                     author: { id: 4, label: 'Masashi Kishimoto' },
@@ -854,7 +920,7 @@ describe('adminController unitario', () => {
         function mockExistingWorkForUpdate(overrides = {}) {
             return {
                 id: 1,
-                country: 'JapÃƒÂ£o',
+                country: 'Japão',
                 typeId: 1,
                 authors: [{ authorId: 4 }, { authorId: 11 }],
                 originalPublishers: [{ publisherId: 9 }, { publisherId: 10 }],
@@ -867,6 +933,7 @@ describe('adminController unitario', () => {
             prisma.work.findFirst.mockResolvedValue(null);
             mockValidDomainReferences();
             prisma.$transaction.mockImplementation(async (callback) => callback({
+                mediaAsset: prisma.mediaAsset,
                 work: {
                     create: prisma.work.create,
                     findUniqueOrThrow: prisma.work.findUniqueOrThrow
@@ -888,8 +955,8 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherIds: [{ id: 10, position: 0 }, { id: 9, position: 1 }],
-                    originalPublicationStatus: 'Completo',
-                    coverUrl: 'https://cdn.comanga.test/naruto.jpg',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     adultContent: false,
                     authors: [
                         { authorId: 4, roles: ['História e Arte'] },
@@ -906,11 +973,12 @@ describe('adminController unitario', () => {
 
             expect(prisma.work.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
+                    slug: 'naruto',
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
-                    originalPublisherId: 10,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     originalPublishers: {
                         createMany: {
                             data: [{ publisherId: 10, position: 0 }, { publisherId: 9, position: 1 }]
@@ -933,6 +1001,7 @@ describe('adminController unitario', () => {
                     }
                 })
             }));
+            expect(prisma.work.create.mock.calls[0][0].data).not.toHaveProperty('originalPublisherId');
             expect(prisma.workAuthorRole.createMany).toHaveBeenCalledWith({
                 data: [
                     { workId: 1, authorId: 4, role: 'História e Arte' },
@@ -946,7 +1015,8 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [
                         expect.objectContaining({
                             author: { id: 4, label: 'Masashi Kishimoto' },
@@ -961,13 +1031,42 @@ describe('adminController unitario', () => {
             }));
         });
 
+        it('consulta uma obra diretamente pelo slug sem executar listagem auxiliar', async () => {
+            prisma.work.findUnique.mockResolvedValue(work);
+            const req = makeReq({ params: { slug: 'naruto' } });
+            const res = makeRes();
+
+            await adminController.getWorkBySlug(req, res, jest.fn());
+
+            expect(prisma.work.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+                where: { slug: 'naruto' }
+            }));
+            expect(prisma.work.findMany).not.toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith({
+                work: expect.objectContaining({ slug: 'naruto', title: 'Naruto' })
+            });
+        });
+
+        it('retorna 404 seguro ao consultar slug inexistente', async () => {
+            prisma.work.findUnique.mockResolvedValue(null);
+            const req = makeReq({ params: { slug: 'obra-inexistente' } });
+            const res = makeRes();
+
+            await adminController.getWorkBySlug(req, res, jest.fn());
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Obra não encontrada.' });
+        });
+
         it('bloqueia autor duplicado mesmo com papeis diferentes antes de consultar o banco', async () => {
             const req = makeReq({
                 body: {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [
                         { authorId: 4, roles: ['História'] },
                         { authorId: 4, roles: ['Arte'] }
@@ -1004,7 +1103,8 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 4, roles: ['História'] }],
                     genreIds: [6]
                 }
@@ -1024,6 +1124,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Estados Unidos',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
                     genreIds: [6],
@@ -1033,6 +1134,26 @@ describe('adminController unitario', () => {
             const res = makeRes();
 
             await adminController.createWork(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(prisma.work.findFirst).not.toHaveBeenCalled();
+        });
+
+        it('rejeita o campo singular legado de Editora original', async () => {
+            const req = makeReq({
+                body: {
+                    title: 'Naruto',
+                    typeId: 1,
+                    country: 'Japão',
+                    originalPublisherId: 9,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
+                    authors: [{ authorId: 4, roles: ['História e Arte'] }]
+                }
+            });
+            const res = makeRes();
+
+            await adminController.createWork(req, res, jest.fn());
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.work.findFirst).not.toHaveBeenCalled();
@@ -1111,6 +1232,7 @@ describe('adminController unitario', () => {
                 where: { id: 1 },
                 data: { title: 'Naruto - Edicao Revisada' }
             }));
+            expect(prisma.work.update.mock.calls[0][0].data).not.toHaveProperty('slug');
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
@@ -1125,6 +1247,7 @@ describe('adminController unitario', () => {
                 .mockResolvedValueOnce({
                     ...work,
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         {
@@ -1145,6 +1268,7 @@ describe('adminController unitario', () => {
                 params: { id: '1' },
                 body: {
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         { authorId: 4, roles: ['História', 'Arte'] },
@@ -1161,6 +1285,7 @@ describe('adminController unitario', () => {
                 where: { id: 1 },
                 data: {
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento'
                 }
             }));
@@ -1185,6 +1310,7 @@ describe('adminController unitario', () => {
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         expect.objectContaining({
@@ -1206,7 +1332,6 @@ describe('adminController unitario', () => {
                 .mockResolvedValueOnce(mockExistingWorkForUpdate())
                 .mockResolvedValueOnce({
                     ...work,
-                    originalPublisher: { id: 10, label: 'Shogakukan' },
                     originalPublishers: [
                         { position: 0, publisher: { id: 10, label: 'Shogakukan' } },
                         { position: 1, publisher: { id: 9, label: 'Shueisha' } }
@@ -1231,9 +1356,9 @@ describe('adminController unitario', () => {
             await adminController.updateWork(req, res);
 
             expect(prisma.work.update).toHaveBeenCalledWith(expect.objectContaining({
-                where: { id: 1 },
-                data: { originalPublisherId: 10 }
+                where: { id: 1 }
             }));
+            expect(prisma.work.update.mock.calls[0][0].data).not.toHaveProperty('originalPublisherId');
             expect(prisma.workOriginalPublisher.deleteMany).toHaveBeenCalledWith({ where: { workId: 1 } });
             expect(prisma.workOriginalPublisher.createMany).toHaveBeenCalledWith({
                 data: [
@@ -1268,6 +1393,7 @@ describe('adminController unitario', () => {
                 params: { id: '1' },
                 body: {
                     country: 'Brasil',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
                     demographies: ['Adulto']
@@ -1343,13 +1469,12 @@ describe('adminController unitario', () => {
             id: 20,
             workId: 1,
             chronologicalNumber: 1,
-            coverUrl: 'https://cdn.comanga.test/edição.jpg',
             visibility: 'Privado',
             brazilianPublisher: { id: 2, label: 'Panini' },
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            brazilPublicationStatus: 'Completo'
+            brazilPublicationStatus: 'Completa'
         };
 
         function mockValidEditionReferences() {
@@ -1365,13 +1490,13 @@ describe('adminController unitario', () => {
             const req = makeReq({
                 params: { workId: '1' },
                 body: {
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     brazilianPublisherId: 2,
                     editionTypeId: 3,
                     coverTypeId: 4,
                     formatId: 5,
                     chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completo',
-                    coverUrl: 'https://cdn.comanga.test/edição.jpg'
+                    brazilPublicationStatus: 'Completa',
                 }
             });
             const res = makeRes();
@@ -1403,12 +1528,13 @@ describe('adminController unitario', () => {
             const req = makeReq({
                 params: { workId: '1' },
                 body: {
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     brazilianPublisherId: 2,
                     editionTypeId: 3,
                     coverTypeId: 4,
                     formatId: 5,
                     chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completo'
+                    brazilPublicationStatus: 'Completa'
                 }
             });
             const res = makeRes();
@@ -1538,7 +1664,6 @@ describe('adminController unitario', () => {
             id: 30,
             editionId: 20,
             number: 1,
-            coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
             singleVolume: true,
             pages: 200,
             price: 39.9,
@@ -1548,7 +1673,7 @@ describe('adminController unitario', () => {
             releaseMonth: 1,
             releaseDay: 10,
             isbn10: '123456789X',
-            isbn13: '9781234567890',
+            isbn13: '9781234567897',
             affiliateLink: 'https://loja.test/volume-1',
             synopsis: 'Sinopse do volume.',
             visibility: 'Privado'
@@ -1561,7 +1686,7 @@ describe('adminController unitario', () => {
                 params: { editionId: '20' },
                 body: {
                     number: 1,
-                    coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     singleVolume: true,
                     pages: 200,
                     price: 39.9,
@@ -1571,7 +1696,7 @@ describe('adminController unitario', () => {
                     releaseMonth: 1,
                     releaseDay: 10,
                     isbn10: '123456789X',
-                    isbn13: '9781234567890',
+                    isbn13: '9781234567897',
                     affiliateLink: 'https://loja.test/volume-1',
                     synopsis: 'Sinopse do volume.'
                 }
@@ -1613,7 +1738,7 @@ describe('adminController unitario', () => {
                 params: { editionId: '20' },
                 body: {
                     number: 0,
-                    coverUrl: 'https://cdn.comanga.test/volume-0.jpg',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     releaseDatePrecision: 'Completa',
                     releaseYear: 2026,
                     releaseMonth: 1,
@@ -1666,9 +1791,9 @@ describe('adminController unitario', () => {
 
             await adminController.getVolumeById(req, res);
 
-            expect(prisma.volume.findUnique).toHaveBeenCalledWith({
+            expect(prisma.volume.findUnique).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 30 }
-            });
+            }));
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
                 volume: expect.objectContaining({ id: 30, number: 1 })
@@ -1676,7 +1801,7 @@ describe('adminController unitario', () => {
         });
 
         it('bloqueia exclusão de volume publico', async () => {
-            prisma.volume.findUnique.mockResolvedValue({ id: 30, visibility: 'PÃƒÂºblico' });
+            prisma.volume.findUnique.mockResolvedValue({ id: 30, visibility: 'Público' });
             const req = makeReq({ params: { id: '30' } });
             const res = makeRes();
 
@@ -1692,30 +1817,29 @@ describe('adminController unitario', () => {
 
     describe('caminhos alternativos do catalogo administrativo', () => {
         const editionBody = {
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             brazilianPublisherId: 2,
             editionTypeId: 3,
             coverTypeId: 4,
             formatId: 5,
             chronologicalNumber: 1,
-            brazilPublicationStatus: 'Completo',
-            coverUrl: 'https://cdn.comanga.test/edicao.jpg'
+            brazilPublicationStatus: 'Completa',
         };
         const edition = {
             id: 20,
             workId: 1,
             chronologicalNumber: 1,
-            coverUrl: 'https://cdn.comanga.test/edicao.jpg',
             visibility: 'Privado',
             brazilianPublisher: { id: 2, label: 'Panini' },
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            brazilPublicationStatus: 'Completo',
+            brazilPublicationStatus: 'Completa',
             _count: { volumes: 0 }
         };
         const volumeBody = {
             number: 1,
-            coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             releaseDatePrecision: 'Completa',
             releaseYear: 2026,
             releaseMonth: 8,
@@ -1725,7 +1849,6 @@ describe('adminController unitario', () => {
             id: 30,
             editionId: 20,
             number: 1,
-            coverUrl: 'https://cdn.comanga.test/volume-1.jpg',
             singleVolume: false,
             pages: null,
             price: null,
@@ -1814,7 +1937,7 @@ describe('adminController unitario', () => {
             ['listOptions', { params: { category: 'generos' }, query: {} }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
             ['createOption', { body: { category: 'generos', label: 'Drama' } }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateOption', { params: { id: '10' }, body: { label: 'Drama' } }, () => prisma.domainOptionValue.findUnique.mockRejectedValue(new Error('falha'))],
-            ['deleteOption', { params: { id: '10' } }, () => prisma.domainOptionValue.delete.mockRejectedValue(new Error('falha'))],
+            ['deleteOption', { params: { id: '10' } }, () => prisma.domainOptionValue.findUnique.mockRejectedValue(new Error('falha'))],
             ['listWorks', { query: {} }, () => prisma.$transaction.mockRejectedValue(new Error('falha'))],
             ['getWorkById', { params: { id: '1' } }, () => prisma.work.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateWork', { params: { id: '1' }, body: { title: 'Teste' } }, () => prisma.work.findUnique.mockRejectedValue(new Error('falha'))],
@@ -1831,16 +1954,15 @@ describe('adminController unitario', () => {
             ['getVolumeById', { params: { id: '30' } }, () => prisma.volume.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateVolume', { params: { id: '30' }, body: { pages: 200 } }, () => prisma.volume.findUnique.mockRejectedValue(new Error('falha'))],
             ['deleteVolume', { params: { id: '30' } }, () => prisma.volume.findUnique.mockRejectedValue(new Error('falha'))]
-        ])('padroniza falha interna em %s', async (handlerName, request, arrange) => {
+        ])('encaminha falha interna de %s ao handler global', async (handlerName, request, arrange) => {
             arrange();
             const res = makeRes();
+            const next = jest.fn();
 
-            await adminController[handlerName](makeReq(request), res);
+            await adminController[handlerName](makeReq(request), res, next);
 
-            expect(res.status).toHaveBeenCalledWith(500);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                error: expect.stringContaining('Erro interno')
-            }));
+            expect(next).toHaveBeenCalledWith(expect.any(Error));
+            expect(res.status).not.toHaveBeenCalledWith(500);
         });
 
         it('consulta e atualiza uma edicao existente', async () => {
@@ -1861,7 +1983,6 @@ describe('adminController unitario', () => {
                     ...editionBody,
                     chronologicalNumber: 2,
                     brazilPublicationStatus: 'Em andamento',
-                    coverUrl: null
                 }
             }), updateRes);
 
@@ -1870,7 +1991,6 @@ describe('adminController unitario', () => {
                 where: { id: 20 },
                 data: expect.objectContaining({
                     chronologicalNumber: 2,
-                    coverUrl: null
                 })
             }));
             expect(updateRes.status).toHaveBeenCalledWith(200);
@@ -2003,7 +2123,6 @@ describe('adminController unitario', () => {
                 directRelease: true,
                 visibility: 'Privado',
                 adultContent: false,
-                coverUrl: null,
                 type: null,
                 country: 'Japão',
                 originalPublicationStatus: null,
@@ -2058,7 +2177,6 @@ describe('adminController unitario', () => {
                 originalTitle: null,
                 visibility: 'Privado',
                 adultContent: false,
-                coverUrl: null,
                 type: { id: 1, label: 'Mangá' },
                 country: 'Japão',
                 editionsCount,
@@ -2160,7 +2278,7 @@ describe('adminController unitario', () => {
                 title: 'Teste',
                 typeId: 1,
                 country: 'Japão',
-                originalPublicationStatus: 'Completo',
+                originalPublicationStatus: 'Completa',
                 authors: [{ authorId: 1, roles: ['História'] }]
             };
 
@@ -2188,7 +2306,8 @@ describe('adminController unitario', () => {
                     title: 'Repetida',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 1, roles: ['História'] }]
                 }
             }), res);
@@ -2225,10 +2344,9 @@ describe('adminController unitario', () => {
                 directRelease: false,
                 visibility,
                 adultContent: false,
-                coverUrl: null,
                 type: { id: 1, label: 'Mangá' },
                 country: 'Japão',
-                originalPublicationStatus: 'Completo',
+                originalPublicationStatus: 'Completa',
                 authors: [],
                 genres: [],
                 demographics: [],

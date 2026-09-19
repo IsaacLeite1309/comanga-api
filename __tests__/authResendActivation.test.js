@@ -139,4 +139,23 @@ describe('POST /api/auth/resend-activation', () => {
         });
         expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
     });
+
+    it('rejeita reenvio para conta bloqueada', async () => {
+        const user = makeUser({ status: 'Bloqueada' });
+        await insertUser(user);
+
+        const response = await request(app)
+            .post('/api/auth/resend-activation')
+            .send({ email: user.email });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({
+            error: 'Somente contas pendentes podem solicitar um novo link de ativação.'
+        });
+
+        const unchangedUser = await getUserByEmail(user.email);
+        expect(unchangedUser.activation_token).toBe(user.activationToken);
+        expect(unchangedUser.activation_expires_at).toEqual(user.activationExpiresAt);
+        expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+    });
 });

@@ -1,3 +1,4 @@
+const js = require('@eslint/js');
 const tseslint = require('typescript-eslint');
 
 const globals = {
@@ -42,6 +43,7 @@ module.exports = [
         }
     },
     ...tseslint.config({
+        extends: [js.configs.recommended, ...tseslint.configs.recommended],
         files: ['**/*.ts'],
         languageOptions: {
             parser: tseslint.parser,
@@ -56,7 +58,9 @@ module.exports = [
         },
         rules: {
             '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-            '@typescript-eslint/no-explicit-any': 'error'
+            '@typescript-eslint/no-explicit-any': 'error',
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': 'error'
         }
     })
 ];

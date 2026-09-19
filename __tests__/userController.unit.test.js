@@ -12,6 +12,7 @@ const prisma = {
         create: jest.fn(),
         updateMany: jest.fn()
     },
+    $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn()
 };
 
@@ -49,6 +50,7 @@ function makeReq(overrides = {}) {
 describe('userController unitario', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        prisma.$transaction.mockImplementation(callback => callback(prisma));
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -62,6 +64,7 @@ describe('userController unitario', () => {
             username: 'usuario_teste',
             email: 'usuario@teste.local',
             password: 'SenhaForte123!',
+            birthDate: '2000-01-01',
             confirmPassword: 'SenhaForte123!'
         };
 
@@ -127,6 +130,44 @@ describe('userController unitario', () => {
             );
             expect(res.status).toHaveBeenCalledWith(201);
         });
+
+        it('traduz conflito UNIQUE concorrente do Prisma para HTTP 409', async () => {
+            prisma.user.findFirst.mockResolvedValue(null);
+            prisma.user.create.mockRejectedValue({
+                code: 'P2002',
+                meta: { target: ['email'] }
+            });
+            const req = makeReq({ body: validBody });
+            const res = makeRes();
+
+            await userController.registerUser(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Este endereço de e-mail já está em uso. Tente fazer login ou recuperar sua senha.',
+                field: 'email'
+            });
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+        });
+
+        it('identifica username no conflito UNIQUE concorrente do Prisma', async () => {
+            prisma.user.findFirst.mockResolvedValue(null);
+            prisma.user.create.mockRejectedValue({
+                code: 'P2002',
+                meta: { target: ['username'] }
+            });
+            const req = makeReq({ body: validBody });
+            const res = makeRes();
+
+            await userController.registerUser(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Este nome de usuário não está disponível. Por favor, escolha outro.',
+                field: 'username'
+            });
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+        });
     });
 
     describe('activateAccount', () => {
@@ -137,7 +178,7 @@ describe('userController unitario', () => {
                         id: 'user-1',
                         activationExpiresAt: new Date(Date.now() + 1000)
                     }),
-                    update: jest.fn().mockResolvedValue({})
+                    updateMany: jest.fn().mockResolvedValue({ count: 1 })
                 }
             };
             prisma.$transaction.mockImplementation((callback) => callback(tx));
@@ -146,11 +187,30 @@ describe('userController unitario', () => {
 
             await userController.activateAccount(req, res);
 
-            expect(tx.user.update).toHaveBeenCalledWith(expect.objectContaining({
-                where: { id: 'user-1' },
+            expect(tx.user.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+                where: expect.objectContaining({ id: 'user-1', activationToken: 'token-valido' }),
                 data: expect.objectContaining({ status: 'Ativada', activationToken: null })
             }));
             expect(res.status).toHaveBeenCalledWith(200);
+        });
+
+        it('rejeita token perdido em corrida concorrente quando nenhuma linha e atualizada', async () => {
+            prisma.$transaction.mockImplementation((callback) => callback({
+                user: {
+                    findFirst: jest.fn().mockResolvedValue({
+                        id: 'user-1',
+                        activationExpiresAt: new Date(Date.now() + 1000)
+                    }),
+                    updateMany: jest.fn().mockResolvedValue({ count: 0 })
+                }
+            }));
+            const req = makeReq({ params: { token: 'token-concorrente' } });
+            const res = makeRes();
+
+            await userController.activateAccount(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Link de ativação inválido!' });
         });
 
         it('rejeita token inexistente', async () => {
@@ -213,6 +273,20 @@ describe('userController unitario', () => {
             expect(res.status).toHaveBeenCalledWith(400);
         });
 
+        it('rejeita reenvio para conta bloqueada', async () => {
+            prisma.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'isaac', status: 'Bloqueada' });
+            const res = makeRes();
+
+            await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Somente contas pendentes podem solicitar um novo link de ativação.'
+            });
+            expect(prisma.user.update).not.toHaveBeenCalled();
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+        });
+
         it('renova token e envia novo e-mail', async () => {
             prisma.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'isaac', status: 'Pendente' });
             prisma.user.update.mockResolvedValue({});
@@ -236,7 +310,11 @@ describe('userController unitario', () => {
 
             await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
-            expect(res.status).toHaveBeenCalledWith(500);
+            expect(res.status).toHaveBeenCalledWith(502);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Erro ao tentar enviar o e-mail.',
+                code: 'ACTIVATION_EMAIL_DELIVERY_FAILED'
+            });
         });
     });
 
@@ -264,7 +342,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Ativada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
             const res = makeRes();
@@ -280,7 +358,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Pendente',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
             const res = makeRes();
@@ -296,7 +374,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Bloqueada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
             const res = makeRes();
@@ -312,7 +390,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 passwordHash: 'hash',
                 status: 'Ativada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             prisma.session.create.mockResolvedValue({});
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
@@ -336,7 +414,7 @@ describe('userController unitario', () => {
                 username: 'isaac',
                 email: 'user@teste.local',
                 conteudoAdulto: false,
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
@@ -363,7 +441,7 @@ describe('userController unitario', () => {
             prisma.user.findUnique.mockResolvedValue({
                 username: 'isaac',
                 email: 'user@teste.local',
-                conteudoAdulto: true
+                birthDate: new Date('2000-01-01'), conteudoAdulto: true
             });
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
@@ -404,7 +482,7 @@ describe('userController unitario', () => {
                 email: 'user@teste.local',
                 conteudoAdulto: false,
                 status: 'Ativada',
-                nivelAcesso: 'UsuÃ¡rio PadrÃ£o'
+                nivelAcesso: 'Usuário Padrão'
             });
             const req = makeReq({
                 params: { id: 'user-2' },
@@ -439,6 +517,7 @@ describe('userController unitario', () => {
         });
 
         it('atualiza preferencia +18 do usuario autenticado', async () => {
+            prisma.user.findUnique.mockResolvedValue({ birthDate: new Date('2000-01-01') });
             prisma.user.update.mockResolvedValue({ conteudoAdulto: true });
             const req = makeReq({
                 body: { conteudo_adulto: true },
@@ -456,6 +535,7 @@ describe('userController unitario', () => {
         });
 
         it('retorna 404 quando usuario da preferencia +18 nao existe mais', async () => {
+            prisma.user.findUnique.mockResolvedValue(null);
             prisma.user.update.mockRejectedValue({ code: 'P2025' });
             const req = makeReq({
                 body: { conteudo_adulto: true },

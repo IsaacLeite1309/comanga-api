@@ -122,6 +122,36 @@ describe('Rotas administrativas de opcoes', () => {
         ]);
     });
 
+    it('lista paises de origem como referencia sem permitir seu cadastro', async () => {
+        const admin = makeUser({ suffix: 'country-reference' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+        const countryLabel = `Sprint4 ${runId} País`;
+        await insertOption(countryLabel, 'paises-origem');
+
+        const listResponse = await request(app)
+            .get('/api/admin/options/paises-origem')
+            .query({ order: 'ASC', page: 1, limit: 100 })
+            .set('Cookie', sessionCookie);
+
+        expect(listResponse.status).toBe(200);
+        expect(listResponse.body.category).toEqual(expect.objectContaining({
+            slug: 'paises-origem',
+            name: expect.any(String)
+        }));
+        expect(listResponse.body.values.map((value) => value.label)).toEqual(
+            expect.arrayContaining([countryLabel])
+        );
+
+        const createResponse = await request(app)
+            .post('/api/admin/options')
+            .set('Cookie', sessionCookie)
+            .send({ category: 'paises-origem', label: 'Brasil' });
+
+        expect(createResponse.status).toBe(404);
+        expect(createResponse.body).toEqual({ error: 'Categoria não encontrada.' });
+    });
+
     it('bloqueia duplicidade de valor dentro da mesma categoria', async () => {
         const admin = makeUser({ suffix: 'duplicate' });
         await insertUser(admin);
