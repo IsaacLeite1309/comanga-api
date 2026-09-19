@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { isAdult } from '../modules/auth/accountRules';
 import type { NextFunction, Request, Response } from 'express';
 import prisma from '../prisma';
 
@@ -43,7 +44,8 @@ async function optionalSessionMiddleware(req: Request, _res: Response, next: Nex
                     select: {
                         id: true,
                         status: true,
-                        conteudoAdulto: true
+                        conteudoAdulto: true,
+                        birthDate: true
                     }
                 }
             }
@@ -52,7 +54,7 @@ async function optionalSessionMiddleware(req: Request, _res: Response, next: Nex
         if (session?.user.status === 'Ativada') {
             req.publicCatalogViewer = {
                 userId: session.user.id,
-                canViewAdultContent: session.user.conteudoAdulto
+                canViewAdultContent: session.user.conteudoAdulto && isAdult(session.user.birthDate)
             };
         }
     } catch {

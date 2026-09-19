@@ -4,7 +4,7 @@ interface AuthNotificationDependencies {
     mailService: MailService;
 }
 
-interface ActivationNotification {
+interface AccountNotification {
     toEmail: string;
     username: string;
     token: string;
@@ -12,7 +12,10 @@ interface ActivationNotification {
 
 function createAuthNotificationService({ mailService }: AuthNotificationDependencies) {
     return {
-        sendActivationEmail({ toEmail, username, token }: ActivationNotification): Promise<void> {
+        sendPasswordResetEmail({ toEmail, username, token }: AccountNotification): Promise<void> {
+            return mailService.sendPasswordResetEmail(toEmail, username, token);
+        },
+        sendActivationEmail({ toEmail, username, token }: AccountNotification): Promise<void> {
             return mailService.sendActivationEmail(toEmail, username, token);
         }
     };

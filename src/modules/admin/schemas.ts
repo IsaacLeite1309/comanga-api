@@ -76,7 +76,7 @@ const createWorkSchema = z.object({
     country: z.enum(WORK_COUNTRY_VALUES),
     originalPublisherIds: z.array(orderedWorkOptionSchema).optional().default([]),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES),
-    coverAssetId: coverAssetIdSchema.optional().nullable(),
+    coverAssetId: coverAssetIdSchema,
     adultContent: z.boolean().optional().default(false),
     authors: z.array(workAuthorSchema).min(1),
     genreIds: z.array(z.coerce.number().int().positive()).optional().default([]),
@@ -95,7 +95,7 @@ const updateWorkSchema = z.object({
     country: z.enum(WORK_COUNTRY_VALUES).optional(),
     authors: z.array(workAuthorSchema).optional(),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES).optional().nullable(),
-    coverAssetId: coverAssetIdSchema.optional().nullable(),
+    coverAssetId: coverAssetIdSchema.optional(),
     adultContent: z.boolean().optional(),
     genreIds: z.array(z.coerce.number().int().positive()).optional(),
     demographies: z.array(z.enum(WORK_DEMOGRAPHY_VALUES)).optional(),
@@ -125,7 +125,7 @@ const editionPayloadSchema = z.object({
     formatId: z.coerce.number().int().positive(),
     chronologicalNumber: z.coerce.number().int().positive(),
     brazilPublicationStatus: z.enum(EDITION_PUBLICATION_STATUS_VALUES),
-    coverAssetId: coverAssetIdSchema.optional().nullable()
+    coverAssetId: coverAssetIdSchema
 }).strict();
 
 const updateEditionSchema = editionPayloadSchema.partial().refine((value) => Object.keys(value).length > 0, {

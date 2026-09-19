@@ -64,6 +64,7 @@ function workFixture() {
                 releaseYear: 2025,
                 releaseMonth: 8,
                 releaseDay: 20,
+                synopsis: 'A sinopse canônica da Obra.',
                 coverAsset: cover('volume')
             }]
         }]
@@ -106,6 +107,7 @@ describe('detalhes públicos da Obra', () => {
             work: expect.objectContaining({
                 slug: 'lobo-solitario',
                 coverUrl: 'https://media.comanga.test/covers/work/large.webp',
+                synopsis: 'A sinopse canônica da Obra.',
                 authors: [{ id: 2, label: 'Kazuo Koike', roles: ['Roteiro'] }],
                 genres: [{ id: 3, label: 'Drama' }],
                 demographics: ['Seinen'],
@@ -137,6 +139,32 @@ describe('detalhes públicos da Obra', () => {
         });
     });
 
+    it('não usa como fallback a sinopse de uma Edição posterior', async () => {
+        const work = workFixture();
+        work.editions[0].volumes[0].synopsis = null;
+        work.editions.push({
+            ...work.editions[0],
+            id: 11,
+            chronologicalNumber: 2,
+            volumes: [{
+                ...work.editions[0].volumes[0],
+                id: 21,
+                synopsis: 'Sinopse de uma Edição posterior.'
+            }]
+        });
+        mockFindFirst.mockResolvedValue(work);
+        const res = response();
+
+        await getPublicWorkDetails({
+            params: { slug: 'lobo-solitario' },
+            publicCatalogViewer: { canViewAdultContent: false }
+        }, res, jest.fn());
+
+        expect(res.json).toHaveBeenCalledWith({
+            work: expect.objectContaining({ synopsis: null })
+        });
+    });
+
     it('responde 404 sem expor se a Obra inexiste, é privada ou adulta', async () => {
         mockFindFirst.mockResolvedValue(null);
         const res = response();
@@ -155,6 +183,7 @@ describe('detalhes públicos da Obra', () => {
         ]);
         expect(publicWorkDetailSelect.editions.select.volumes.where).toEqual({ visibility: 'Público' });
         expect(publicWorkDetailSelect.editions.select.volumes.take).toBe(3);
+        expect(publicWorkDetailSelect.editions.select.volumes.select.synopsis).toBe(true);
         expect(publicWorkDetailSelect.editions.select._count.select.volumes.where)
             .toEqual({ visibility: 'Público' });
     });

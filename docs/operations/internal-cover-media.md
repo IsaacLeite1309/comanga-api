@@ -36,6 +36,14 @@ Cada importação cria chaves novas em `covers/{uuid}/...` e usa `Cache-Control:
 - Importar uma capa JPG, PNG, WebP ou AVIF por um formulário administrativo.
 - Confirmar que a prévia usa o domínio definido em `MEDIA_PUBLIC_BASE_URL`.
 - Publicar o registro e confirmar a mesma origem na vitrine anônima.
-- Confirmar fallback para registros antigos que possuíam apenas URL externa.
+- Confirmar fallback quando o arquivo interno estiver temporariamente indisponível. Registros sem associação de capa exigem saneamento antes da migration.
 - Verificar que a resposta não contém `sourceUrl`.
 - Verificar os eventos `media.cover_import.completed` e `media.cover_import.failed` pelo `requestId`, sem URL de origem ou credenciais.
+
+## Obrigatoriedade e exclusão
+
+Obra, Edição e Volume exigem uma capa interna distinta por registro. Não é permitido salvar `null` nem excluir um ativo associado. Os triggers PostgreSQL coordenam associações e descartes com um lock transacional curto; chamadas ao R2 ocorrem fora desse lock.
+
+Uma capa removida por substituição/exclusão passa a `Descartando` na mesma transação. Esse estado não permite nova associação ou reativação. A limpeza preserva os metadados quando o R2 falha, para permitir nova tentativa. Execute `npm run media:cleanup` no ambiente autorizado para processar até 20 pendências; repita enquanto houver pendências, verificando os logs de falha.
+
+Antes do deploy, `npm run check:covers` lista referências ausentes e capas compartilhadas entre registros. As migrations não apagam dados nem fabricam capas para corrigir esses casos.

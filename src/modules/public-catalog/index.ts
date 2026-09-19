@@ -1,8 +1,11 @@
 import type { NextFunction, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
 import {
     PUBLIC_AUTHOR_CATEGORY,
     PUBLIC_CATALOG_OPTION_CATEGORIES,
+    PUBLIC_PUBLICATION_STATUSES,
+    PUBLIC_VISIBILITY,
     PUBLIC_WORK_COUNTRIES,
     PUBLIC_WORK_DEMOGRAPHICS
 } from './constants';
@@ -59,6 +62,48 @@ function pagination(page: number, limit: number, total: number) {
 function prepareViewerDependentResponse(res: Response) {
     res.vary('Cookie');
     res.set('Cache-Control', 'private, no-store');
+}
+
+async function findEditionIdsByPublicationYears(query: {
+    brazilPublicationStartYear?: number;
+    brazilPublicationEndYear?: number;
+}): Promise<number[] | undefined> {
+    const conditions: Prisma.Sql[] = [];
+
+    if (query.brazilPublicationStartYear) {
+        conditions.push(Prisma.sql`(
+            SELECT volume.release_year
+            FROM volumes AS volume
+            WHERE volume.edition_id = edition.id
+              AND volume.visibility = ${PUBLIC_VISIBILITY}
+              AND volume.release_year IS NOT NULL
+            ORDER BY volume.number ASC, volume.id ASC
+            LIMIT 1
+        ) = ${query.brazilPublicationStartYear}`);
+    }
+
+    if (query.brazilPublicationEndYear) {
+        conditions.push(Prisma.sql`edition.brazil_publication_status = 'Completa'`);
+        conditions.push(Prisma.sql`(
+            SELECT volume.release_year
+            FROM volumes AS volume
+            WHERE volume.edition_id = edition.id
+              AND volume.visibility = ${PUBLIC_VISIBILITY}
+              AND volume.release_year IS NOT NULL
+            ORDER BY volume.number DESC, volume.id DESC
+            LIMIT 1
+        ) = ${query.brazilPublicationEndYear}`);
+    }
+
+    if (conditions.length === 0) return undefined;
+
+    const editions = await prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+        SELECT edition.id
+        FROM editions AS edition
+        WHERE ${Prisma.join(conditions, ' AND ')}
+    `);
+
+    return editions.map((edition) => edition.id);
 }
 
 async function listPublicWorks(req: Request, res: Response, next: NextFunction) {
@@ -169,9 +214,13 @@ async function listPublicEditions(req: Request, res: Response, next: NextFunctio
     }
 
     const query = validation.data;
-    const where = buildPublicEditionWhere(query, canViewAdultContent(req));
 
     try {
+        const publicationYearEditionIds = await findEditionIdsByPublicationYears(query);
+        const where: Prisma.EditionWhereInput = {
+            ...buildPublicEditionWhere(query, canViewAdultContent(req)),
+            ...(publicationYearEditionIds ? { id: { in: publicationYearEditionIds } } : {})
+        };
         const [editions, total] = await prisma.$transaction([
             prisma.edition.findMany({
                 where,
@@ -209,7 +258,7 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
     );
 
     try {
-        const [edition, volumes] = await prisma.$transaction([
+        const [edition, volumes, firstPublicationVolume, lastPublicationVolume] = await prisma.$transaction([
             prisma.edition.findFirst({
                 where: editionWhere,
                 select: publicEditionDetailSelect
@@ -223,6 +272,22 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
                 orderBy: [{ number: 'asc' }, { id: 'asc' }],
                 skip: (page - 1) * limit,
                 take: limit
+            }),
+            prisma.volume.findFirst({
+                where: {
+                    visibility: 'Público',
+                    edition: editionWhere
+                },
+                select: { releaseYear: true },
+                orderBy: [{ number: 'asc' }, { id: 'asc' }]
+            }),
+            prisma.volume.findFirst({
+                where: {
+                    visibility: 'Público',
+                    edition: editionWhere
+                },
+                select: { releaseYear: true },
+                orderBy: [{ number: 'desc' }, { id: 'desc' }]
             })
         ]);
 
@@ -232,8 +297,15 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
         }
 
         const total = edition._count.volumes;
+        const publicEdition = mapPublicEditionDetails(edition);
         return res.status(200).json({
-            edition: mapPublicEditionDetails(edition),
+            edition: {
+                ...publicEdition,
+                brazilPublicationStartYear: firstPublicationVolume?.releaseYear ?? null,
+                brazilPublicationEndYear: publicEdition.brazilPublicationStatus === 'Completa'
+                    ? lastPublicationVolume?.releaseYear ?? null
+                    : null
+            },
             volumes: volumes.map(mapPublicEditionVolume),
             pagination: pagination(page, limit, total)
         });
@@ -306,7 +378,12 @@ async function getPublicCatalogOptions(_req: Request, res: Response, next: NextF
                 countries: [...PUBLIC_WORK_COUNTRIES],
                 demographics: [...PUBLIC_WORK_DEMOGRAPHICS],
                 genres: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.genres),
+                originalPublishers: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.originalPublishers),
+                serializationMagazines: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.serializationMagazines),
+                originalPublicationStatuses: [...PUBLIC_PUBLICATION_STATUSES],
                 brazilianPublishers: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.brazilianPublishers),
+                brazilPublicationStatuses: [...PUBLIC_PUBLICATION_STATUSES],
+                editionTypes: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.editionTypes),
                 formats: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.formats),
                 coverTypes: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.coverTypes)
             }

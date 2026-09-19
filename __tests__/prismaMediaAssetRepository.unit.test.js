@@ -1,12 +1,13 @@
 const mockMediaAsset = {
     create: jest.fn(),
     findFirst: jest.fn(),
-    delete: jest.fn()
+    update: jest.fn(),
+    deleteMany: jest.fn()
 };
 
 jest.mock('../src/prisma', () => ({
     __esModule: true,
-    default: { mediaAsset: mockMediaAsset }
+    default: { mediaAsset: mockMediaAsset, $transaction: callback => callback({ mediaAsset: mockMediaAsset, $queryRaw: jest.fn().mockResolvedValue([]) }) }
 }));
 
 const { PrismaMediaAssetRepository } = require('../src/modules/admin/media/PrismaMediaAssetRepository');
@@ -53,12 +54,12 @@ describe('PrismaMediaAssetRepository', () => {
     it('retorna null quando a capa pendente não pertence ao usuário', async () => {
         mockMediaAsset.findFirst.mockResolvedValue(null);
 
-        await expect(repository.findRemovable('asset-id', 'user-id')).resolves.toBeNull();
+        await expect(repository.claimRemoval('asset-id', 'user-id')).resolves.toBeNull();
         expect(mockMediaAsset.findFirst).toHaveBeenCalledWith(expect.objectContaining({
             where: {
                 id: 'asset-id',
                 createdByUserId: 'user-id',
-                status: 'Pendente'
+                status: { in: ['Pendente', 'Descartando'] }
             }
         }));
     });
@@ -76,7 +77,7 @@ describe('PrismaMediaAssetRepository', () => {
             ...relations
         });
 
-        await expect(repository.findRemovable('asset-id', 'user-id')).resolves.toEqual({
+        await expect(repository.claimRemoval('asset-id', 'user-id')).resolves.toEqual({
             id: 'asset-id',
             objectKey: 'covers/id/master.webp',
             variants: [{ objectKey: 'covers/id/large.webp' }],
@@ -85,9 +86,9 @@ describe('PrismaMediaAssetRepository', () => {
     });
 
     it('exclui o ativo pela chave primária', async () => {
-        mockMediaAsset.delete.mockResolvedValue({ id: 'asset-id' });
+        mockMediaAsset.deleteMany.mockResolvedValue({ id: 'asset-id' });
 
         await expect(repository.delete('asset-id')).resolves.toBeUndefined();
-        expect(mockMediaAsset.delete).toHaveBeenCalledWith({ where: { id: 'asset-id' } });
+        expect(mockMediaAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'asset-id', status: 'Descartando' } });
     });
 });

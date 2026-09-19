@@ -27,6 +27,7 @@ interface PublicVolumePreviewInput {
     releaseYear: number | null;
     releaseMonth: number | null;
     releaseDay: number | null;
+    synopsis?: string | null;
     coverAsset: PublicCoverAssetInput | null;
 }
 
@@ -109,6 +110,7 @@ interface PublicVolumeDetailInput {
     edition: {
         id: number;
         chronologicalNumber: number;
+        brazilianPublisher: PublicOptionInput;
         work: {
             id: number;
             slug: string;

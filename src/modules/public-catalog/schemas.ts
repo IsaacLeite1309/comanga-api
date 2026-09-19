@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { PUBLIC_WORK_COUNTRIES, PUBLIC_WORK_DEMOGRAPHICS } from './constants';
+import {
+    PUBLIC_PUBLICATION_STATUSES,
+    PUBLIC_WORK_COUNTRIES,
+    PUBLIC_WORK_DEMOGRAPHICS
+} from './constants';
 
 function parseListInput(value: unknown): unknown {
     if (value === undefined) return undefined;
@@ -31,12 +35,20 @@ const paginationShape = {
     limit: z.coerce.number().int().min(1).max(50).default(12)
 };
 
+const lastPublicationYear = new Date().getFullYear() + 1;
+const publicationYearSchema = z.coerce.number().int().min(1900).max(lastPublicationYear).optional();
+
 const publicWorksQuerySchema = z.object({
     term: z.string().trim().max(255).optional(),
     typeId: z.coerce.number().int().positive().optional(),
     country: z.enum(PUBLIC_WORK_COUNTRIES).optional(),
     demographics: demographyListSchema,
     genreIds: positiveIntegerListSchema,
+    originalPublisherId: z.coerce.number().int().positive().optional(),
+    serializationMagazineId: z.coerce.number().int().positive().optional(),
+    originalPublicationStatus: z.enum(PUBLIC_PUBLICATION_STATUSES).optional(),
+    originalPublicationStartYear: publicationYearSchema,
+    originalPublicationEndYear: publicationYearSchema,
     sortBy: z.enum(['title', 'originalTitle', 'createdAt']).default('title'),
     order: z.enum(['ASC', 'DESC']).default('ASC'),
     ...paginationShape
@@ -45,8 +57,13 @@ const publicWorksQuerySchema = z.object({
 const publicEditionsQuerySchema = z.object({
     term: z.string().trim().max(255).optional(),
     brazilianPublisherId: z.coerce.number().int().positive().optional(),
+    editionTypeId: z.coerce.number().int().positive().optional(),
     formatId: z.coerce.number().int().positive().optional(),
     coverTypeId: z.coerce.number().int().positive().optional(),
+    chronologicalNumber: z.coerce.number().int().positive().optional(),
+    brazilPublicationStatus: z.enum(PUBLIC_PUBLICATION_STATUSES).optional(),
+    brazilPublicationStartYear: publicationYearSchema,
+    brazilPublicationEndYear: publicationYearSchema,
     sortBy: z.enum(['title', 'chronologicalNumber', 'createdAt']).default('title'),
     order: z.enum(['ASC', 'DESC']).default('ASC'),
     ...paginationShape

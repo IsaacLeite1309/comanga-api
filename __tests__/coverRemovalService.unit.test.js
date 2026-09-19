@@ -3,7 +3,7 @@ const { CoverRemovalService } = require('../src/modules/admin/media/CoverRemoval
 describe('CoverRemovalService', () => {
     it('remove objetos e registro de uma importação pendente do próprio administrador', async () => {
         const repository = {
-            findRemovable: jest.fn().mockResolvedValue({
+            claimRemoval: jest.fn().mockResolvedValue({
                 id: 'asset-id',
                 objectKey: 'covers/id/master.webp',
                 variants: [{ objectKey: 'covers/id/large.webp' }],
@@ -16,7 +16,7 @@ describe('CoverRemovalService', () => {
 
         await service.removePending({ assetId: 'asset-id', userId: 'admin-id' });
 
-        expect(repository.findRemovable).toHaveBeenCalledWith('asset-id', 'admin-id');
+        expect(repository.claimRemoval).toHaveBeenCalledWith('asset-id', 'admin-id');
         expect(storage.deleteObjects).toHaveBeenCalledWith([
             'covers/id/master.webp',
             'covers/id/large.webp'
@@ -26,7 +26,7 @@ describe('CoverRemovalService', () => {
 
     it('não remove uma capa já associada', async () => {
         const repository = {
-            findRemovable: jest.fn().mockResolvedValue({
+            claimRemoval: jest.fn().mockResolvedValue({
                 id: 'asset-id',
                 objectKey: 'covers/id/master.webp',
                 variants: [],
@@ -44,7 +44,7 @@ describe('CoverRemovalService', () => {
     });
 
     it('não revela ativo inexistente ou pertencente a outro administrador', async () => {
-        const repository = { findRemovable: jest.fn().mockResolvedValue(null), delete: jest.fn() };
+        const repository = { claimRemoval: jest.fn().mockResolvedValue(null), delete: jest.fn() };
         const storage = { deleteObjects: jest.fn() };
 
         await expect(new CoverRemovalService({ repository, storage }).removePending({

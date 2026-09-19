@@ -1,12 +1,13 @@
 const mockEditionFindFirst = jest.fn();
 const mockVolumeFindMany = jest.fn();
+const mockVolumeFindFirst = jest.fn();
 const mockTransaction = jest.fn(async (operations) => Promise.all(operations));
 
 jest.mock('../src/prisma', () => ({
     __esModule: true,
     default: {
         edition: { findFirst: mockEditionFindFirst },
-        volume: { findMany: mockVolumeFindMany },
+        volume: { findMany: mockVolumeFindMany, findFirst: mockVolumeFindFirst },
         $transaction: mockTransaction
     }
 }));
@@ -49,6 +50,7 @@ function editionFixture() {
             slug: 'monster',
             title: 'Monster',
             originalTitle: 'MONSTER',
+            originalPublicationStatus: 'Em andamento',
             authors: [{ author: { id: 5, label: 'Naoki Urasawa' } }]
         },
         _count: { volumes: 26 }
@@ -86,6 +88,9 @@ describe('detalhes públicos da Edição', () => {
     it('retorna ficha editorial e Volumes públicos paginados em ordem crescente', async () => {
         mockEditionFindFirst.mockResolvedValue(editionFixture());
         mockVolumeFindMany.mockResolvedValue([volumeFixture()]);
+        mockVolumeFindFirst
+            .mockResolvedValueOnce({ releaseYear: 2026 })
+            .mockResolvedValueOnce({ releaseYear: 2028 });
         const res = response();
 
         await getPublicEditionDetails({
@@ -113,12 +118,30 @@ describe('detalhes públicos da Edição', () => {
             skip: 12,
             take: 12
         });
+        expect(mockVolumeFindFirst).toHaveBeenNthCalledWith(1, {
+            where: {
+                visibility: 'Público',
+                edition: hierarchy
+            },
+            select: { releaseYear: true },
+            orderBy: [{ number: 'asc' }, { id: 'asc' }]
+        });
+        expect(mockVolumeFindFirst).toHaveBeenNthCalledWith(2, {
+            where: {
+                visibility: 'Público',
+                edition: hierarchy
+            },
+            select: { releaseYear: true },
+            orderBy: [{ number: 'desc' }, { id: 'desc' }]
+        });
         expect(res.status).toHaveBeenCalledWith(200);
         expect(res.json).toHaveBeenCalledWith({
             edition: expect.objectContaining({
                 id: 10,
                 chronologicalNumber: 2,
                 coverUrl: 'https://media.comanga.test/covers/edition/large.webp',
+                brazilPublicationStartYear: 2026,
+                brazilPublicationEndYear: null,
                 volumesCount: 26,
                 work: expect.objectContaining({
                     slug: 'monster',

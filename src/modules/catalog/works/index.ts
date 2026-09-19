@@ -118,7 +118,7 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
                     typeId: data.typeId,
                     country: data.country,
                     originalPublicationStatus: data.originalPublicationStatus,
-                    coverAssetId: data.coverAssetId || null,
+                    coverAssetId: data.coverAssetId,
                     adultContent: data.adultContent,
                     visibility: 'Privado',
                     authors: {
@@ -495,7 +495,7 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
         if (data.typeId !== undefined) updateData.typeId = data.typeId;
         if (data.country !== undefined) updateData.country = data.country;
         if (data.originalPublicationStatus !== undefined) updateData.originalPublicationStatus = data.originalPublicationStatus;
-        if (data.coverAssetId !== undefined) updateData.coverAssetId = data.coverAssetId || null;
+        if (data.coverAssetId !== undefined) updateData.coverAssetId = data.coverAssetId;
         if (data.adultContent !== undefined) updateData.adultContent = data.adultContent;
 
         const updateOperations = [

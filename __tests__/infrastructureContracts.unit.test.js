@@ -1,6 +1,6 @@
 const {
-    NodemailerMailService
-} = require('../src/infrastructure/mail/NodemailerMailService');
+    ResendMailService
+} = require('../src/infrastructure/mail/ResendMailService');
 const {
     MemoryRateLimitStore
 } = require('../src/infrastructure/rate-limit/MemoryRateLimitStore');
@@ -27,6 +27,7 @@ function makeRateLimitResponse() {
 describe('contratos de infraestrutura substituivel', () => {
     it('injeta um MailService falso no servico de notificacao de autenticacao', async () => {
         const mailService = {
+            sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
             sendActivationEmail: jest.fn().mockResolvedValue(undefined)
         };
         const notifications = createAuthNotificationService({ mailService });
@@ -44,13 +45,16 @@ describe('contratos de infraestrutura substituivel', () => {
         );
     });
 
-    it('adapta o provedor Nodemailer sem expô-lo ao caso de uso', async () => {
+    it('adapta o provedor Resend sem expô-lo ao caso de uso', async () => {
         const provider = {
+            sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
             sendActivationEmail: jest.fn().mockResolvedValue(undefined)
         };
-        const service = new NodemailerMailService(provider);
+        const service = new ResendMailService(provider);
 
         await service.sendActivationEmail('destino@teste.local', 'isaac', 'token');
+        await service.sendPasswordResetEmail('destino@teste.local', 'isaac', 'reset');
+        expect(provider.sendPasswordResetEmail).toHaveBeenCalledWith('destino@teste.local', 'isaac', 'reset');
 
         expect(provider.sendActivationEmail).toHaveBeenCalledWith(
             'destino@teste.local',

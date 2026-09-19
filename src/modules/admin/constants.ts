@@ -11,7 +11,7 @@ const WORK_VISIBILITY_VALUES = ['Privado', 'Público'] as const;
 const WORK_SORT_FIELDS = ['title', 'author', 'country', 'type', 'editions', 'visibility'] as const;
 const AUTHOR_ROLE_VALUES = ['História e Arte', 'História', 'Arte', 'Criador Original', 'História Original', 'Ilustrador'] as const;
 const WORK_COUNTRY_VALUES = ['Japão', 'Coreia do Sul', 'China', 'Taiwan'] as const;
-const ORIGINAL_PUBLICATION_STATUS_VALUES = ['Completo', 'Em andamento', 'Em hiato', 'Cancelado'] as const;
+const ORIGINAL_PUBLICATION_STATUS_VALUES = ['Completa', 'Em andamento', 'Em hiato', 'Cancelada'] as const;
 const WORK_DEMOGRAPHY_VALUES = ['Shonen', 'Shoujo', 'Seinen', 'Josei', 'Kodomo'] as const;
 const WORK_DOMAIN_CATEGORIES = {
     typeId: 'tipos-obra',
@@ -35,7 +35,7 @@ const EDITION_FORM_OPTION_CATEGORIES = {
     formats: 'formatos-fisicos'
 } as const;
 const EDITION_VISIBILITY_VALUES = ['Privado', 'Público'] as const;
-const EDITION_PUBLICATION_STATUS_VALUES = ['Completo', 'Em andamento', 'Em hiato', 'Cancelado'] as const;
+const EDITION_PUBLICATION_STATUS_VALUES = ['Completa', 'Em andamento', 'Em hiato', 'Cancelada'] as const;
 const EDITION_DUPLICATED_MESSAGE = 'Essa Obra já possui uma Edição com esse número cronológico!';
 const PRIVATE_WORK_PUBLIC_EDITION_MESSAGE = 'Essa Edição está vinculada a uma Obra privada, não pode ser publicada!';
 const PUBLIC_EDITION_DELETE_MESSAGE = 'Essa Edição está pública, não pode ser excluída!';

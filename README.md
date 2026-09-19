@@ -14,7 +14,7 @@ O backend é um **monólito modular** construído com Node.js, Express e TypeScr
 ```text
 Frontend React/Vercel -> API REST/Render -> Prisma -> PostgreSQL/Neon
                                          -> Cloudflare R2 (capas)
-                                         -> SMTP/Nodemailer (e-mails de conta)
+                                         -> Resend HTTPS (e-mails de conta)
 ```
 
 O código é organizado por domínio em `src/modules`, com módulos de autenticação, usuários, catálogo, administração e catálogo público. A aplicação se inspira em Clean Architecture e Ports and Adapters de forma pragmática; módulos existentes ainda usam Prisma diretamente quando isso é adequado ao estágio atual do projeto.
@@ -23,10 +23,11 @@ O código é organizado por domínio em `src/modules`, com módulos de autentica
 
 ### Contas, sessão e segurança
 
-- Cadastro, ativação e reenvio de ativação de conta.
+- Cadastro com nascimento obrigatório, ativação e reenvio de ativação de conta.
+- Recuperação de senha com resposta neutra, token de uso único válido por uma hora e revogação das sessões após redefinição.
 - Login, logout e consulta da sessão atual.
 - Sessão **stateful**: o token opaco fica em cookie HttpOnly e somente seu hash SHA-256 é persistido na tabela `sessions`.
-- Senhas protegidas com bcrypt; logout revoga a sessão no banco.
+- Senhas protegidas com bcrypt; cadastro e redefinição limitam novas senhas a 72 bytes em UTF-8. Login legado preservado; logout revoga a sessão no banco.
 - Perfil do usuário, preferência de conteúdo adulto e exclusão da própria conta.
 - Controle de acesso por papel, com rotas administrativas protegidas.
 - CORS configurável, rate limiting de login, validação de entrada com Zod e respostas de erro com códigos estáveis.
@@ -45,7 +46,8 @@ O código é organizado por domínio em `src/modules`, com módulos de autentica
 - Validação da URL e da imagem de origem, proteção contra SSRF, limite de tamanho/pixels e remoção de metadados.
 - Processamento com Sharp e geração de variantes WebP no formato 2:3.
 - Persistência dos arquivos no Cloudflare R2; PostgreSQL mantém somente metadados e referências internas.
-- URLs externas de capa não são preservadas nem expostas pelo catálogo. A URL pública é derivada do R2.
+- A URL de procedência fica nos metadados restritos. A URL pública da capa é derivada do R2.
+- Obra, Edição e Volume exigem capa interna; PATCH sem `coverAssetId` preserva a atual e `null` é recusado.
 
 ### Catálogo público
 
@@ -54,7 +56,7 @@ O código é organizado por domínio em `src/modules`, com módulos de autentica
 - Interseção lógica `E` entre filtros múltiplos.
 - Detalhes públicos de Obra, Edição e Volume.
 - Listagem pública de Obras por Autor.
-- Visitantes podem navegar pelo catálogo. Obras e Edições privadas nunca são retornadas; conteúdo adulto é omitido para visitantes e para usuários com a preferência desativada.
+- Visitantes podem navegar pelo catálogo. Obras e Edições privadas nunca são retornadas; conteúdo adulto exige conta ativa, nascimento informado, 18 anos completos e preferência ativada. Administradores autorizados consultam todo o catálogo na área administrativa.
 
 ## Rotas principais
 
@@ -62,12 +64,13 @@ O código é organizado por domínio em `src/modules`, com módulos de autentica
 | --- | --- |
 | Saúde | `GET /health/live`, `GET /health/ready`, `GET /ping` |
 | Autenticação | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
+| Recuperação | `POST /api/auth/forgot-password`, `POST /api/auth/reset-password` |
 | Usuário | `GET /api/users/me`, `PATCH /api/users/me/adult-content`, `DELETE /api/users/me` |
 | Administração | `GET /api/admin/users`, `GET/POST/PATCH/DELETE /api/admin/options`, CRUD de Obras, Edições e Volumes |
 | Mídia | `POST /api/admin/media/covers`, `DELETE /api/admin/media/covers/:assetId` |
 | Catálogo público | `GET /api/public/catalog-options`, `/works`, `/works/:slug`, `/authors/:authorId/works`, `/editions`, `/editions/:editionId`, `/volumes/:volumeId` |
 
-O contrato completo é definido nas rotas, schemas Zod e testes de integração. Erros seguem o formato:
+O contrato completo é definido nas rotas, schemas Zod e testes de integração. Erros retornam `error`; o campo `code` está disponível no tratamento centralizado e em parte das validações. Exemplo:
 
 ```json
 {
@@ -76,11 +79,25 @@ O contrato completo é definido nas rotas, schemas Zod e testes de integração.
 }
 ```
 
+## E-mail e recuperação de senha
+
+O envio usa a [API HTTPS do Resend](https://resend.com/docs/api-reference/emails/send-email), com `fetch` e limite de 10 segundos. Configure `RESEND_API_KEY`, `RESEND_FROM` e `FRONTEND_URL` somente no backend; o remetente precisa de [domínio verificado](https://resend.com/docs/dashboard/domains/introduction).
+
+`forgot-password` recebe `{ email }`; `reset-password` recebe `{ token, password, confirmPassword }`. Cada endpoint limita 5 pedidos por IP a cada 15 minutos. A emissão também exige intervalo de 60 segundos por conta, inclusive após consumo do token ou falha de envio; pedidos nesse intervalo preservam o link atual e a resposta neutra. O limite por IP fica em memória; o intervalo por conta usa o banco.
+
+A resposta neutra antecede a consulta e o envio. Não há fila persistente nem repetição automática de e-mail: após uma falha/interrupção, é necessário solicitar novamente respeitando o intervalo. Testes simulados não comprovam entrega real.
+
+## Aplicação das migrations e manutenção
+
+Contas antigas sem nascimento são preservadas, com +18 público bloqueado. Antes das migrations, execute `npm run check:covers` e corrija referências ausentes ou compartilhadas com capas reais na versão anterior. As migrations interrompem a aplicação das restrições se os dados forem incompatíveis; não apagam registros. Depois, execute `npm run migrate` e `npm run prisma:generate` no ambiente autorizado.
+
+A capa desassociada passa a `Descartando`, impedindo reutilização. A requisição limpa somente a capa afetada; `npm run media:cleanup` processa até 20 pendências, incluindo falhas e capas intermediárias de substituições concorrentes. Veja [operação de capas](docs/operations/internal-cover-media.md). Configuração do Resend, migrations e entrega real ainda precisam ser validadas no deploy.
+
 ## Requisitos
 
-- Node.js 22 ou superior.
+- Node.js 22.12 ou superior.
 - PostgreSQL acessível via `DATABASE_URL` - no desenvolvimento, use o banco Neon exclusivo de desenvolvimento.
-- Credenciais SMTP para fluxos de ativação de conta.
+- Chave da API Resend e remetente de domínio verificado para ativação e recuperação de senha.
 - Credenciais Cloudflare R2 somente para importar ou remover capas.
 
 ## Configuração local
@@ -99,12 +116,8 @@ O contrato completo é definido nas rotas, schemas Zod e testes de integração.
    FRONTEND_URL=http://localhost:8080
    SESSION_COOKIE_NAME=comanga_session
 
-   SMTP_HOST=
-   SMTP_PORT=587
-   SMTP_USER=
-   SMTP_PASS=
-   SMTP_SECURE=false
-   SMTP_FROM=
+   RESEND_API_KEY=
+   RESEND_FROM=
 
    R2_ACCOUNT_ID=
    R2_ACCESS_KEY_ID=

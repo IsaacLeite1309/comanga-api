@@ -16,6 +16,9 @@ function mapCoverUrl(asset: PublicCoverAssetInput | null) {
 }
 
 function mapPublicWorkDetails(work: PublicWorkDetailInput) {
+    const firstEdition = work.editions[0];
+    const synopsis = firstEdition?.volumes.find((volume) => volume.number === 1)?.synopsis ?? null;
+
     return {
         id: work.id,
         slug: work.slug,
@@ -29,6 +32,7 @@ function mapPublicWorkDetails(work: PublicWorkDetailInput) {
         originalVolumeCount: work.originalVolumeCount,
         directRelease: work.directRelease,
         originalPublicationStatus: work.originalPublicationStatus,
+        synopsis,
         authors: work.authors.map(({ author, roles }) => ({
             ...mapOption(author),
             roles: roles.map(({ role }) => role)
@@ -159,6 +163,7 @@ function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
         edition: {
             id: volume.edition.id,
             chronologicalNumber: volume.edition.chronologicalNumber,
+            brazilianPublisher: mapOption(volume.edition.brazilianPublisher),
             work: {
                 id: volume.edition.work.id,
                 slug: volume.edition.work.slug,

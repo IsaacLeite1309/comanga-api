@@ -1,4 +1,6 @@
 import bcrypt from 'bcrypt';
+import { birthDateSchema, parseBirthDate, isAdult, passwordSchema } from '../modules/auth/accountRules';
+import structuredLogger from '../infrastructure/logging/structuredLogger';
 import crypto from 'crypto';
 import type { CookieOptions, NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
@@ -103,8 +105,8 @@ const registerSchema = z.object({
     username: z.string()
         .regex(/^[a-zA-Z0-9_]{3,20}$/, 'Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais.'),
     email: z.string().email('E-mail com formato inválido.'),
-    password: z.string()
-        .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/, 'Utilize no mínimo 8 caracteres, incluindo pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial.'),
+    birthDate: birthDateSchema,
+    password: passwordSchema,
     confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
     message: 'Divergência nos valores da senha e confirmação de senha!',
@@ -123,7 +125,7 @@ async function registerUser(req: Request, res: Response, next: NextFunction) {
             return res.status(400).json({ error: message, field: fieldName });
         }
 
-        const { username, email, password } = validation.data;
+        const { username, email, password, birthDate } = validation.data;
 
         const conflict = await prisma.user.findFirst({
             where: {
@@ -155,6 +157,7 @@ async function registerUser(req: Request, res: Response, next: NextFunction) {
                 username,
                 email,
                 passwordHash,
+                birthDate: parseBirthDate(birthDate),
                 activationToken,
                 activationExpiresAt
             }
@@ -166,8 +169,8 @@ async function registerUser(req: Request, res: Response, next: NextFunction) {
                 username,
                 token: activationToken
             });
-        } catch (mailError) {
-            console.error('Erro detalhado no Nodemailer:', mailError);
+        } catch {
+            structuredLogger.error('email.activation_failed');
             return res.status(201).json({
                 message: 'Conta criada, mas não foi possível enviar o e-mail de ativação. Use a opção de reenvio.',
                 email_sent: false
@@ -295,8 +298,8 @@ async function resendActivation(req: Request, res: Response, next: NextFunction)
                 username: user.username,
                 token: newActivationToken
             });
-        } catch (mailError) {
-            console.error('Erro detalhado no Nodemailer (Reenvio):', mailError);
+        } catch {
+            structuredLogger.error('email.activation_failed');
             return res.status(502).json({
                 error: 'Erro ao tentar enviar o e-mail.',
                 code: 'ACTIVATION_EMAIL_DELIVERY_FAILED'
@@ -351,12 +354,14 @@ async function loginUser(req: Request, res: Response, next: NextFunction) {
         const sessionToken = crypto.randomBytes(48).toString('hex');
         const sessionTokenHash = hashSessionToken(sessionToken);
 
-        await prisma.session.create({
-            data: {
-                userId: user.id,
-                sessionTokenHash
-            }
+        const created = await prisma.$transaction(async tx => {
+            await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id}::uuid FOR UPDATE`;
+            const current = await tx.user.findUnique({ where: { id: user.id }, select: { passwordHash: true, status: true } });
+            if (!current || current.passwordHash !== user.passwordHash || current.status !== 'Ativada') return false;
+            await tx.session.create({ data: { userId: user.id, sessionTokenHash } });
+            return true;
         });
+        if (!created) return res.status(401).json({ error: 'Credenciais inválidas!' });
 
         res.cookie(SESSION_COOKIE_NAME, sessionToken, getCookieOptions(req));
 
@@ -407,7 +412,8 @@ async function getOwnUserProfile(req: Request, res: Response, next: NextFunction
             select: {
                 username: true,
                 email: true,
-                conteudoAdulto: true
+                conteudoAdulto: true,
+                birthDate: true
             }
         });
 
@@ -419,7 +425,8 @@ async function getOwnUserProfile(req: Request, res: Response, next: NextFunction
             user: {
                 username: user.username,
                 email: user.email,
-                conteudo_adulto: user.conteudoAdulto
+                conteudo_adulto: user.conteudoAdulto && isAdult(user.birthDate),
+                can_enable_adult_content: isAdult(user.birthDate)
             }
         });
 
@@ -478,6 +485,13 @@ async function updateAdultContent(req: Request, res: Response, next: NextFunctio
         }
 
         const authenticatedUser = getAuthenticatedUser(req);
+        if (conteudo_adulto) {
+            const profile = await prisma.user.findUnique({ where: { id: authenticatedUser.userId }, select: { birthDate: true } });
+            if (!profile) return res.status(404).json({ error: 'Usuário não encontrado no banco de dados.' });
+            if (!isAdult(profile.birthDate)) {
+                return res.status(403).json({ error: 'Conteúdo +18 exige data de nascimento informada e 18 anos completos.' });
+            }
+        }
         const user = await prisma.user.update({
             where: { id: authenticatedUser.userId },
             data: { conteudoAdulto: conteudo_adulto },

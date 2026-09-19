@@ -1,4 +1,4 @@
-﻿const prisma = {
+const prisma = {
     user: {
         findMany: jest.fn(),
         count: jest.fn(),
@@ -872,6 +872,7 @@ describe('adminController unitario', () => {
 
     describe('obras administrativas', () => {
         const work = {
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             id: 1,
             slug: 'naruto',
             title: 'Naruto',
@@ -888,7 +889,7 @@ describe('adminController unitario', () => {
                 { position: 0, publisher: { id: 9, label: 'Shueisha' } },
                 { position: 1, publisher: { id: 10, label: 'Shogakukan' } }
             ],
-            originalPublicationStatus: 'Completo',
+            originalPublicationStatus: 'Completa',
             authors: [
                 {
                     author: { id: 4, label: 'Masashi Kishimoto' },
@@ -932,6 +933,7 @@ describe('adminController unitario', () => {
             prisma.work.findFirst.mockResolvedValue(null);
             mockValidDomainReferences();
             prisma.$transaction.mockImplementation(async (callback) => callback({
+                mediaAsset: prisma.mediaAsset,
                 work: {
                     create: prisma.work.create,
                     findUniqueOrThrow: prisma.work.findUniqueOrThrow
@@ -953,7 +955,8 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherIds: [{ id: 10, position: 0 }, { id: 9, position: 1 }],
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     adultContent: false,
                     authors: [
                         { authorId: 4, roles: ['História e Arte'] },
@@ -974,7 +977,8 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     originalPublishers: {
                         createMany: {
                             data: [{ publisherId: 10, position: 0 }, { publisherId: 9, position: 1 }]
@@ -1011,7 +1015,8 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     visibility: 'Privado',
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [
                         expect.objectContaining({
                             author: { id: 4, label: 'Masashi Kishimoto' },
@@ -1060,7 +1065,8 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [
                         { authorId: 4, roles: ['História'] },
                         { authorId: 4, roles: ['Arte'] }
@@ -1097,7 +1103,8 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 4, roles: ['História'] }],
                     genreIds: [6]
                 }
@@ -1117,6 +1124,7 @@ describe('adminController unitario', () => {
                     title: 'Naruto',
                     typeId: 1,
                     country: 'Estados Unidos',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
                     genreIds: [6],
@@ -1138,7 +1146,8 @@ describe('adminController unitario', () => {
                     typeId: 1,
                     country: 'Japão',
                     originalPublisherId: 9,
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 4, roles: ['História e Arte'] }]
                 }
             });
@@ -1238,6 +1247,7 @@ describe('adminController unitario', () => {
                 .mockResolvedValueOnce({
                     ...work,
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         {
@@ -1258,6 +1268,7 @@ describe('adminController unitario', () => {
                 params: { id: '1' },
                 body: {
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         { authorId: 4, roles: ['História', 'Arte'] },
@@ -1274,6 +1285,7 @@ describe('adminController unitario', () => {
                 where: { id: 1 },
                 data: {
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento'
                 }
             }));
@@ -1298,6 +1310,7 @@ describe('adminController unitario', () => {
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
                     country: 'Coreia do Sul',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         expect.objectContaining({
@@ -1380,6 +1393,7 @@ describe('adminController unitario', () => {
                 params: { id: '1' },
                 body: {
                     country: 'Brasil',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
                     demographies: ['Adulto']
@@ -1460,7 +1474,7 @@ describe('adminController unitario', () => {
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            brazilPublicationStatus: 'Completo'
+            brazilPublicationStatus: 'Completa'
         };
 
         function mockValidEditionReferences() {
@@ -1476,12 +1490,13 @@ describe('adminController unitario', () => {
             const req = makeReq({
                 params: { workId: '1' },
                 body: {
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     brazilianPublisherId: 2,
                     editionTypeId: 3,
                     coverTypeId: 4,
                     formatId: 5,
                     chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completo',
+                    brazilPublicationStatus: 'Completa',
                 }
             });
             const res = makeRes();
@@ -1513,12 +1528,13 @@ describe('adminController unitario', () => {
             const req = makeReq({
                 params: { workId: '1' },
                 body: {
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     brazilianPublisherId: 2,
                     editionTypeId: 3,
                     coverTypeId: 4,
                     formatId: 5,
                     chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completo'
+                    brazilPublicationStatus: 'Completa'
                 }
             });
             const res = makeRes();
@@ -1801,12 +1817,13 @@ describe('adminController unitario', () => {
 
     describe('caminhos alternativos do catalogo administrativo', () => {
         const editionBody = {
+            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             brazilianPublisherId: 2,
             editionTypeId: 3,
             coverTypeId: 4,
             formatId: 5,
             chronologicalNumber: 1,
-            brazilPublicationStatus: 'Completo',
+            brazilPublicationStatus: 'Completa',
         };
         const edition = {
             id: 20,
@@ -1817,7 +1834,7 @@ describe('adminController unitario', () => {
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            brazilPublicationStatus: 'Completo',
+            brazilPublicationStatus: 'Completa',
             _count: { volumes: 0 }
         };
         const volumeBody = {
@@ -2261,7 +2278,7 @@ describe('adminController unitario', () => {
                 title: 'Teste',
                 typeId: 1,
                 country: 'Japão',
-                originalPublicationStatus: 'Completo',
+                originalPublicationStatus: 'Completa',
                 authors: [{ authorId: 1, roles: ['História'] }]
             };
 
@@ -2289,7 +2306,8 @@ describe('adminController unitario', () => {
                     title: 'Repetida',
                     typeId: 1,
                     country: 'Japão',
-                    originalPublicationStatus: 'Completo',
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 1, roles: ['História'] }]
                 }
             }), res);
@@ -2328,7 +2346,7 @@ describe('adminController unitario', () => {
                 adultContent: false,
                 type: { id: 1, label: 'Mangá' },
                 country: 'Japão',
-                originalPublicationStatus: 'Completo',
+                originalPublicationStatus: 'Completa',
                 authors: [],
                 genres: [],
                 demographics: [],

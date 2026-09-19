@@ -1,3 +1,4 @@
+const { createTestCover } = require('./helpers/cover');
 const fs = require('node:fs');
 const path = require('node:path');
 const db = require('../src/database');
@@ -24,6 +25,7 @@ const testEmailDomain = 'domain-integrity-test.local';
 
 async function deleteFixtures() {
     await db.query('DELETE FROM works WHERE title LIKE $1', [`integrity_${runId}%`]);
+    await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`integrity_${runId}/%`]);
     await db.query('DELETE FROM users WHERE email LIKE $1', [`%@${testEmailDomain}`]);
     await db.query('DELETE FROM domain_option_values WHERE label LIKE $1', [`integrity_${runId}%`]);
 }
@@ -79,6 +81,7 @@ describe('integridade dos valores fechados do dominio', () => {
 
         await expect(db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
@@ -86,7 +89,7 @@ describe('integridade dos valores fechados do dominio', () => {
                 original_publication_status,
                 visibility,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', 'Oculto', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', 'Oculto', NOW())`,
             [`integrity_${runId}_invalid_visibility`, `integrity-${runId}-invalid-visibility`, typeId]
         )).rejects.toMatchObject({ code: '23514' });
     });
@@ -94,47 +97,66 @@ describe('integridade dos valores fechados do dominio', () => {
     it('migra a Editora singular para o vinculo ordenado e remove a coluna legada', async () => {
         const typeId = await createOptionId('tipos-obra');
         const publisherId = await createOptionId('editoras-originais');
-        const workResult = await db.query(
-            `INSERT INTO works (
-                title,
-                slug,
-                type_id,
-                country,
-                original_publication_status,
-                atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())
-             RETURNING id`,
-            [`integrity_${runId}_publisher`, `integrity-${runId}-publisher`, typeId]
-        );
-        const workId = workResult.rows[0].id;
+        const client = await db.pool.connect();
 
-        await db.query('ALTER TABLE works ADD COLUMN IF NOT EXISTS original_publisher_id INTEGER');
-        await db.query(
-            'UPDATE works SET original_publisher_id = $1 WHERE id = $2',
-            [publisherId, workId]
-        );
+        try {
+            await client.query('BEGIN');
+            const workResult = await client.query(
+                `INSERT INTO works (
+                    cover_asset_id,
+                    title,
+                    slug,
+                    type_id,
+                    country,
+                    original_publication_status,
+                    atualizado_em
+                 ) VALUES ('${await createTestCover(client, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', NOW())
+                 RETURNING id`,
+                [`integrity_${runId}_publisher`, `integrity-${runId}-publisher`, typeId]
+            );
+            const workId = workResult.rows[0].id;
 
-        const migrationSql = fs.readFileSync(MIGRATION_PATH, 'utf8');
-        await db.query(migrationSql);
+            await client.query('ALTER TABLE works ADD COLUMN original_publisher_id INTEGER');
+            await client.query(
+                'UPDATE works SET original_publisher_id = $1 WHERE id = $2',
+                [publisherId, workId]
+            );
 
-        const migratedRelation = await db.query(
-            `SELECT publisher_id, position
-             FROM work_original_publishers
-             WHERE work_id = $1`,
-            [workId]
-        );
-        const legacyColumn = await db.query(
-            `SELECT 1
-             FROM information_schema.columns
-             WHERE table_schema = 'public'
-               AND table_name = 'works'
-               AND column_name = 'original_publisher_id'`
-        );
+            // A migração histórica antecede a feminização dos status. Ela é executada
+            // em uma transação isolada para validar a parte de editora sem alterar o
+            // esquema canônico da base de testes.
+            await client.query('ALTER TABLE works DROP CONSTRAINT works_original_publication_status_check');
+            await client.query('ALTER TABLE editions DROP CONSTRAINT editions_brazil_publication_status_check');
+            await client.query("UPDATE works SET original_publication_status = CASE original_publication_status WHEN 'Completa' THEN 'Completo' WHEN 'Cancelada' THEN 'Cancelado' ELSE original_publication_status END");
+            await client.query("UPDATE editions SET brazil_publication_status = CASE brazil_publication_status WHEN 'Completa' THEN 'Completo' WHEN 'Cancelada' THEN 'Cancelado' ELSE brazil_publication_status END");
 
-        expect(migratedRelation.rows).toEqual([
-            { publisher_id: publisherId, position: 0 }
-        ]);
-        expect(legacyColumn.rows).toHaveLength(0);
+            const migrationSql = fs.readFileSync(MIGRATION_PATH, 'utf8')
+                .replace(/^BEGIN;\s*/, '')
+                .replace(/\s*COMMIT;\s*$/, '');
+            await client.query(migrationSql);
+
+            const migratedRelation = await client.query(
+                `SELECT publisher_id, position
+                 FROM work_original_publishers
+                 WHERE work_id = $1`,
+                [workId]
+            );
+            const legacyColumn = await client.query(
+                `SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = 'public'
+                   AND table_name = 'works'
+                   AND column_name = 'original_publisher_id'`
+            );
+
+            expect(migratedRelation.rows).toEqual([
+                { publisher_id: publisherId, position: 0 }
+            ]);
+            expect(legacyColumn.rows).toHaveLength(0);
+        } finally {
+            await client.query('ROLLBACK');
+            client.release();
+        }
     });
 
     it('garante slug unico e preserva sua identidade quando o titulo muda', async () => {
@@ -144,26 +166,28 @@ describe('integridade dos valores fechados do dominio', () => {
 
         const inserted = await db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', NOW())
              RETURNING id, slug`,
             [title, slug, typeId]
         );
 
         await expect(db.query(
             `INSERT INTO works (
+                cover_asset_id,
                 title,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ($1, $2, $3, 'Japão', 'Completo', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', NOW())`,
             [`${title}_duplicated`, slug, typeId]
         )).rejects.toMatchObject({ code: '23505' });
 
@@ -185,6 +209,7 @@ describe('integridade dos valores fechados do dominio', () => {
             await client.query('ALTER TABLE works ALTER COLUMN slug DROP NOT NULL');
             await client.query(
                 `INSERT INTO works (
+                cover_asset_id,
                     title,
                     slug,
                     type_id,
@@ -192,8 +217,8 @@ describe('integridade dos valores fechados do dominio', () => {
                     original_publication_status,
                     atualizado_em
                  ) VALUES
-                    ($1, NULL, $3, 'Japão', 'Completo', NOW()),
-                    ($2, NULL, $3, 'Japão', 'Completo', NOW())`,
+                    ('${await createTestCover(client)}', $1, NULL, $3, 'Japão', 'Completa', NOW()),
+                    ('${await createTestCover(client)}', $2, NULL, $3, 'Japão', 'Completa', NOW())`,
                 [
                     `integrity_${runId}_Ação Total`,
                     `integrity_${runId}_Acao Total`,

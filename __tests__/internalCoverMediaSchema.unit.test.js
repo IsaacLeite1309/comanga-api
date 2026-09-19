@@ -24,11 +24,11 @@ describe('modelagem de capas internas', () => {
         expect(schema).toMatch(/@@unique\(\[mediaAssetId, kind\]/);
     });
 
-    it.each(['Work', 'Edition', 'Volume'])('%s referencia uma capa interna opcional', (modelName) => {
+    it.each(['Work', 'Edition', 'Volume'])('%s referencia uma capa interna obrigatória', (modelName) => {
         const model = schema.match(new RegExp(`model ${modelName} \\{([\\s\\S]*?)\\n\\}`))?.[1] || '';
 
-        expect(model).toMatch(/coverAssetId\s+String\?\s+@unique\s+@map\("cover_asset_id"\)\s+@db\.Uuid/);
-        expect(model).toMatch(/coverAsset\s+MediaAsset\?/);
+        expect(model).toMatch(/coverAssetId\s+String\s+@unique\s+@map\("cover_asset_id"\)\s+@db\.Uuid/);
+        expect(model).toMatch(/coverAsset\s+MediaAsset/);
         expect(model).not.toMatch(/coverUrl\s+String/);
     });
 

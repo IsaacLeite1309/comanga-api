@@ -1,3 +1,5 @@
+process.env.MEDIA_PUBLIC_BASE_URL = 'https://media.example.test';
+const { createTestCover } = require('./helpers/cover');
 const crypto = require('node:crypto');
 const request = require('supertest');
 
@@ -55,24 +57,43 @@ async function createWork({
     adultContent = false,
     authorIds = [fixture.options.authorOne.id],
     genreIds = [],
-    demographics = []
+    demographics = [],
+    originalPublisherIds = [],
+    serializationMagazineIds = [],
+    originalPublicationStatus = 'Completa',
+    originalPublicationStartYear = null,
+    originalPublicationEndYear = null
 }) {
     const title = `${fixturePrefix}_${suffix}`;
     const slug = `${fixturePrefix}-${suffix}`.toLowerCase().replace(/_/g, '-');
     const result = await db.query(
         `INSERT INTO works (
+            cover_asset_id,
             slug,
             title,
             original_title,
             type_id,
             country,
+            original_publication_start_year,
+            original_publication_end_year,
             original_publication_status,
             visibility,
             adult_content,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, 'Completo', $6, $7, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
          RETURNING id, slug, title`,
-        [slug, title, originalTitle, typeId, country, visibility, adultContent]
+        [
+            slug,
+            title,
+            originalTitle,
+            typeId,
+            country,
+            originalPublicationStartYear,
+            originalPublicationEndYear,
+            originalPublicationStatus,
+            visibility,
+            adultContent
+        ]
     );
     const work = result.rows[0];
     fixture.workIds.push(work.id);
@@ -98,6 +119,20 @@ async function createWork({
         );
     }
 
+    for (const [position, publisherId] of originalPublisherIds.entries()) {
+        await db.query(
+            'INSERT INTO work_original_publishers (work_id, publisher_id, position) VALUES ($1, $2, $3)',
+            [work.id, publisherId, position]
+        );
+    }
+
+    for (const [position, magazineId] of serializationMagazineIds.entries()) {
+        await db.query(
+            'INSERT INTO work_serialization_magazines (work_id, magazine_id, position) VALUES ($1, $2, $3)',
+            [work.id, magazineId, position]
+        );
+    }
+
     return work;
 }
 
@@ -106,11 +141,14 @@ async function createEdition({
     chronologicalNumber,
     visibility = PUBLIC_VISIBILITY,
     brazilianPublisherId = fixture.options.publisherOne.id,
+    editionTypeId = fixture.options.editionType.id,
     formatId = fixture.options.formatOne.id,
-    coverTypeId = fixture.options.coverOne.id
+    coverTypeId = fixture.options.coverOne.id,
+    brazilPublicationStatus = 'Completa'
 }) {
     const result = await db.query(
         `INSERT INTO editions (
+            cover_asset_id,
             work_id,
             brazilian_publisher_id,
             edition_type_id,
@@ -120,15 +158,16 @@ async function createEdition({
             brazil_publication_status,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, 'Completo', $7, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, NOW())
          RETURNING id`,
         [
             workId,
             brazilianPublisherId,
-            fixture.options.editionType.id,
+            editionTypeId,
             coverTypeId,
             formatId,
             chronologicalNumber,
+            brazilPublicationStatus,
             visibility
         ]
     );
@@ -137,18 +176,19 @@ async function createEdition({
     return result.rows[0];
 }
 
-async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY) {
+async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY, releaseYear = 2026) {
     const result = await db.query(
         `INSERT INTO volumes (
+            cover_asset_id,
             edition_id,
             number,
             release_date_precision,
             release_year,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, 'Ano', 2026, $3, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, 'Ano', $3, $4, NOW())
          RETURNING id`,
-        [editionId, number, visibility]
+        [editionId, number, releaseYear, visibility]
     );
 
     return result.rows[0];
@@ -162,8 +202,8 @@ async function createSessionCookie({ status = 'Ativada', adultContent = false, s
             password_hash,
             status,
             nivel_acesso,
-            conteudo_adulto
-         ) VALUES ($1, $2, 'not-used', $3, 'Usu\u00e1rio Padr\u00e3o', $4)
+            birth_date, conteudo_adulto
+         ) VALUES ($1, $2, 'not-used', $3, 'Usu\u00e1rio Padr\u00e3o', '2000-01-01', $4)
         RETURNING id`,
         [
             `${suffix}_${fixturePrefix}`.slice(0, 50),
@@ -202,6 +242,7 @@ async function deleteFixtures() {
     if (fixture.optionIds.length > 0) {
         await db.query('DELETE FROM domain_option_values WHERE id = ANY($1::int[])', [fixture.optionIds]);
     }
+    await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`${fixturePrefix}/%`]);
 }
 
 describe('catálogo público', () => {
@@ -213,9 +254,15 @@ describe('catálogo público', () => {
         fixture.options.genreOne = await createOption('generos', 'genre-one');
         fixture.options.genreTwo = await createOption('generos', 'genre-two');
         fixture.options.inactiveGenre = await createOption('generos', 'genre-inactive', false);
+        fixture.options.originalPublisherOne = await createOption('editoras-originais', 'original-publisher-one');
+        fixture.options.originalPublisherTwo = await createOption('editoras-originais', 'original-publisher-two');
+        fixture.options.inactiveOriginalPublisher = await createOption('editoras-originais', 'original-publisher-inactive', false);
+        fixture.options.magazineOne = await createOption('revistas-serializacao', 'magazine-one');
+        fixture.options.magazineTwo = await createOption('revistas-serializacao', 'magazine-two');
         fixture.options.publisherOne = await createOption('editoras-brasileiras', 'publisher-one');
         fixture.options.publisherTwo = await createOption('editoras-brasileiras', 'publisher-two');
         fixture.options.editionType = await createOption('tipos-edicao', 'edition-type');
+        fixture.options.editionTypeTwo = await createOption('tipos-edicao', 'edition-type-two');
         fixture.options.coverOne = await createOption('tipos-capa', 'cover-one');
         fixture.options.coverTwo = await createOption('tipos-capa', 'cover-two');
         fixture.options.formatOne = await createOption('formatos-fisicos', 'format-one');
@@ -226,7 +273,12 @@ describe('catálogo público', () => {
             originalTitle: `${fixturePrefix}_original-alpha`,
             authorIds: [fixture.options.authorOne.id],
             genreIds: [fixture.options.genreOne.id, fixture.options.genreTwo.id],
-            demographics: ['Shonen', 'Seinen']
+            demographics: ['Shonen', 'Seinen'],
+            originalPublisherIds: [fixture.options.originalPublisherOne.id],
+            serializationMagazineIds: [fixture.options.magazineOne.id],
+            originalPublicationStatus: 'Em andamento',
+            originalPublicationStartYear: 1999,
+            originalPublicationEndYear: 2014
         });
         fixture.works.partial = await createWork({
             suffix: 'partial',
@@ -234,7 +286,11 @@ describe('catálogo público', () => {
             country: 'Coreia do Sul',
             authorIds: [fixture.options.authorTwo.id],
             genreIds: [fixture.options.genreOne.id],
-            demographics: ['Shonen']
+            demographics: ['Shonen'],
+            originalPublisherIds: [fixture.options.originalPublisherTwo.id],
+            serializationMagazineIds: [fixture.options.magazineTwo.id],
+            originalPublicationStartYear: 2001,
+            originalPublicationEndYear: 2008
         });
         fixture.works.adult = await createWork({
             suffix: 'adult',
@@ -251,7 +307,8 @@ describe('catálogo público', () => {
 
         fixture.editions.complete = await createEdition({
             workId: fixture.works.complete.id,
-            chronologicalNumber: 1
+            chronologicalNumber: 1,
+            brazilPublicationStatus: 'Em hiato'
         });
         fixture.editions.private = await createEdition({
             workId: fixture.works.complete.id,
@@ -262,6 +319,7 @@ describe('catálogo público', () => {
             workId: fixture.works.partial.id,
             chronologicalNumber: 1,
             brazilianPublisherId: fixture.options.publisherTwo.id,
+            editionTypeId: fixture.options.editionTypeTwo.id,
             formatId: fixture.options.formatTwo.id,
             coverTypeId: fixture.options.coverTwo.id
         });
@@ -299,6 +357,30 @@ describe('catálogo público', () => {
             1,
             PUBLIC_VISIBILITY
         );
+        fixture.volumes.partialFirst = await createVolume(
+            fixture.editions.partial.id,
+            1,
+            PUBLIC_VISIBILITY,
+            2018
+        );
+        fixture.volumes.partialMiddle = await createVolume(
+            fixture.editions.partial.id,
+            2,
+            PUBLIC_VISIBILITY,
+            2019
+        );
+        fixture.volumes.partialLast = await createVolume(
+            fixture.editions.partial.id,
+            3,
+            PUBLIC_VISIBILITY,
+            2020
+        );
+        fixture.volumes.partialPrivate = await createVolume(
+            fixture.editions.partial.id,
+            4,
+            PRIVATE_VISIBILITY,
+            2030
+        );
         await db.query(
             `UPDATE volumes
              SET pages = 416,
@@ -335,7 +417,7 @@ describe('catálogo público', () => {
             slug: fixture.works.complete.slug,
             title: fixture.works.complete.title,
             originalTitle: `${fixturePrefix}_original-alpha`,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             type: expect.objectContaining({ id: fixture.options.typeOne.id }),
             country: 'Jap\u00e3o',
             authors: [{
@@ -369,11 +451,34 @@ describe('catálogo público', () => {
                 typeId: fixture.options.typeOne.id,
                 country: 'Jap\u00e3o',
                 genreIds: `${fixture.options.genreOne.id},${fixture.options.genreTwo.id}`,
-                demographics: 'Shonen,Seinen'
+                demographics: 'Shonen,Seinen',
+                originalPublisherId: fixture.options.originalPublisherOne.id,
+                serializationMagazineId: fixture.options.magazineOne.id,
+                originalPublicationStatus: 'Em andamento',
+                originalPublicationStartYear: 1999,
+                originalPublicationEndYear: 2014
             });
 
         expect(response.status).toBe(200);
         expect(response.body.works.map((work) => work.id)).toEqual([fixture.works.complete.id]);
+    });
+
+    it('filtra Obras pelos anos exatos de início e fim da publicação original', async () => {
+        const matching = await request(app)
+            .get('/api/public/works')
+            .query({
+                term: fixturePrefix,
+                originalPublicationStartYear: 2001,
+                originalPublicationEndYear: 2008
+            });
+        const missing = await request(app)
+            .get('/api/public/works')
+            .query({ term: fixturePrefix, originalPublicationStartYear: 2008 });
+
+        expect(matching.status).toBe(200);
+        expect(matching.body.works.map((work) => work.id)).toEqual([fixture.works.partial.id]);
+        expect(missing.status).toBe(200);
+        expect(missing.body.works).toEqual([]);
     });
 
     it('trata cookie inv\u00e1lido como visitante e s\u00f3 libera +18 para conta ativa com prefer\u00eancia', async () => {
@@ -445,7 +550,7 @@ describe('catálogo público', () => {
             slug: fixture.works.complete.slug,
             title: fixture.works.complete.title,
             originalTitle: `${fixturePrefix}_original-alpha`,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             type: fixture.options.typeOne,
             country: 'Japão',
             authors: [{
@@ -463,7 +568,7 @@ describe('catálogo público', () => {
             volumesCount: 1
         }));
         expect(response.body.work.editions[0].volumes).toEqual([
-            expect.objectContaining({ number: 1, coverUrl: null })
+            expect.objectContaining({ number: 1, coverUrl: expect.any(String) })
         ]);
         expect(response.body.work).not.toHaveProperty('visibility');
         expect(response.body.work).not.toHaveProperty('adultContent');
@@ -510,7 +615,7 @@ describe('catálogo público', () => {
         expect(response.body.editions[0]).toEqual(expect.objectContaining({
             id: fixture.editions.complete.id,
             chronologicalNumber: 1,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             work: expect.objectContaining({
                 id: fixture.works.complete.id,
                 slug: fixture.works.complete.slug,
@@ -532,23 +637,52 @@ describe('catálogo público', () => {
                 id: fixture.options.coverOne.id,
                 label: fixture.options.coverOne.label
             },
-            volumesCount: 2
+            volumesCount: 1
         }));
         expect(response.body.editions[0]).not.toHaveProperty('visibility');
     });
 
-    it('combina busca de Autor com Editora Brasileira, Formato e Acabamento', async () => {
+    it('combina busca de Autor com os filtros editoriais, número e status', async () => {
         const response = await request(app)
             .get('/api/public/editions')
             .query({
                 term: fixture.options.authorOne.label,
                 brazilianPublisherId: fixture.options.publisherOne.id,
+                editionTypeId: fixture.options.editionType.id,
                 formatId: fixture.options.formatOne.id,
-                coverTypeId: fixture.options.coverOne.id
+                coverTypeId: fixture.options.coverOne.id,
+                chronologicalNumber: 1,
+                brazilPublicationStatus: 'Em hiato',
+                brazilPublicationStartYear: 2026
             });
 
         expect(response.status).toBe(200);
         expect(response.body.editions.map((edition) => edition.id)).toEqual([fixture.editions.complete.id]);
+    });
+
+    it('calcula início e fim pelo primeiro e último Volume público da Edição', async () => {
+        const matching = await request(app)
+            .get('/api/public/editions')
+            .query({
+                term: fixturePrefix,
+                brazilPublicationStartYear: 2018,
+                brazilPublicationEndYear: 2020
+            });
+        const intermediateStart = await request(app)
+            .get('/api/public/editions')
+            .query({ term: fixturePrefix, brazilPublicationStartYear: 2019 });
+        const intermediateEnd = await request(app)
+            .get('/api/public/editions')
+            .query({ term: fixturePrefix, brazilPublicationEndYear: 2019 });
+        const unfinishedEnd = await request(app)
+            .get('/api/public/editions')
+            .query({ term: fixturePrefix, brazilPublicationEndYear: 2026 });
+
+        expect(matching.status).toBe(200);
+        expect(matching.body.editions.map((edition) => edition.id)).toEqual([fixture.editions.partial.id]);
+        expect(intermediateStart.body.editions).toEqual([]);
+        expect(intermediateEnd.body.editions).toEqual([]);
+        expect(unfinishedEnd.body.editions).toEqual([]);
     });
 
     it('libera Edi\u00e7\u00e3o adulta apenas com sess\u00e3o eleg\u00edvel e valida limite', async () => {
@@ -578,7 +712,7 @@ describe('catálogo público', () => {
         expect(response.body.edition).toEqual(expect.objectContaining({
             id: fixture.editions.complete.id,
             chronologicalNumber: 1,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             brazilianPublisher: fixture.options.publisherOne,
             editionType: fixture.options.editionType,
             format: fixture.options.formatOne,
@@ -591,7 +725,7 @@ describe('catálogo público', () => {
             })
         }));
         expect(response.body.volumes).toEqual([
-            expect.objectContaining({ number: 1, coverUrl: null })
+            expect.objectContaining({ number: 1, coverUrl: expect.any(String) })
         ]);
         expect(response.body.pagination).toEqual({
             page: 1,
@@ -711,7 +845,7 @@ describe('catálogo público', () => {
             id: fixture.volumes.complete.id,
             number: 1,
             singleVolume: false,
-            coverUrl: null,
+            coverUrl: expect.any(String),
             pages: 416,
             price: 79.9,
             priceCurrency: 'R$',
@@ -726,6 +860,7 @@ describe('catálogo público', () => {
             edition: {
                 id: fixture.editions.complete.id,
                 chronologicalNumber: 1,
+                brazilianPublisher: fixture.options.publisherOne,
                 work: {
                     id: fixture.works.complete.id,
                     slug: fixture.works.complete.slug,
@@ -780,11 +915,17 @@ describe('catálogo público', () => {
         expect(response.body.options.workTypes).toEqual(expect.arrayContaining([fixture.options.typeOne]));
         expect(response.body.options.genres).toEqual(expect.arrayContaining([fixture.options.genreOne]));
         expect(response.body.options.genres).not.toEqual(expect.arrayContaining([fixture.options.inactiveGenre]));
+        expect(response.body.options.originalPublishers).toEqual(expect.arrayContaining([fixture.options.originalPublisherOne]));
+        expect(response.body.options.originalPublishers).not.toEqual(expect.arrayContaining([fixture.options.inactiveOriginalPublisher]));
+        expect(response.body.options.serializationMagazines).toEqual(expect.arrayContaining([fixture.options.magazineOne]));
+        expect(response.body.options.originalPublicationStatuses).toEqual(['Completa', 'Em andamento', 'Em hiato', 'Cancelada']);
         expect(response.body.options.brazilianPublishers).toEqual(expect.arrayContaining([fixture.options.publisherOne]));
+        expect(response.body.options.brazilPublicationStatuses).toEqual(['Completa', 'Em andamento', 'Em hiato', 'Cancelada']);
+        expect(response.body.options.editionTypes).toEqual(expect.arrayContaining([fixture.options.editionType]));
         expect(response.body.options.formats).toEqual(expect.arrayContaining([fixture.options.formatOne]));
         expect(response.body.options.coverTypes).toEqual(expect.arrayContaining([fixture.options.coverOne]));
-        expect(response.body.options.countries).toEqual(['China', 'Coreia do Sul', 'Jap\u00e3o', 'Taiwan']);
-        expect(response.body.options.demographics).toEqual(['Josei', 'Kodomo', 'Seinen', 'Shonen', 'Shoujo']);
+        expect(response.body.options.countries).toEqual(['Jap\u00e3o', 'Coreia do Sul', 'China', 'Taiwan']);
+        expect(response.body.options.demographics).toEqual(['Shonen', 'Seinen', 'Shoujo', 'Josei', 'Kodomo']);
         expect(response.body.options).not.toHaveProperty('authors');
     });
     });

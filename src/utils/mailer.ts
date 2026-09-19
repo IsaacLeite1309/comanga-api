@@ -1,80 +1,38 @@
-import dns from 'node:dns';
-import nodemailer from 'nodemailer';
+import ApplicationError from '../errors/ApplicationError';
 
-dns.setDefaultResultOrder('ipv4first');
-
-interface SmtpConfigError extends Error {
-    code?: string;
+function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 }
 
-async function resolveSmtpHost(host: string): Promise<string> {
+async function sendEmail(to: string, username: string, token: string, recovery: boolean): Promise<void> {
+    const { RESEND_API_KEY, RESEND_FROM } = process.env;
+    if (!RESEND_API_KEY || !RESEND_FROM) {
+        throw new ApplicationError({ statusCode: 503, code: 'EMAIL_NOT_CONFIGURED', message: 'Serviço de e-mail não configurado.' });
+    }
+    const frontend = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:8080').split(',')[0].trim().replace(/\/$/, '');
+    const link = `${frontend}/${recovery ? 'redefinir-senha' : 'activate'}/${encodeURIComponent(token)}`;
+    const action = recovery ? 'Redefinir minha senha' : 'Ativar minha conta';
+    const instruction = recovery ? 'O link de recuperação vale por 1 hora e só pode ser usado uma vez.' : 'Confirme seu cadastro para liberar o acesso ao CoMangá.';
     try {
-        const addresses = await dns.promises.resolve4(host);
-        return addresses[0] || host;
-    } catch (error) {
-        console.error('Nao foi possivel resolver IPv4 do SMTP, usando host original:', error);
-        return host;
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(10_000),
+            body: JSON.stringify({
+                from: RESEND_FROM, to: [to],
+                subject: recovery ? 'CoMangá - Redefina sua senha' : 'CoMangá - Ative sua conta!',
+                text: `Olá, ${username}! ${instruction} ${action}: ${link} Se você não solicitou, ignore este e-mail.`,
+                html: `<h2>Olá, ${escapeHtml(username)}!</h2><p>${instruction}</p><a href="${escapeHtml(link)}">${action}</a><p>Se você não solicitou, ignore este e-mail.</p>`
+            })
+        });
+        // Provider responses can contain recipient information: never propagate their body.
+        if (!response.ok) throw new Error();
+    } catch {
+        throw new ApplicationError({ statusCode: 502, code: 'EMAIL_DELIVERY_FAILED', message: 'Não foi possível enviar o e-mail.' });
     }
-}
-
-async function getRequiredSmtpConfig() {
-    const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE } = process.env;
-    const secure = SMTP_SECURE === 'true';
-
-    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-        const error: SmtpConfigError = new Error('Servico de e-mail nao configurado.');
-        error.code = 'SMTP_NOT_CONFIGURED';
-        throw error;
-    }
-
-    const smtpHost = await resolveSmtpHost(SMTP_HOST);
-
-    return {
-        host: smtpHost,
-        port: Number(SMTP_PORT || 587),
-        secure,
-        requireTLS: !secure,
-        auth: {
-            user: SMTP_USER,
-            pass: SMTP_PASS
-        },
-        tls: {
-            servername: SMTP_HOST
-        },
-        family: 4,
-        connectionTimeout: 30000,
-        greetingTimeout: 30000,
-        socketTimeout: 30000
-    };
-}
-
-async function createTransporter() {
-    return nodemailer.createTransport(await getRequiredSmtpConfig());
-}
-
-async function sendActivationEmail(toEmail: string, username: string, token: string): Promise<void> {
-    const frontendUrl = (process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:8080')
-        .split(',')[0]
-        .trim()
-        .replace(/\/$/, '');
-    const activationLink = `${frontendUrl}/activate/${token}`;
-
-    const mailOptions = {
-        from: process.env.SMTP_FROM || '"Equipe CoMangá" <noreply@comanga.com>',
-        to: toEmail,
-        subject: 'CoMangá - Ative sua conta!',
-        html: `
-            <h2>Olá, ${username}!</h2>
-            <p>Obrigado por se cadastrar no CoMangá. Para liberar seu acesso, clique no link abaixo:</p>
-            <a href="${activationLink}" style="padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Ativar minha conta</a>
-            <p>Se você não solicitou este cadastro, pode ignorar este e-mail.</p>
-        `
-    };
-
-    const transporter = await createTransporter();
-    await transporter.sendMail(mailOptions);
 }
 
 export = {
-    sendActivationEmail
+    sendActivationEmail: (to: string, username: string, token: string) => sendEmail(to, username, token, false),
+    sendPasswordResetEmail: (to: string, username: string, token: string) => sendEmail(to, username, token, true)
 };
