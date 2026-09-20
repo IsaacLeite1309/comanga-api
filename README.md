@@ -220,3 +220,7 @@ A migration `20260920120000_perfis_de_acesso` preserva usuários e sessões e cr
 `PATCH /api/users/me/active-profile` muda o contexto da sessão e a preferência do próximo login; não concede atribuições. Administração exige perfil ativo Administrador e atribuição vigente. O último administrador ativado é protegido, inclusive em operações concorrentes.
 
 `PATCH /api/users/me/username` altera apenas a própria conta. `PATCH /api/users/me/password` valida senha atual, confirmação e política vigente, mantém a sessão atual e revoga as demais. Recuperação por token revoga todas. As antigas rotas `GET /api/users/:id` e `PUT /api/users/:id` foram removidas. Aplicar a migration antes de usar os novos contratos; não remover ainda a coluna legada.
+
+## Metadados e ordem editorial
+
+A migration `20260920121000_work_metadata_and_author_positions` adiciona `romanized_title`, `synopsis` e `work_authors.position`. O backfill copia o título da Obra para os novos textos e exige revisão editorial posterior; autores começam em ordem alfabética. Criação exige romanizedTitle e synopsis; PATCH aceita omissão e recusa valores vazios. originalTitle permanece opcional. A pesquisa pública inclui o romanizado; duplicidade e slug continuam baseados no título. A ordem do array authors é normalizada para posições 0..n-1 e preservada nas respostas. A sinopse pública vem exclusivamente da Obra.

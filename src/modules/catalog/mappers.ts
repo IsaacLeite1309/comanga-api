@@ -22,20 +22,19 @@ function getAuthorRolePriority(role: string) {
     return priority === -1 ? AUTHOR_ROLE_VALUES.length : priority;
 }
 
-function getAuthorHighestRolePriority(author: { roles?: Array<{ role: string }> }) {
-    if (!author.roles || author.roles.length === 0) return AUTHOR_ROLE_VALUES.length;
-
-    return Math.min(...author.roles.map((role) => getAuthorRolePriority(role.role)));
+// A ordem dos creditos e a posicao editorial persistida; os papeis nao a definem.
+function sortAuthorsByPosition<T extends { position?: number }>(authors: T[]) {
+    return authors
+        .map((author, index) => ({ author, index }))
+        .sort((firstAuthor, secondAuthor) => (
+            (firstAuthor.author.position ?? firstAuthor.index) - (secondAuthor.author.position ?? secondAuthor.index)
+            || firstAuthor.index - secondAuthor.index
+        ))
+        .map((item) => item.author);
 }
 
-function sortAuthorsByRolePriority<T extends { roles?: Array<{ role: string }>; author: OptionSummary }>(authors: T[]) {
-    return [...authors].sort((firstAuthor, secondAuthor) => {
-        const priorityDifference = getAuthorHighestRolePriority(firstAuthor) - getAuthorHighestRolePriority(secondAuthor);
-
-        if (priorityDifference !== 0) return priorityDifference;
-
-        return firstAuthor.author.label.localeCompare(secondAuthor.author.label, 'pt-BR', { sensitivity: 'base' });
-    });
+function normalizeOrderedAuthors<T extends { position?: number }>(authors: T[]) {
+    return authors.map((author, index) => ({ ...author, position: index }));
 }
 
 function normalizeAuthorRoles(roles?: Array<{ role: string }>) {
@@ -62,6 +61,7 @@ function normalizeWorkSummary(work: WorkSummaryInput) {
         slug: work.slug,
         title: work.title,
         originalTitle: work.originalTitle,
+        romanizedTitle: work.romanizedTitle,
         type: normalizeOptionSummary(work.type),
         country: work.country,
         visibility: work.visibility,
@@ -69,20 +69,21 @@ function normalizeWorkSummary(work: WorkSummaryInput) {
         coverAssetId: work.coverAssetId,
         coverUrl: normalizeCoverUrl(work.coverAsset),
         editionsCount: work.editionsCount ?? work._count?.editions ?? 0,
-        authors: sortAuthorsByRolePriority(work.authors || []).map((item) => normalizeOptionSummary(item.author))
+        authors: sortAuthorsByPosition(work.authors || []).map((item) => normalizeOptionSummary(item.author))
     };
 }
 
 function normalizeWorkDetail(work: WorkDetailInput) {
     return {
         ...normalizeWorkSummary(work),
+        synopsis: work.synopsis,
         originalPublicationStartYear: work.originalPublicationStartYear,
         originalPublicationEndYear: work.originalPublicationEndYear,
         originalVolumeCount: work.originalVolumeCount,
         directRelease: work.directRelease,
         originalPublishers: work.originalPublishers?.map((item) => normalizeOptionSummary(item.publisher)) || [],
         originalPublicationStatus: work.originalPublicationStatus,
-        authors: sortAuthorsByRolePriority(work.authors || []).map((item) => ({
+        authors: sortAuthorsByPosition(work.authors || []).map((item) => ({
             author: normalizeOptionSummary(item.author),
             roles: normalizeAuthorRoles(item.roles)
         })) || [],
@@ -166,8 +167,8 @@ function findDuplicatedNumbers(values: number[]) {
 export {
     normalizeOptionSummary,
     getAuthorRolePriority,
-    getAuthorHighestRolePriority,
-    sortAuthorsByRolePriority,
+    sortAuthorsByPosition,
+    normalizeOrderedAuthors,
     normalizeAuthorRoles,
     hasDuplicatedStrings,
     isPublicVisibility,

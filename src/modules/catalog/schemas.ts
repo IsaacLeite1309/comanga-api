@@ -15,7 +15,8 @@ import {
 
 const workAuthorSchema = z.object({
     authorId: z.coerce.number().int().positive(),
-    roles: z.array(z.enum(AUTHOR_ROLE_VALUES)).min(1)
+    roles: z.array(z.enum(AUTHOR_ROLE_VALUES)).min(1),
+    position: z.coerce.number().int().min(0).optional()
 });
 
 const orderedWorkOptionSchema = z.union([
@@ -31,6 +32,8 @@ const coverAssetIdSchema = z.string().uuid();
 const createWorkSchema = z.object({
     title: z.string().trim().min(1),
     originalTitle: z.string().trim().optional().nullable(),
+    romanizedTitle: z.string().trim().min(1),
+    synopsis: z.string().trim().min(1),
     originalPublicationStartYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     originalVolumeCount: z.coerce.number().int().min(1).max(10000).optional().nullable(),
@@ -50,6 +53,8 @@ const createWorkSchema = z.object({
 const updateWorkSchema = z.object({
     title: z.string().trim().min(1).optional(),
     originalTitle: z.string().trim().optional().nullable(),
+    romanizedTitle: z.string().trim().min(1).optional(),
+    synopsis: z.string().trim().min(1).optional(),
     originalPublicationStartYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     originalVolumeCount: z.coerce.number().int().min(1).max(10000).optional().nullable(),

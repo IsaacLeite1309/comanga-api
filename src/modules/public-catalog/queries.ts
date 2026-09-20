@@ -16,6 +16,7 @@ function buildIdentitySearch(term: string): Prisma.WorkWhereInput {
         OR: [
             { title: { contains: term, mode: 'insensitive' } },
             { originalTitle: { contains: term, mode: 'insensitive' } },
+            { romanizedTitle: { contains: term, mode: 'insensitive' } },
             {
                 authors: {
                     some: {
@@ -188,6 +189,7 @@ const publicWorkSelect = {
     slug: true,
     title: true,
     originalTitle: true,
+    romanizedTitle: true,
     coverAsset: {
         select: {
             objectKey: true,
@@ -206,9 +208,10 @@ const publicWorkSelect = {
                 select: { id: true, label: true }
             }
         },
-        orderBy: {
-            author: { label: 'asc' as const }
-        }
+        orderBy: [
+            { position: 'asc' as const },
+            { authorId: 'asc' as const }
+        ]
     }
 } satisfies Prisma.WorkSelect;
 
@@ -235,9 +238,10 @@ const publicEditionSelect = {
                         select: { id: true, label: true }
                     }
                 },
-                orderBy: {
-                    author: { label: 'asc' as const }
-                }
+                orderBy: [
+                    { position: 'asc' as const },
+                    { authorId: 'asc' as const }
+                ]
             }
         }
     },
@@ -269,6 +273,8 @@ const publicWorkDetailSelect = {
     slug: true,
     title: true,
     originalTitle: true,
+    romanizedTitle: true,
+    synopsis: true,
     originalPublicationStartYear: true,
     originalPublicationEndYear: true,
     originalVolumeCount: true,
@@ -282,7 +288,7 @@ const publicWorkDetailSelect = {
             author: { select: { id: true, label: true } },
             roles: { select: { role: true }, orderBy: { role: 'asc' } }
         },
-        orderBy: { author: { label: 'asc' } }
+        orderBy: [{ position: 'asc' }, { authorId: 'asc' }]
     },
     genres: {
         select: { genre: { select: { id: true, label: true } } },
@@ -324,7 +330,6 @@ const publicWorkDetailSelect = {
                     releaseYear: true,
                     releaseMonth: true,
                     releaseDay: true,
-                    synopsis: true,
                     coverAsset: { select: publicCoverAssetSelect }
                 }
             },
@@ -354,7 +359,7 @@ const publicEditionDetailSelect = {
             originalTitle: true,
             authors: {
                 select: { author: { select: { id: true, label: true } } },
-                orderBy: { author: { label: 'asc' } }
+                orderBy: [{ position: 'asc' }, { authorId: 'asc' }]
             }
         }
     },

@@ -29,7 +29,9 @@ function workFixture() {
         id: 8,
         slug: 'lobo-solitario',
         title: 'Lobo Solitário',
-        originalTitle: 'Kozure Ōkami',
+        originalTitle: '子連れ狼',
+        romanizedTitle: 'Kozure Ōkami',
+        synopsis: 'A sinopse canônica da Obra.',
         originalPublicationStartYear: 1970,
         originalPublicationEndYear: 1976,
         originalVolumeCount: 28,
@@ -39,6 +41,7 @@ function workFixture() {
         coverAsset: cover('work'),
         type: { id: 1, label: 'Mangá' },
         authors: [{
+            position: 0,
             author: { id: 2, label: 'Kazuo Koike' },
             roles: [{ role: 'Roteiro' }]
         }],
@@ -107,6 +110,8 @@ describe('detalhes públicos da Obra', () => {
             work: expect.objectContaining({
                 slug: 'lobo-solitario',
                 coverUrl: 'https://media.comanga.test/covers/work/large.webp',
+                originalTitle: '子連れ狼',
+                romanizedTitle: 'Kozure Ōkami',
                 synopsis: 'A sinopse canônica da Obra.',
                 authors: [{ id: 2, label: 'Kazuo Koike', roles: ['Roteiro'] }],
                 genres: [{ id: 3, label: 'Drama' }],
@@ -139,9 +144,10 @@ describe('detalhes públicos da Obra', () => {
         });
     });
 
-    it('não usa como fallback a sinopse de uma Edição posterior', async () => {
+    it('não usa a sinopse de nenhum Volume, nem da primeira nem de outra Edição', async () => {
         const work = workFixture();
-        work.editions[0].volumes[0].synopsis = null;
+        work.synopsis = 'Somente a sinopse própria da Obra.';
+        work.editions[0].volumes[0].synopsis = 'Sinopse do Volume 1.';
         work.editions.push({
             ...work.editions[0],
             id: 11,
@@ -161,7 +167,7 @@ describe('detalhes públicos da Obra', () => {
         }, res, jest.fn());
 
         expect(res.json).toHaveBeenCalledWith({
-            work: expect.objectContaining({ synopsis: null })
+            work: expect.objectContaining({ synopsis: 'Somente a sinopse própria da Obra.' })
         });
     });
 
@@ -183,7 +189,7 @@ describe('detalhes públicos da Obra', () => {
         ]);
         expect(publicWorkDetailSelect.editions.select.volumes.where).toEqual({ visibility: 'Público' });
         expect(publicWorkDetailSelect.editions.select.volumes.take).toBe(3);
-        expect(publicWorkDetailSelect.editions.select.volumes.select.synopsis).toBe(true);
+        expect(publicWorkDetailSelect.editions.select.volumes.select).not.toHaveProperty('synopsis');
         expect(publicWorkDetailSelect.editions.select._count.select.volumes.where)
             .toEqual({ visibility: 'Público' });
     });

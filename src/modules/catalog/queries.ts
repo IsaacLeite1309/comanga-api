@@ -23,6 +23,7 @@ function getWorkSummaryInclude() {
         },
         authors: {
             select: {
+                position: true,
                 author: {
                     select: { id: true, label: true }
                 },
@@ -30,11 +31,10 @@ function getWorkSummaryInclude() {
                     select: { role: true }
                 }
             },
-            orderBy: {
-                author: {
-                    label: 'asc' as const
-                }
-            }
+            orderBy: [
+                { position: 'asc' as const },
+                { authorId: 'asc' as const }
+            ]
         }
     };
 }
@@ -124,6 +124,7 @@ function getWorkDetailInclude() {
         },
         authors: {
             select: {
+                position: true,
                 author: {
                     select: { id: true, label: true }
                 },
@@ -131,11 +132,10 @@ function getWorkDetailInclude() {
                     select: { role: true }
                 }
             },
-            orderBy: {
-                author: {
-                    label: 'asc' as const
-                }
-            }
+            orderBy: [
+                { position: 'asc' as const },
+                { authorId: 'asc' as const }
+            ]
         },
         genres: {
             select: {

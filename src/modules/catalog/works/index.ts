@@ -22,6 +22,7 @@ import {
     normalizeWorkSummary,
     normalizeWorkDetail,
     normalizeOrderedIds,
+    normalizeOrderedAuthors,
     getOrderedIds,
     findDuplicatedNumbers,
     validateOptionIdsByCategory,
@@ -128,6 +129,8 @@ function buildCreateWorkData(
         slug,
         title: data.title,
         originalTitle: data.originalTitle || null,
+        romanizedTitle: data.romanizedTitle,
+        synopsis: data.synopsis,
         originalPublicationStartYear: data.originalPublicationStartYear || null,
         originalPublicationEndYear: data.originalPublicationEndYear || null,
         originalVolumeCount: data.originalVolumeCount || null,
@@ -138,7 +141,11 @@ function buildCreateWorkData(
         coverAssetId: data.coverAssetId,
         adultContent: data.adultContent,
         visibility: 'Privado',
-        authors: { createMany: { data: data.authors.map(({ authorId }) => ({ authorId })) } },
+        authors: {
+            createMany: {
+                data: normalizeOrderedAuthors(data.authors).map(({ authorId, position }) => ({ authorId, position }))
+            }
+        },
         genres: { createMany: { data: data.genreIds.map((genreId) => ({ genreId })) } },
         demographics: {
             createMany: { data: relations.demographies.map((demography) => ({ demography })) }
@@ -449,6 +456,8 @@ async function getUpdateWorkDependencyError(
 
 function assignPublicationUpdateData(updateData: Record<string, unknown>, data: UpdateWorkData) {
     if (data.originalTitle !== undefined) updateData.originalTitle = data.originalTitle || null;
+    if (data.romanizedTitle !== undefined) updateData.romanizedTitle = data.romanizedTitle;
+    if (data.synopsis !== undefined) updateData.synopsis = data.synopsis;
     if (data.originalPublicationStartYear !== undefined) updateData.originalPublicationStartYear = data.originalPublicationStartYear || null;
     if (data.originalPublicationEndYear !== undefined) updateData.originalPublicationEndYear = data.originalPublicationEndYear || null;
     if (data.originalVolumeCount !== undefined) updateData.originalVolumeCount = data.originalVolumeCount || null;
@@ -469,12 +478,15 @@ function buildWorkUpdateData(data: UpdateWorkData) {
 
 function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['authors']) {
     if (!authors) return [];
+    const orderedAuthors = normalizeOrderedAuthors(authors);
     return [
         prisma.workAuthorRole.deleteMany({ where: { workId } }),
         prisma.workAuthor.deleteMany({ where: { workId } }),
-        prisma.workAuthor.createMany({ data: authors.map(({ authorId }) => ({ workId, authorId })) }),
+        prisma.workAuthor.createMany({
+            data: orderedAuthors.map(({ authorId, position }) => ({ workId, authorId, position }))
+        }),
         prisma.workAuthorRole.createMany({
-            data: authors.flatMap((author) => author.roles.map((role) => ({
+            data: orderedAuthors.flatMap((author) => author.roles.map((role) => ({
                 workId,
                 authorId: author.authorId,
                 role

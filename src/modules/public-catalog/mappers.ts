@@ -16,14 +16,13 @@ function mapCoverUrl(asset: PublicCoverAssetInput | null) {
 }
 
 function mapPublicWorkDetails(work: PublicWorkDetailInput) {
-    const firstEdition = work.editions[0];
-    const synopsis = firstEdition?.volumes.find((volume) => volume.number === 1)?.synopsis ?? null;
 
     return {
         id: work.id,
         slug: work.slug,
         title: work.title,
         originalTitle: work.originalTitle,
+        romanizedTitle: work.romanizedTitle,
         coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
         country: work.country,
@@ -32,7 +31,7 @@ function mapPublicWorkDetails(work: PublicWorkDetailInput) {
         originalVolumeCount: work.originalVolumeCount,
         directRelease: work.directRelease,
         originalPublicationStatus: work.originalPublicationStatus,
-        synopsis,
+        synopsis: work.synopsis,
         authors: work.authors.map(({ author, roles }) => ({
             ...mapOption(author),
             roles: roles.map(({ role }) => role)
@@ -82,6 +81,7 @@ function mapPublicWork(work: PublicWorkInput) {
         slug: work.slug,
         title: work.title,
         originalTitle: work.originalTitle,
+        romanizedTitle: work.romanizedTitle,
         coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
         country: work.country,

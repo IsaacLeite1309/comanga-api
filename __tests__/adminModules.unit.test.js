@@ -987,6 +987,8 @@ describe('módulos administrativos', () => {
             slug: 'naruto',
             title: 'Naruto',
             originalTitle: 'Naruto',
+            romanizedTitle: 'Naruto',
+            synopsis: 'Um ninja busca reconhecimento na própria vila.',
             originalPublicationStartYear: 1999,
             originalPublicationEndYear: 2014,
             originalVolumeCount: 72,
@@ -1002,12 +1004,14 @@ describe('módulos administrativos', () => {
             originalPublicationStatus: 'Completa',
             authors: [
                 {
+                    position: 0,
                     author: { id: 4, label: 'Masashi Kishimoto' },
                     roles: [
                         { role: 'História e Arte' }
                     ]
                 },
                 {
+                    position: 1,
                     author: { id: 11, label: 'Osamu Tezuka' },
                     roles: [
                         { role: 'Criador Original' },
@@ -1058,6 +1062,8 @@ describe('módulos administrativos', () => {
                 body: {
                     title: 'Naruto',
                     originalTitle: 'Naruto',
+                    romanizedTitle: 'Naruto',
+                    synopsis: 'Um ninja busca reconhecimento na própria vila.',
                     originalPublicationStartYear: 1999,
                     originalPublicationEndYear: 2014,
                     originalVolumeCount: 72,
@@ -1085,6 +1091,8 @@ describe('módulos administrativos', () => {
                 data: expect.objectContaining({
                     slug: 'naruto',
                     title: 'Naruto',
+                    romanizedTitle: 'Naruto',
+                    synopsis: 'Um ninja busca reconhecimento na própria vila.',
                     visibility: 'Privado',
                     country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
@@ -1096,7 +1104,7 @@ describe('módulos administrativos', () => {
                     },
                     authors: {
                         createMany: {
-                            data: [{ authorId: 4 }, { authorId: 11 }]
+                            data: [{ authorId: 4, position: 0 }, { authorId: 11, position: 1 }]
                         }
                     },
                     demographics: {
@@ -1173,6 +1181,8 @@ describe('módulos administrativos', () => {
             const req = makeReq({
                 body: {
                     title: 'Naruto',
+                    romanizedTitle: 'Naruto',
+                    synopsis: 'Sinopse da Obra.',
                     typeId: 1,
                     country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
@@ -1211,6 +1221,8 @@ describe('módulos administrativos', () => {
             const req = makeReq({
                 body: {
                     title: 'Naruto',
+                    romanizedTitle: 'Naruto',
+                    synopsis: 'Sinopse da Obra.',
                     typeId: 1,
                     country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
@@ -1361,10 +1373,12 @@ describe('módulos administrativos', () => {
                     originalPublicationStatus: 'Em andamento',
                     authors: [
                         {
+                            position: 1,
                             author: { id: 11, label: 'Osamu Tezuka' },
                             roles: [{ role: 'Ilustrador' }]
                         },
                         {
+                            position: 0,
                             author: { id: 4, label: 'Masashi Kishimoto' },
                             roles: [{ role: 'História' }, { role: 'Arte' }]
                         }
@@ -1402,8 +1416,8 @@ describe('módulos administrativos', () => {
             expect(prisma.workAuthor.deleteMany).toHaveBeenCalledWith({ where: { workId: 1 } });
             expect(prisma.workAuthor.createMany).toHaveBeenCalledWith({
                 data: [
-                    { workId: 1, authorId: 4 },
-                    { workId: 1, authorId: 11 }
+                    { workId: 1, authorId: 4, position: 0 },
+                    { workId: 1, authorId: 11, position: 1 }
                 ]
             });
             expect(prisma.workAuthorRole.createMany).toHaveBeenCalledWith({
@@ -2237,8 +2251,8 @@ describe('módulos administrativos', () => {
                 country: 'Japão',
                 originalPublicationStatus: null,
                 authors: [
-                    { author: { id: 2, label: 'Zeta' } },
-                    { author: { id: 1, label: 'Alfa' }, roles: [{ role: 'Papel legado' }] }
+                    { position: 1, author: { id: 2, label: 'Zeta' } },
+                    { position: 0, author: { id: 1, label: 'Alfa' }, roles: [{ role: 'Papel legado' }] }
                 ]
             });
             const res = makeRes();
@@ -2386,6 +2400,8 @@ describe('módulos administrativos', () => {
             const periodRes = makeRes();
             const baseBody = {
                 title: 'Teste',
+                romanizedTitle: 'Teste',
+                synopsis: 'Sinopse da Obra.',
                 typeId: 1,
                 country: 'Japão',
                 originalPublicationStatus: 'Completa',
@@ -2414,6 +2430,8 @@ describe('módulos administrativos', () => {
             await catalog.createWork(makeReq({
                 body: {
                     title: 'Repetida',
+                    romanizedTitle: 'Repetida',
+                    synopsis: 'Sinopse da Obra.',
                     typeId: 1,
                     country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
