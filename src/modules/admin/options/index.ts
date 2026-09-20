@@ -486,6 +486,31 @@ function buildNormalizedOrder(requestedIds: number[], currentIds: number[]) {
     return [...requested, ...currentIds.filter((id) => !requestedSet.has(id))];
 }
 
+// Serializa a leitura da ordem e as escritas antes de bloquear valores individuais.
+async function persistOptionOrder(categoryId: number, categorySlug: string, requestedIds: number[]) {
+    return prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(9142027, ${categoryId}::int)::text`;
+        const currentValues = await tx.domainOptionValue.findMany({
+            where: { categoryId },
+            select: { id: true },
+            orderBy: buildOptionValueOrderBy(categorySlug, 'asc')
+        });
+        const currentIds = currentValues.map(value => value.id);
+        const knownIds = new Set(currentIds);
+        if (requestedIds.some(id => !knownIds.has(id))) return null;
+
+        const orderedIds = buildNormalizedOrder(requestedIds, currentIds);
+        for (const [position, id] of orderedIds.entries()) {
+            await tx.domainOptionValue.update({ where: { id }, data: { position } });
+        }
+        return tx.domainOptionValue.findMany({
+            where: { categoryId },
+            select: getOptionValueSelect(false),
+            orderBy: buildOptionValueOrderBy(categorySlug, 'asc')
+        });
+    });
+}
+
 async function reorderOptions(req: Request, res: Response, next: NextFunction) {
     const paramsValidation = categoryParamSchema.safeParse(req.params);
     const bodyValidation = reorderOptionsSchema.safeParse(req.body);
@@ -511,30 +536,8 @@ async function reorderOptions(req: Request, res: Response, next: NextFunction) {
             return res.status(404).json({ error: 'Categoria não encontrada.' });
         }
 
-        const currentValues = await prisma.domainOptionValue.findMany({
-            where: { categoryId: category.id },
-            select: { id: true },
-            orderBy: buildOptionValueOrderBy(category.slug, 'asc')
-        });
-        const currentIds = currentValues.map((value) => value.id);
-        const knownIds = new Set(currentIds);
-
-        if (bodyValidation.data.valueIds.some((id) => !knownIds.has(id))) {
-            return res.status(400).json({ error: INVALID_REORDER_VALUES_MESSAGE });
-        }
-
-        const orderedIds = buildNormalizedOrder(bodyValidation.data.valueIds, currentIds);
-        const values = await prisma.$transaction(async (tx) => {
-            for (const [position, id] of orderedIds.entries()) {
-                await tx.domainOptionValue.update({ where: { id }, data: { position } });
-            }
-
-            return tx.domainOptionValue.findMany({
-                where: { categoryId: category.id },
-                select: getOptionValueSelect(false),
-                orderBy: buildOptionValueOrderBy(category.slug, 'asc')
-            });
-        });
+        const values = await persistOptionOrder(category.id, category.slug, bodyValidation.data.valueIds);
+        if (!values) return res.status(400).json({ error: INVALID_REORDER_VALUES_MESSAGE });
 
         return res.status(200).json({
             category: { slug: category.slug, name: category.name },

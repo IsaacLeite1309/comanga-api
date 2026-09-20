@@ -1347,7 +1347,6 @@ describe('módulos administrativos', () => {
                 title: 'Naruto - Edicao Revisada'
             });
             mockValidDomainReferences();
-            prisma.$transaction.mockResolvedValue([]);
             const req = makeReq({
                 params: { id: '1' },
                 body: {
@@ -1395,7 +1394,6 @@ describe('módulos administrativos', () => {
             });
             prisma.work.findFirst.mockResolvedValue(null);
             mockValidDomainReferences();
-            prisma.$transaction.mockResolvedValue([]);
             const req = makeReq({
                 params: { id: '1' },
                 body: {
@@ -1475,7 +1473,6 @@ describe('módulos administrativos', () => {
             });
             prisma.work.findFirst.mockResolvedValue(null);
             mockValidDomainReferences();
-            prisma.$transaction.mockResolvedValue([]);
             const req = makeReq({
                 params: { id: '1' },
                 body: {

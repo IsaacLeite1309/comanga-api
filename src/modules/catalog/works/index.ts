@@ -1,7 +1,9 @@
+import type { Prisma } from '@prisma/client';
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../../../prisma';
 import { createUniqueWorkSlug } from './workSlug';
+import { withCatalogWriteLock } from '../writeLock';
 import {
     activateCoverAsset,
     deleteOrphanedCoverAsset,
@@ -191,10 +193,10 @@ async function normalizeAdultContentOnCreate(data: CreateWorkData) {
     return containsHentaiGenre(data.genreIds);
 }
 
-async function normalizeAdultContentOnUpdate(workId: number, data: UpdateWorkData) {
+async function normalizeAdultContentOnUpdate(workId: number, data: UpdateWorkData, client: Prisma.TransactionClient) {
     const hasHentai = data.genreIds
-        ? await containsHentaiGenre(data.genreIds)
-        : await workHasHentaiGenre(workId);
+        ? await containsHentaiGenre(data.genreIds, client)
+        : await workHasHentaiGenre(workId, client);
 
     if (hasHentai) return true;
     return data.adultContent;
@@ -513,16 +515,16 @@ function buildWorkUpdateData(data: UpdateWorkData) {
     return updateData;
 }
 
-function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['authors']) {
+function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['authors'], client: Prisma.TransactionClient) {
     if (!authors) return [];
     const orderedAuthors = normalizeOrderedAuthors(authors);
     return [
-        prisma.workAuthorRole.deleteMany({ where: { workId } }),
-        prisma.workAuthor.deleteMany({ where: { workId } }),
-        prisma.workAuthor.createMany({
+        client.workAuthorRole.deleteMany({ where: { workId } }),
+        client.workAuthor.deleteMany({ where: { workId } }),
+        client.workAuthor.createMany({
             data: orderedAuthors.map(({ authorId, position }) => ({ workId, authorId, position }))
         }),
-        prisma.workAuthorRole.createMany({
+        client.workAuthorRole.createMany({
             data: orderedAuthors.flatMap((author) => author.roles.map((role) => ({
                 workId,
                 authorId: author.authorId,
@@ -532,30 +534,31 @@ function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['auth
     ];
 }
 
-function getGenreUpdateOperations(workId: number, genreIds: UpdateWorkData['genreIds']) {
+function getGenreUpdateOperations(workId: number, genreIds: UpdateWorkData['genreIds'], client: Prisma.TransactionClient) {
     if (!genreIds) return [];
     return [
-        prisma.workGenre.deleteMany({ where: { workId } }),
-        prisma.workGenre.createMany({ data: genreIds.map((genreId) => ({ workId, genreId })) })
+        client.workGenre.deleteMany({ where: { workId } }),
+        client.workGenre.createMany({ data: genreIds.map((genreId) => ({ workId, genreId })) })
     ];
 }
 
-function getDemographyUpdateOperations(workId: number, demographies: UpdateWorkData['demographies']) {
+function getDemographyUpdateOperations(workId: number, demographies: UpdateWorkData['demographies'], client: Prisma.TransactionClient) {
     if (!demographies) return [];
     return [
-        prisma.workDemography.deleteMany({ where: { workId } }),
-        prisma.workDemography.createMany({ data: demographies.map((demography) => ({ workId, demography })) })
+        client.workDemography.deleteMany({ where: { workId } }),
+        client.workDemography.createMany({ data: demographies.map((demography) => ({ workId, demography })) })
     ];
 }
 
 function getMagazineUpdateOperations(
     workId: number,
-    magazines: ReturnType<typeof prepareUpdateWorkRelations>['orderedMagazines']
+    magazines: ReturnType<typeof prepareUpdateWorkRelations>['orderedMagazines'],
+    client: Prisma.TransactionClient
 ) {
     if (magazines === undefined) return [];
     return [
-        prisma.workSerializationMagazine.deleteMany({ where: { workId } }),
-        prisma.workSerializationMagazine.createMany({
+        client.workSerializationMagazine.deleteMany({ where: { workId } }),
+        client.workSerializationMagazine.createMany({
             data: magazines.map(({ id, position }) => ({ workId, magazineId: id, position }))
         })
     ];
@@ -563,12 +566,13 @@ function getMagazineUpdateOperations(
 
 function getPublisherUpdateOperations(
     workId: number,
-    publishers: ReturnType<typeof prepareUpdateWorkRelations>['orderedOriginalPublishers']
+    publishers: ReturnType<typeof prepareUpdateWorkRelations>['orderedOriginalPublishers'],
+    client: Prisma.TransactionClient
 ) {
     if (publishers === undefined) return [];
     return [
-        prisma.workOriginalPublisher.deleteMany({ where: { workId } }),
-        prisma.workOriginalPublisher.createMany({
+        client.workOriginalPublisher.deleteMany({ where: { workId } }),
+        client.workOriginalPublisher.createMany({
             data: publishers.map(({ id, position }) => ({ workId, publisherId: id, position }))
         })
     ];
@@ -578,17 +582,18 @@ function buildWorkUpdateOperations(
     workId: number,
     data: UpdateWorkData,
     relations: ReturnType<typeof prepareUpdateWorkRelations>,
-    currentCoverAssetId: string | null
+    currentCoverAssetId: string | null,
+    client: Prisma.TransactionClient
 ) {
     return [
-        prisma.work.update({ where: { id: workId }, data: buildWorkUpdateData(data) }),
-        ...getAuthorUpdateOperations(workId, data.authors),
-        ...getGenreUpdateOperations(workId, data.genreIds),
-        ...getDemographyUpdateOperations(workId, relations.demographies),
-        ...getMagazineUpdateOperations(workId, relations.orderedMagazines),
-        ...getPublisherUpdateOperations(workId, relations.orderedOriginalPublishers),
+        client.work.update({ where: { id: workId }, data: buildWorkUpdateData(data) }),
+        ...getAuthorUpdateOperations(workId, data.authors, client),
+        ...getGenreUpdateOperations(workId, data.genreIds, client),
+        ...getDemographyUpdateOperations(workId, relations.demographies, client),
+        ...getMagazineUpdateOperations(workId, relations.orderedMagazines, client),
+        ...getPublisherUpdateOperations(workId, relations.orderedOriginalPublishers, client),
         ...(data.coverAssetId && data.coverAssetId !== currentCoverAssetId
-            ? [activateCoverAsset(prisma, data.coverAssetId)]
+            ? [activateCoverAsset(client, data.coverAssetId)]
             : [])
     ];
 }
@@ -609,13 +614,17 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
         if (!existingWork) return res.status(404).json({ error: 'Obra não encontrada.' });
         const dependencyError = await getUpdateWorkDependencyError(workId, data, relations, existingWork);
         if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
-        const adultContent = await normalizeAdultContentOnUpdate(workId, data);
-        await prisma.$transaction(buildWorkUpdateOperations(
-            workId,
-            { ...data, ...(adultContent === undefined ? {} : { adultContent }) },
-            relations,
-            existingWork.coverAssetId
-        ));
+        await withCatalogWriteLock(async tx => {
+            const adultContent = await normalizeAdultContentOnUpdate(workId, data, tx);
+            const operations = buildWorkUpdateOperations(
+                workId,
+                { ...data, ...(adultContent === undefined ? {} : { adultContent }) },
+                relations,
+                existingWork.coverAssetId,
+                tx
+            );
+            for (const operation of operations) await operation;
+        });
         if (data.coverAssetId !== undefined && existingWork.coverAssetId !== data.coverAssetId) {
             await deleteOrphanedCoverAsset(existingWork.coverAssetId);
         }
