@@ -72,6 +72,8 @@ function volumeFixture() {
     };
 }
 
+const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+
 describe('detalhes públicos da Edição', () => {
     const previousMediaUrl = process.env.MEDIA_PUBLIC_BASE_URL;
 
@@ -103,7 +105,7 @@ describe('detalhes públicos da Edição', () => {
         const hierarchy = {
             id: 10,
             visibility: 'Público',
-            work: { visibility: 'Público', adultContent: false }
+            work: { visibility: 'Público', adultContent: false, ...HENTAI_RESTRICTION }
         };
         expect(mockEditionFindFirst).toHaveBeenCalledWith({
             where: hierarchy,

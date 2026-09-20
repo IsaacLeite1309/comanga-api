@@ -216,7 +216,14 @@ async function createVolume(editionId, number, visibility = PRIVATE_VISIBILITY, 
     return result.rows[0];
 }
 
-async function createSessionCookie({ status = 'Ativada', adultContent = false, suffix }) {
+async function createSessionCookie({
+    status = 'Ativada',
+    adultContent = false,
+    role = 'Usu\u00e1rio Padr\u00e3o',
+    birthDate = '2000-01-01',
+    revoked = false,
+    suffix
+}) {
     const userResult = await db.query(
         `INSERT INTO users (
             username,
@@ -225,12 +232,14 @@ async function createSessionCookie({ status = 'Ativada', adultContent = false, s
             status,
             nivel_acesso,
             birth_date, conteudo_adulto
-         ) VALUES ($1, $2, 'not-used', $3, 'Usu\u00e1rio Padr\u00e3o', '2000-01-01', $4)
+         ) VALUES ($1, $2, 'not-used', $3, $4, $5, $6)
         RETURNING id`,
         [
             `${suffix}_${fixturePrefix}`.slice(0, 50),
             `${fixturePrefix}_${suffix}@${fixtureEmailDomain}`,
             status,
+            role,
+            birthDate,
             adultContent
         ]
     );
@@ -240,11 +249,24 @@ async function createSessionCookie({ status = 'Ativada', adultContent = false, s
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     await db.query(
-        'INSERT INTO sessions (user_id, session_token_hash) VALUES ($1, $2)',
-        [userId, tokenHash]
+        'INSERT INTO sessions (user_id, session_token_hash, revoked_at) VALUES ($1, $2, $3)',
+        [userId, tokenHash, revoked ? new Date() : null]
     );
 
     return `comanga_session=${token}`;
+}
+
+// Os valores oficiais nascem da migration: nunca devem ser criados nem removidos pelo teste.
+async function findOfficialOption(categorySlug, code) {
+    const result = await db.query(
+        `SELECT value.id, value.label
+         FROM domain_option_values value
+         JOIN domain_option_categories category ON category.id = value.category_id
+         WHERE category.slug = $1 AND value.code = $2`,
+        [categorySlug, code]
+    );
+
+    return result.rows[0];
 }
 
 async function deleteFixtures() {
@@ -329,6 +351,21 @@ describe('catálogo público', () => {
             genreIds: [fixture.options.genreOne.id],
             demographics: ['Shonen']
         });
+        fixture.options.authorHentai = await createOption('autores', 'author-hentai');
+        fixture.options.hentaiGenre = await findOfficialOption('generos', 'hentai');
+        fixture.works.hentai = await createWork({
+            suffix: 'hentai',
+            adultContent: true,
+            authorIds: [fixture.options.authorHentai.id],
+            genreIds: [fixture.options.hentaiGenre.id]
+        });
+        // Inconsist\u00eancia legada gravada direto no banco: Hentai com adult_content = false.
+        fixture.works.legacyHentai = await createWork({
+            suffix: 'legacy-hentai',
+            adultContent: false,
+            authorIds: [fixture.options.authorHentai.id],
+            genreIds: [fixture.options.hentaiGenre.id]
+        });
 
         fixture.editions.complete = await createEdition({
             workId: fixture.works.complete.id,
@@ -356,6 +393,14 @@ describe('catálogo público', () => {
             workId: fixture.works.private.id,
             chronologicalNumber: 1
         });
+        fixture.editions.hentai = await createEdition({
+            workId: fixture.works.hentai.id,
+            chronologicalNumber: 1
+        });
+        fixture.editions.legacyHentai = await createEdition({
+            workId: fixture.works.legacyHentai.id,
+            chronologicalNumber: 1
+        });
 
         fixture.volumes.complete = await createVolume(
             fixture.editions.complete.id,
@@ -379,6 +424,16 @@ describe('catálogo público', () => {
         );
         fixture.volumes.adult = await createVolume(
             fixture.editions.adult.id,
+            1,
+            PUBLIC_VISIBILITY
+        );
+        fixture.volumes.hentai = await createVolume(
+            fixture.editions.hentai.id,
+            1,
+            PUBLIC_VISIBILITY
+        );
+        fixture.volumes.legacyHentai = await createVolume(
+            fixture.editions.legacyHentai.id,
             1,
             PUBLIC_VISIBILITY
         );
@@ -473,6 +528,15 @@ describe('catálogo público', () => {
         expect(byOriginalTitle.body.works.map((work) => work.id)).toEqual([fixture.works.complete.id]);
         expect(byAuthor.status).toBe(200);
         expect(byAuthor.body.works.map((work) => work.id)).toEqual([fixture.works.partial.id]);
+    });
+
+    it('busca pelo t\u00edtulo romanizado, sem depender do t\u00edtulo em portugu\u00eas', async () => {
+        const byRomanizedTitle = await request(app)
+            .get('/api/public/works')
+            .query({ term: `${fixturePrefix}_romanized-alpha` });
+
+        expect(byRomanizedTitle.status).toBe(200);
+        expect(byRomanizedTitle.body.works.map((work) => work.id)).toEqual([fixture.works.complete.id]);
     });
 
     it('combina grupos com E e exige todos os G\u00eaneros e Demografias selecionados', async () => {
@@ -613,6 +677,45 @@ describe('catálogo público', () => {
         ]);
         expect(response.body.work).not.toHaveProperty('visibility');
         expect(response.body.work).not.toHaveProperty('adultContent');
+    });
+
+    it('usa a sinopse pr\u00f3pria da Obra e nunca a do Volume 1 da primeira Edi\u00e7\u00e3o', async () => {
+        const response = await request(app)
+            .get(`/api/public/works/${fixture.works.complete.slug}`);
+        const volumeResponse = await request(app)
+            .get(`/api/public/volumes/${fixture.volumes.complete.id}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.work.synopsis).toBe(`${fixturePrefix} sinopse pr\u00f3pria da Obra.`);
+        expect(volumeResponse.body.volume.synopsis).toBe('Uma sinopse p\u00fablica.');
+        expect(response.body.work.editions[0].volumes[0]).not.toHaveProperty('synopsis');
+    });
+
+    it('preserva a ordem editorial dos Autores ao reordenar as posi\u00e7\u00f5es', async () => {
+        await db.query(
+            `UPDATE work_authors SET position = CASE author_id WHEN $2 THEN 0 ELSE 1 END
+             WHERE work_id = $1`,
+            [fixture.works.complete.id, fixture.options.authorOne.id]
+        );
+        const reordered = await request(app)
+            .get(`/api/public/works/${fixture.works.complete.slug}`);
+
+        await db.query(
+            `UPDATE work_authors SET position = CASE author_id WHEN $2 THEN 0 ELSE 1 END
+             WHERE work_id = $1`,
+            [fixture.works.complete.id, fixture.options.authorZulu.id]
+        );
+        const restored = await request(app)
+            .get(`/api/public/works/${fixture.works.complete.slug}`);
+
+        expect(reordered.body.work.authors.map((author) => author.id)).toEqual([
+            fixture.options.authorOne.id,
+            fixture.options.authorZulu.id
+        ]);
+        expect(restored.body.work.authors.map((author) => author.id)).toEqual([
+            fixture.options.authorZulu.id,
+            fixture.options.authorOne.id
+        ]);
     });
 
     it('responde da mesma forma para Obra privada, adulta indisponível e slug inexistente', async () => {
@@ -972,7 +1075,11 @@ describe('catálogo público', () => {
         const response = await request(app).get('/api/public/catalog-options');
 
         expect(response.status).toBe(200);
-        expect(response.body.options.workTypes).toEqual(expect.arrayContaining([fixture.options.typeOne]));
+        expect(response.headers.vary).toContain('Cookie');
+        expect(response.headers['cache-control']).toBe('private, no-store');
+        expect(response.body.options.workTypes).toEqual(expect.arrayContaining([
+            expect.objectContaining({ ...fixture.options.typeOne, countryIds: [], countries: [] })
+        ]));
         expect(response.body.options.genres).toEqual(expect.arrayContaining([fixture.options.genreOne]));
         expect(response.body.options.genres).not.toEqual(expect.arrayContaining([fixture.options.inactiveGenre]));
         expect(response.body.options.originalPublishers).toEqual(expect.arrayContaining([fixture.options.originalPublisherOne]));
@@ -987,6 +1094,174 @@ describe('catálogo público', () => {
         expect(response.body.options.countries).toEqual(['Jap\u00e3o', 'Coreia do Sul', 'China', 'Taiwan']);
         expect(response.body.options.demographics).toEqual(['Shonen', 'Seinen', 'Shoujo', 'Josei', 'Kodomo']);
         expect(response.body.options).not.toHaveProperty('authors');
+    });
+
+    it('expoe a rela\u00e7\u00e3o tipo\u2192pa\u00eds e a ordem oficial dos g\u00eaneros', async () => {
+        const response = await request(app).get('/api/public/catalog-options');
+        const officialGenres = response.body.options.genres.filter((genre) => genre.label !== undefined
+            && !genre.label.startsWith(fixturePrefix));
+        const manhua = response.body.options.workTypes.find((type) => type.label === 'Manhua');
+
+        expect(response.status).toBe(200);
+        expect(manhua.countries).toEqual(['China', 'Taiwan']);
+        expect(manhua.countryIds).toHaveLength(2);
+        expect(officialGenres.slice(0, 3).map((genre) => genre.label)).toEqual([
+            'Aventura', 'A\u00e7\u00e3o', 'Boys\u2019 Love'
+        ]);
+    });
+    });
+
+    describe('restri\u00e7\u00e3o de Hentai em todo caminho de leitura', () => {
+    const viewers = {};
+
+    async function readEveryPath(cookie) {
+        const withSession = (chain) => (cookie ? chain.set('Cookie', cookie) : chain);
+        const [list, search, details, legacyDetails, authorWorks, editions, editionDetails, volumeDetails, options] =
+            await Promise.all([
+                withSession(request(app).get('/api/public/works').query({ term: fixturePrefix, limit: 50 })),
+                withSession(request(app).get('/api/public/works').query({ term: `${fixturePrefix}_hentai` })),
+                withSession(request(app).get(`/api/public/works/${fixture.works.hentai.slug}`)),
+                withSession(request(app).get(`/api/public/works/${fixture.works.legacyHentai.slug}`)),
+                withSession(request(app)
+                    .get(`/api/public/authors/${fixture.options.authorHentai.id}/works`)
+                    .query({ limit: 50 })),
+                withSession(request(app).get('/api/public/editions').query({ term: fixturePrefix, limit: 50 })),
+                withSession(request(app).get(`/api/public/editions/${fixture.editions.hentai.id}`)),
+                withSession(request(app).get(`/api/public/volumes/${fixture.volumes.hentai.id}`)),
+                withSession(request(app).get('/api/public/catalog-options'))
+            ]);
+
+        return { list, search, details, legacyDetails, authorWorks, editions, editionDetails, volumeDetails, options };
+    }
+
+    beforeAll(async () => {
+        const minorBirthDate = new Date();
+        minorBirthDate.setFullYear(minorBirthDate.getFullYear() - 17);
+        const exactlyAdultBirthDate = new Date();
+        exactlyAdultBirthDate.setFullYear(exactlyAdultBirthDate.getFullYear() - 18);
+
+        viewers.minor = await createSessionCookie({
+            suffix: 'hentai-minor',
+            adultContent: true,
+            birthDate: minorBirthDate.toISOString().slice(0, 10)
+        });
+        viewers.withoutBirthDate = await createSessionCookie({
+            suffix: 'hentai-no-birth',
+            adultContent: true,
+            birthDate: null
+        });
+        viewers.preferenceOff = await createSessionCookie({
+            suffix: 'hentai-pref-off',
+            adultContent: false
+        });
+        viewers.revokedSession = await createSessionCookie({
+            suffix: 'hentai-revoked',
+            adultContent: true,
+            revoked: true
+        });
+        viewers.notActivated = await createSessionCookie({
+            suffix: 'hentai-pending',
+            adultContent: true,
+            status: 'Pendente'
+        });
+        viewers.adult = await createSessionCookie({
+            suffix: 'hentai-adult',
+            adultContent: true
+        });
+        viewers.exactlyEighteen = await createSessionCookie({
+            suffix: 'hentai-just-18',
+            adultContent: true,
+            birthDate: exactlyAdultBirthDate.toISOString().slice(0, 10)
+        });
+        // Administrador sem prefer\u00eancia +18 e sem data de nascimento (exce\u00e7\u00e3o da se\u00e7\u00e3o 14).
+        viewers.admin = await createSessionCookie({
+            suffix: 'hentai-admin',
+            adultContent: false,
+            birthDate: null,
+            role: 'Administrador'
+        });
+    });
+
+    it.each([
+        ['visitante sem sess\u00e3o', null],
+        ['menor de 18 anos', 'minor'],
+        ['conta sem data de nascimento', 'withoutBirthDate'],
+        ['prefer\u00eancia adulta desativada', 'preferenceOff'],
+        ['sess\u00e3o revogada', 'revokedSession'],
+        ['conta n\u00e3o ativada', 'notActivated']
+    ])('nao expoe Obra Hentai para %s', async (_description, viewerKey) => {
+        const cookie = viewerKey ? viewers[viewerKey] : null;
+        const paths = await readEveryPath(cookie);
+        const hiddenIds = [fixture.works.hentai.id, fixture.works.legacyHentai.id];
+
+        expect(paths.list.status).toBe(200);
+        expect(paths.list.body.works.map((work) => work.id)).toEqual(
+            expect.not.arrayContaining(hiddenIds)
+        );
+        expect(paths.list.body.pagination.total).toBe(paths.list.body.works.length);
+        expect(paths.search.body.works).toEqual([]);
+        expect(paths.search.body.pagination.total).toBe(0);
+        expect(paths.details.status).toBe(404);
+        expect(paths.details.body).toEqual({ error: 'Obra n\u00e3o encontrada.' });
+        expect(paths.legacyDetails.status).toBe(404);
+        expect(paths.authorWorks.body.works).toEqual([]);
+        expect(paths.authorWorks.body.pagination.total).toBe(0);
+        expect(paths.editions.body.editions.map((edition) => edition.id)).toEqual(
+            expect.not.arrayContaining([fixture.editions.hentai.id, fixture.editions.legacyHentai.id])
+        );
+        expect(paths.editionDetails.status).toBe(404);
+        expect(paths.volumeDetails.status).toBe(404);
+        expect(paths.options.body.options.genres.some(
+            (genre) => genre.id === fixture.options.hentaiGenre.id
+        )).toBe(false);
+    });
+
+    it.each([
+        ['adulto com prefer\u00eancia ativada', 'adult'],
+        ['pessoa que completou 18 anos hoje', 'exactlyEighteen'],
+        ['administrador sem prefer\u00eancia nem data de nascimento', 'admin']
+    ])('libera Obra Hentai para %s', async (_description, viewerKey) => {
+        const paths = await readEveryPath(viewers[viewerKey]);
+
+        expect(paths.list.body.works.map((work) => work.id)).toEqual(
+            expect.arrayContaining([fixture.works.hentai.id, fixture.works.legacyHentai.id])
+        );
+        expect(paths.search.body.works.map((work) => work.id)).toEqual([fixture.works.hentai.id]);
+        expect(paths.details.status).toBe(200);
+        expect(paths.details.body.work.id).toBe(fixture.works.hentai.id);
+        expect(paths.details.body.work.genres.map((genre) => genre.label)).toContain('Hentai');
+        expect(paths.authorWorks.body.works.map((work) => work.id)).toEqual(
+            expect.arrayContaining([fixture.works.hentai.id, fixture.works.legacyHentai.id])
+        );
+        expect(paths.authorWorks.body.pagination.total).toBe(2);
+        expect(paths.editions.body.editions.map((edition) => edition.id)).toEqual(
+            expect.arrayContaining([fixture.editions.hentai.id])
+        );
+        expect(paths.editionDetails.status).toBe(200);
+        expect(paths.volumeDetails.status).toBe(200);
+        expect(paths.options.body.options.genres.some(
+            (genre) => genre.id === fixture.options.hentaiGenre.id
+        )).toBe(true);
+    });
+
+    it('nao reaproveita as opcoes restritas entre sessoes diferentes', async () => {
+        const allowed = await request(app)
+            .get('/api/public/catalog-options')
+            .set('Cookie', viewers.adult);
+        const visitor = await request(app).get('/api/public/catalog-options');
+        const allowedAgain = await request(app)
+            .get('/api/public/catalog-options')
+            .set('Cookie', viewers.admin);
+
+        const hasHentai = (response) => response.body.options.genres.some(
+            (genre) => genre.id === fixture.options.hentaiGenre.id
+        );
+
+        expect(hasHentai(allowed)).toBe(true);
+        expect(hasHentai(visitor)).toBe(false);
+        expect(hasHentai(allowedAgain)).toBe(true);
+        expect(visitor.headers['cache-control']).toBe('private, no-store');
+        expect(visitor.headers.vary).toContain('Cookie');
     });
     });
 });

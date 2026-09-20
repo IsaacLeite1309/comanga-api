@@ -230,3 +230,11 @@ A migration `20260920121000_work_metadata_and_author_positions` adiciona `romani
 A migration `20260920122000_derive_edition_cover_from_first_volume` remove `editions.cover_asset_id`. A entrada de Edição não aceita mais coverAssetId; a saída preserva coverAssetId/coverUrl derivados exclusivamente do Volume de número 1 da mesma Edição, ou null. Publicar exige Volume 1 com capa e propaga a visibilidade aos Volumes; renumerar sua origem numa Edição pública é recusado sob bloqueio transacional.
 
 Aplicar com inventário e backup, coordenando API, Web e schema. Ativos órfãos entram em Descartando; não executar limpeza antes da decisão de rollback. O SQL documenta a restauração operacional. `npm run check:covers` inspeciona a consistência sem remover objetos.
+
+## Classificações controladas e leitura adulta
+
+A migration `20260920123000_controlled_domain_options` semeia tipos de Obra e gêneros com code, systemManaged e position, preservando IDs e vínculos. Tipos/gêneros só podem ser ativados/desativados; legados existentes permanecem vinculados, mas novas associações são recusadas. Tipo de Obra deve ser compatível com o país.
+
+`PATCH /api/admin/options/:category/order` ordena apenas tipos-edicao com valueIds, normalizando 0..n-1; inativos ocupam posição. As listas devolvem metadados de controle e atividade.
+
+Hentai força a marca adulta na escrita. Leituras públicas e opções respeitam idade/preferência e associação ao gênero mesmo em dados legados inconsistentes. Administrador com atribuição vigente e conta ativada tem exceção de leitura, independentemente de idade, preferência e perfil ativo; escrita administrativa continua exigindo perfil Administrador ativo. catalog-options usa sessão opcional, Vary: Cookie e Cache-Control: private, no-store e devolve countryIds/countries por tipo.

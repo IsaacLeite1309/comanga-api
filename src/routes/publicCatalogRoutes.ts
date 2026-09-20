@@ -12,7 +12,7 @@ import {
 
 const router = express.Router();
 
-router.get('/catalog-options', getPublicCatalogOptions);
+router.get('/catalog-options', auth.optionalSessionMiddleware, getPublicCatalogOptions);
 router.get('/works', auth.optionalSessionMiddleware, listPublicWorks);
 router.get('/works/:slug', auth.optionalSessionMiddleware, getPublicWorkDetails);
 router.get('/authors/:authorId/works', auth.optionalSessionMiddleware, listPublicAuthorWorks);

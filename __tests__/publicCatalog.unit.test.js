@@ -13,6 +13,8 @@ const {
     mapPublicWork
 } = require('../src/modules/public-catalog/mappers');
 
+const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+
 describe('contratos unitários do catálogo público', () => {
     it('normaliza filtros combináveis repetidos e separados por vírgula', () => {
         const result = publicWorksQuerySchema.parse({
@@ -74,6 +76,7 @@ describe('contratos unitários do catálogo público', () => {
         expect(where).toEqual(expect.objectContaining({
             visibility: 'Público',
             adultContent: false,
+            ...HENTAI_RESTRICTION,
             typeId: 3,
             country: 'Japão',
             originalPublishers: { some: { publisherId: 31 } },
@@ -96,7 +99,8 @@ describe('contratos unitários do catálogo público', () => {
 
         expect(buildPublicWorkWhere(query, false)).toEqual({
             visibility: 'Público',
-            adultContent: false
+            adultContent: false,
+            ...HENTAI_RESTRICTION
         });
         expect(buildPublicWorkWhere(query, true)).toEqual({
             visibility: 'Público'
@@ -132,6 +136,7 @@ describe('contratos unitários do catálogo público', () => {
             work: expect.objectContaining({
                 visibility: 'Público',
                 adultContent: false,
+                ...HENTAI_RESTRICTION,
                 OR: expect.any(Array)
             })
         }));

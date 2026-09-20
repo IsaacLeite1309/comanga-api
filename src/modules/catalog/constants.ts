@@ -50,6 +50,12 @@ const COUNTRY_DEPENDENT_CATEGORY_SLUGS = new Set([
     'revistas-serializacao',
     'editoras-originais'
 ]);
+// Tipos de Obra oficiais têm dependência de país completa: sem dependência com o
+// país informado a combinação é recusada. Autores, editoras e revistas seguem
+// aceitando valores sem dependência declarada.
+const COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS = new Set([
+    'tipos-obra'
+]);
 export {
     AUTHOR_DUPLICATED_MESSAGE,
     WORK_DUPLICATED_MESSAGE,
@@ -79,5 +85,6 @@ export {
     PUBLIC_VOLUME_DELETE_MESSAGE,
     VOLUME_PRICE_CURRENCY_VALUES,
     VOLUME_RELEASE_PRECISION_VALUES,
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS
+    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
+    COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS
 };

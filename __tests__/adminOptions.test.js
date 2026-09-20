@@ -1,5 +1,6 @@
 const request = require('supertest');
 const bcrypt = require('bcrypt');
+const { createTestCover } = require('./helpers/cover');
 
 const db = require('../src/database');
 const app = require('../src/app');
@@ -52,6 +53,8 @@ async function loginUser(user) {
 }
 
 async function deleteTestData() {
+    await db.query('DELETE FROM works WHERE title LIKE $1', [`Sprint4 ${runId}%`]);
+    await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`sprint4-${runId}/%`]);
     await db.query(
         'DELETE FROM domain_option_values WHERE label LIKE $1',
         [`Sprint4 ${runId}%`]
@@ -62,7 +65,7 @@ async function deleteTestData() {
     );
 }
 
-async function getCategoryId(slug = 'generos') {
+async function getCategoryId(slug = 'tipos-capa') {
     const result = await db.query(
         'SELECT id FROM domain_option_categories WHERE slug = $1',
         [slug]
@@ -71,7 +74,7 @@ async function getCategoryId(slug = 'generos') {
     return result.rows[0].id;
 }
 
-async function insertOption(label, categorySlug = 'generos') {
+async function insertOption(label, categorySlug = 'tipos-capa') {
     const categoryId = await getCategoryId(categorySlug);
 
     return db.query(
@@ -97,17 +100,17 @@ describe('Rotas administrativas de opcoes', () => {
         await request(app)
             .post('/api/admin/options')
             .set('Cookie', sessionCookie)
-            .send({ category: 'generos', label: `Sprint4 ${runId} Zeta` })
+            .send({ category: 'tipos-capa', label: `Sprint4 ${runId} Zeta` })
             .expect(201);
 
         await request(app)
             .post('/api/admin/options')
             .set('Cookie', sessionCookie)
-            .send({ category: 'generos', label: `Sprint4 ${runId} Alpha` })
+            .send({ category: 'tipos-capa', label: `Sprint4 ${runId} Alpha` })
             .expect(201);
 
         const response = await request(app)
-            .get('/api/admin/options/generos')
+            .get('/api/admin/options/tipos-capa')
             .query({ term: `Sprint4 ${runId}`, order: 'ASC', page: 1, limit: 10 })
             .set('Cookie', sessionCookie);
 
@@ -161,7 +164,7 @@ describe('Rotas administrativas de opcoes', () => {
         const response = await request(app)
             .post('/api/admin/options')
             .set('Cookie', sessionCookie)
-            .send({ category: 'generos', label: `Sprint4 ${runId} Duplicado` });
+            .send({ category: 'tipos-capa', label: `Sprint4 ${runId} Duplicado` });
 
         expect(response.status).toBe(409);
         expect(response.body).toEqual({
@@ -203,6 +206,312 @@ describe('Rotas administrativas de opcoes', () => {
         const response = await request(app)
             .get('/api/admin/options/generos')
             .set('Cookie', sessionCookie);
+
+        expect(response.status).toBe(403);
+    });
+});
+
+async function findOptionByCode(categorySlug, code) {
+    const result = await db.query(
+        `SELECT value.id, value.label, value.code, value.position, value.active, value.system_managed
+         FROM domain_option_values value
+         JOIN domain_option_categories category ON category.id = value.category_id
+         WHERE category.slug = $1 AND value.code = $2`,
+        [categorySlug, code]
+    );
+
+    return result.rows[0];
+}
+
+async function createEditionTypeOptions(sessionCookie, suffixes) {
+    const created = [];
+
+    for (const suffix of suffixes) {
+        const response = await request(app)
+            .post('/api/admin/options')
+            .set('Cookie', sessionCookie)
+            .send({ category: 'tipos-edicao', label: `Sprint4 ${runId} ${suffix}` })
+            .expect(201);
+
+        created.push(response.body.value);
+    }
+
+    return created;
+}
+
+async function listOptionPositions(categorySlug) {
+    const result = await db.query(
+        `SELECT value.id, value.label, value.position
+         FROM domain_option_values value
+         JOIN domain_option_categories category ON category.id = value.category_id
+         WHERE category.slug = $1
+         ORDER BY value.position ASC, value.label ASC`,
+        [categorySlug]
+    );
+
+    return result.rows;
+}
+
+describe('valores de dom\u00ednio controlados pelo sistema', () => {
+    beforeEach(deleteTestData);
+    afterEach(deleteTestData);
+
+    it('expoe identidade estavel, controle do sistema e a ordem oficial dos generos', async () => {
+        const admin = makeUser({ suffix: 'controlled-list' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+
+        const response = await request(app)
+            .get('/api/admin/options/generos')
+            .query({ order: 'ASC', page: 1, limit: 100 })
+            .set('Cookie', sessionCookie);
+
+        expect(response.status).toBe(200);
+        const officialGenres = response.body.values.filter((value) => value.systemManaged);
+        expect(officialGenres).toHaveLength(21);
+        expect(officialGenres.slice(0, 4).map((value) => value.label)).toEqual([
+            'Aventura', 'A\u00e7\u00e3o', 'Boys\u2019 Love', 'Com\u00e9dia'
+        ]);
+        expect(officialGenres.map((value) => value.position)).toEqual(
+            officialGenres.map((_value, index) => index)
+        );
+        expect(officialGenres.find((value) => value.code === 'hentai')).toEqual(
+            expect.objectContaining({ label: 'Hentai', systemManaged: true, active: true })
+        );
+    });
+
+    it('entrega os tipos de Obra oficiais com as dependencias de pais completas', async () => {
+        const admin = makeUser({ suffix: 'controlled-types' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+
+        const response = await request(app)
+            .get('/api/admin/options/tipos-obra')
+            .query({ order: 'ASC', page: 1, limit: 100 })
+            .set('Cookie', sessionCookie);
+
+        expect(response.status).toBe(200);
+        const byCode = Object.fromEntries(response.body.values.map((value) => [value.code, value]));
+        expect(Object.keys(byCode).sort()).toEqual([
+            'artbook', 'databook', 'light-novel', 'manga', 'manhua', 'manhwa', 'novel'
+        ]);
+        expect(byCode.manga.depends_on.map((country) => country.label)).toEqual(['Jap\u00e3o']);
+        expect(byCode.manhua.depends_on.map((country) => country.label)).toEqual(['China', 'Taiwan']);
+        expect(byCode.manhwa.depends_on.map((country) => country.label)).toEqual(['Coreia do Sul']);
+        expect(byCode.novel.depends_on.map((country) => country.label)).toEqual([
+            'China', 'Coreia do Sul', 'Jap\u00e3o', 'Taiwan'
+        ]);
+        expect(response.body.values.every((value) => value.systemManaged)).toBe(true);
+    });
+
+    it.each(['generos', 'tipos-obra'])('recusa criar valor na categoria controlada %s', async (categorySlug) => {
+        const admin = makeUser({ suffix: `no-create-${categorySlug}` });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+
+        const response = await request(app)
+            .post('/api/admin/options')
+            .set('Cookie', sessionCookie)
+            .send({ category: categorySlug, label: `Sprint4 ${runId} Novo` });
+
+        expect(response.status).toBe(403);
+        expect(response.body.error).toBe(
+            'Os valores dessa lista s\u00e3o controlados pelo sistema e n\u00e3o podem ser criados.'
+        );
+        const created = await db.query(
+            'SELECT id FROM domain_option_values WHERE label = $1',
+            [`Sprint4 ${runId} Novo`]
+        );
+        expect(created.rows).toHaveLength(0);
+    });
+
+    it('recusa renomear, trocar dependencias e excluir valor controlado', async () => {
+        const admin = makeUser({ suffix: 'no-rename' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+        const hentai = await findOptionByCode('generos', 'hentai');
+        const manga = await findOptionByCode('tipos-obra', 'manga');
+        const country = await db.query(
+            `SELECT value.id FROM domain_option_values value
+             JOIN domain_option_categories category ON category.id = value.category_id
+             WHERE category.slug = 'paises-origem' AND value.label = 'China'`
+        );
+
+        const renameResponse = await request(app)
+            .patch(`/api/admin/options/${hentai.id}`)
+            .set('Cookie', sessionCookie)
+            .send({ label: `Sprint4 ${runId} Renomeado` });
+        const dependencyResponse = await request(app)
+            .patch(`/api/admin/options/${manga.id}`)
+            .set('Cookie', sessionCookie)
+            .send({ dependsOnValueIds: [country.rows[0].id] });
+        const deleteResponse = await request(app)
+            .delete(`/api/admin/options/${hentai.id}`)
+            .set('Cookie', sessionCookie);
+
+        expect(renameResponse.status).toBe(403);
+        expect(dependencyResponse.status).toBe(403);
+        expect(deleteResponse.status).toBe(403);
+        expect(deleteResponse.body.error).toBe(
+            'Esse valor \u00e9 controlado pelo sistema e n\u00e3o pode ser exclu\u00eddo.'
+        );
+        const stillThere = await findOptionByCode('generos', 'hentai');
+        expect(stillThere).toEqual(expect.objectContaining({ label: 'Hentai', active: true }));
+        const mangaDependencies = await db.query(
+            `SELECT country.label FROM domain_option_value_dependencies dependency
+             JOIN domain_option_values country ON country.id = dependency.depends_on_value_id
+             WHERE dependency.dependent_value_id = $1 ORDER BY country.label`,
+            [manga.id]
+        );
+        expect(mangaDependencies.rows.map((row) => row.label)).toEqual(['Jap\u00e3o']);
+    });
+
+    it('permite desativar e reativar valor controlado sem remover associacoes', async () => {
+        const admin = makeUser({ suffix: 'toggle-active' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+        const hentai = await findOptionByCode('generos', 'hentai');
+        const manga = await findOptionByCode('tipos-obra', 'manga');
+        const coverAssetId = await createTestCover(db, `sprint4-${runId}`);
+        const work = await db.query(
+            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id, country,
+                original_publication_status, visibility, adult_content, atualizado_em)
+             VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Jap\u00e3o', 'Completa', 'Privado', TRUE, NOW())
+             RETURNING id`,
+            [coverAssetId, `sprint4-${runId}-controlada`, `Sprint4 ${runId} Controlada`, manga.id]
+        );
+        await db.query(
+            'INSERT INTO work_genres (work_id, genre_id) VALUES ($1, $2)',
+            [work.rows[0].id, hentai.id]
+        );
+
+        const deactivate = await request(app)
+            .patch(`/api/admin/options/${hentai.id}`)
+            .set('Cookie', sessionCookie)
+            .send({ active: false });
+
+        expect(deactivate.status).toBe(200);
+        expect(deactivate.body.value).toEqual(expect.objectContaining({
+            code: 'hentai', active: false, systemManaged: true
+        }));
+        const association = await db.query(
+            'SELECT genre_id FROM work_genres WHERE work_id = $1',
+            [work.rows[0].id]
+        );
+        expect(association.rows).toHaveLength(1);
+
+        const hiddenList = await request(app)
+            .get('/api/admin/options/generos')
+            .query({ order: 'ASC', page: 1, limit: 100 })
+            .set('Cookie', sessionCookie);
+        expect(hiddenList.body.values.some((value) => value.code === 'hentai')).toBe(false);
+
+        const fullList = await request(app)
+            .get('/api/admin/options/generos')
+            .query({ order: 'ASC', page: 1, limit: 100, includeInactive: 'true' })
+            .set('Cookie', sessionCookie);
+        expect(fullList.body.values.some((value) => value.code === 'hentai')).toBe(true);
+
+        const reactivate = await request(app)
+            .patch(`/api/admin/options/${hentai.id}`)
+            .set('Cookie', sessionCookie)
+            .send({ active: true });
+        expect(reactivate.status).toBe(200);
+        expect(reactivate.body.value.active).toBe(true);
+    });
+});
+
+describe('ordena\u00e7\u00e3o manual dos tipos de Edi\u00e7\u00e3o', () => {
+    beforeEach(deleteTestData);
+    afterEach(deleteTestData);
+
+    it('normaliza posicoes 0..n-1 pela ordem recebida, com buracos e duplicatas', async () => {
+        const admin = makeUser({ suffix: 'reorder' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+        const [alpha, beta, gama] = await createEditionTypeOptions(sessionCookie, ['Alpha', 'Beta', 'Gama']);
+
+        const response = await request(app)
+            .patch('/api/admin/options/tipos-edicao/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [gama.id, alpha.id, gama.id] });
+
+        expect(response.status).toBe(200);
+        const positions = await listOptionPositions('tipos-edicao');
+        expect(positions.map((row) => row.position)).toEqual(positions.map((_row, index) => index));
+        const byId = Object.fromEntries(positions.map((row) => [row.id, row.position]));
+        expect(byId[gama.id]).toBe(0);
+        expect(byId[alpha.id]).toBe(1);
+        expect(byId[beta.id]).toBeGreaterThan(byId[alpha.id]);
+        expect(response.body.values.slice(0, 2).map((value) => value.id)).toEqual([gama.id, alpha.id]);
+    });
+
+    it('mantem a posicao ao desativar e reativar um tipo de Edicao', async () => {
+        const admin = makeUser({ suffix: 'reorder-inactive' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+        const [alpha, beta] = await createEditionTypeOptions(sessionCookie, ['Alpha', 'Beta']);
+        await request(app)
+            .patch('/api/admin/options/tipos-edicao/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [beta.id, alpha.id] })
+            .expect(200);
+
+        await request(app)
+            .patch(`/api/admin/options/${beta.id}`)
+            .set('Cookie', sessionCookie)
+            .send({ active: false })
+            .expect(200);
+
+        const positions = await listOptionPositions('tipos-edicao');
+        const byId = Object.fromEntries(positions.map((row) => [row.id, row.position]));
+        expect(byId[beta.id]).toBe(0);
+        expect(byId[alpha.id]).toBe(1);
+    });
+
+    it('recusa ids de outra categoria, inexistentes e categorias nao ordenaveis', async () => {
+        const admin = makeUser({ suffix: 'reorder-invalid' });
+        await insertUser(admin);
+        const sessionCookie = await loginUser(admin);
+        const [alpha] = await createEditionTypeOptions(sessionCookie, ['Alpha']);
+        const hentai = await findOptionByCode('generos', 'hentai');
+
+        const otherCategory = await request(app)
+            .patch('/api/admin/options/tipos-edicao/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [alpha.id, hentai.id] });
+        const missing = await request(app)
+            .patch('/api/admin/options/tipos-edicao/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [alpha.id, 999999999] });
+        const notReorderable = await request(app)
+            .patch('/api/admin/options/generos/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [hentai.id] });
+        const emptyPayload = await request(app)
+            .patch('/api/admin/options/tipos-edicao/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [] });
+
+        expect(otherCategory.status).toBe(400);
+        expect(otherCategory.body.error).toBe(
+            'Um ou mais valores informados n\u00e3o pertencem a essa lista.'
+        );
+        expect(missing.status).toBe(400);
+        expect(notReorderable.status).toBe(400);
+        expect(notReorderable.body.error).toBe('Essa lista n\u00e3o permite reordena\u00e7\u00e3o manual.');
+        expect(emptyPayload.status).toBe(400);
+    });
+
+    it('bloqueia reordenacao para usuario padrao', async () => {
+        const regularUser = makeUser({ suffix: 'reorder-regular', nivelAcesso: 'Usu\u00e1rio Padr\u00e3o' });
+        await insertUser(regularUser);
+        const sessionCookie = await loginUser(regularUser);
+
+        const response = await request(app)
+            .patch('/api/admin/options/tipos-edicao/order')
+            .set('Cookie', sessionCookie)
+            .send({ valueIds: [1] });
 
         expect(response.status).toBe(403);
     });

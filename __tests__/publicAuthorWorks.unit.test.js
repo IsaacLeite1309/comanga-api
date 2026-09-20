@@ -41,6 +41,8 @@ function workFixture() {
     };
 }
 
+const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+
 describe('Obras públicas por Autor', () => {
     beforeEach(() => jest.clearAllMocks());
 
@@ -63,6 +65,7 @@ describe('Obras públicas por Autor', () => {
         const where = {
             visibility: 'Público',
             adultContent: false,
+            ...HENTAI_RESTRICTION,
             authors: { some: { authorId: 5 } }
         };
         expect(mockWorkFindMany).toHaveBeenCalledWith({

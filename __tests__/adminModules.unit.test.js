@@ -414,8 +414,8 @@ describe('módulos administrativos', () => {
     describe('opcoes administrativas', () => {
         const category = {
             id: 1,
-            slug: 'generos',
-            name: 'Gêneros'
+            slug: 'tipos-capa',
+            name: 'Tipos de capa'
         };
 
         it('lista valores ativos de uma categoria em ordem alfabetica', async () => {
@@ -428,7 +428,7 @@ describe('módulos administrativos', () => {
                 }
             ], 1]);
             const req = makeReq({
-                params: { category: 'generos' },
+                params: { category: 'tipos-capa' },
                 query: {
                     term: 'a',
                     order: 'DESC',
@@ -449,7 +449,7 @@ describe('módulos administrativos', () => {
                         mode: 'insensitive'
                     })
                 }),
-                orderBy: { label: 'desc' },
+                orderBy: [{ label: 'desc' }, { id: 'asc' }],
                 skip: 5,
                 take: 5
             }));
@@ -462,16 +462,20 @@ describe('módulos administrativos', () => {
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
                 category: {
-                    slug: 'generos',
-                    name: 'Gêneros'
+                    slug: 'tipos-capa',
+                    name: 'Tipos de capa'
                 },
                 values: [
                     {
                         id: 10,
                         label: 'Ação',
+                        code: null,
+                        systemManaged: false,
+                        position: 0,
+                        active: true,
                         category: {
-                            slug: 'generos',
-                            name: 'Gêneros'
+                            slug: 'tipos-capa',
+                            name: 'Tipos de capa'
                         },
                         depends_on: []
                     }
@@ -584,7 +588,7 @@ describe('módulos administrativos', () => {
             }));
             const req = makeReq({
                 body: {
-                    category: 'generos',
+                    category: 'tipos-capa',
                     label: 'Comédia'
                 }
             });
@@ -604,15 +608,15 @@ describe('módulos administrativos', () => {
         it('bloqueia cadastro de valor dependente sem pais relacionado', async () => {
             prisma.domainOptionCategory.findUnique.mockResolvedValue({
                 id: 2,
-                slug: 'tipos-obra',
-                name: 'Tipo de obra'
+                slug: 'revistas-serializacao',
+                name: 'Revista de serialização'
             });
             prisma.domainOptionValue.findFirst.mockResolvedValue(null);
             prisma.domainOptionValue.findMany.mockResolvedValue([]);
             const req = makeReq({
                 body: {
-                    category: 'tipos-obra',
-                    label: 'Mangá'
+                    category: 'revistas-serializacao',
+                    label: 'Shonen Jump'
                 }
             });
             const res = makeRes();
@@ -629,8 +633,8 @@ describe('módulos administrativos', () => {
         it('cadastra valor dependente vinculando aos paises relacionados', async () => {
             const dependentCategory = {
                 id: 2,
-                slug: 'tipos-obra',
-                name: 'Tipo de obra'
+                slug: 'revistas-serializacao',
+                name: 'Revista de serialização'
             };
             const countryCategory = {
                 slug: 'paises-origem',
@@ -649,7 +653,7 @@ describe('módulos administrativos', () => {
                 }),
                 findUniqueOrThrow: jest.fn().mockResolvedValue({
                     id: 12,
-                    label: 'Novel',
+                    label: 'Novel Club',
                     category: dependentCategory,
                     dependencies: [
                         {
@@ -678,8 +682,8 @@ describe('módulos administrativos', () => {
             }));
             const req = makeReq({
                 body: {
-                    category: 'tipos-obra',
-                    label: 'Novel',
+                    category: 'revistas-serializacao',
+                    label: 'Novel Club',
                     dependsOnValueIds: [20, 21, 20]
                 }
             });
@@ -700,7 +704,7 @@ describe('módulos administrativos', () => {
             expect(txDomainOptionValue.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
                     categoryId: 2,
-                    label: 'Novel'
+                    label: 'Novel Club'
                 })
             }));
             expect(txDomainOptionValueDependency.createMany).toHaveBeenCalledWith({
@@ -713,10 +717,14 @@ describe('módulos administrativos', () => {
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 value: {
                     id: 12,
-                    label: 'Novel',
+                    label: 'Novel Club',
+                    code: null,
+                    systemManaged: false,
+                    position: 0,
+                    active: true,
                     category: {
-                        slug: 'tipos-obra',
-                        name: 'Tipo de obra'
+                        slug: 'revistas-serializacao',
+                        name: 'Revista de serialização'
                     },
                     depends_on: [
                         {
@@ -754,7 +762,7 @@ describe('módulos administrativos', () => {
             }));
             const req = makeReq({
                 body: {
-                    category: 'generos',
+                    category: 'tipos-capa',
                     label: 'Comédia, Drama, Aventura'
                 }
             });
@@ -841,7 +849,7 @@ describe('módulos administrativos', () => {
             prisma.domainOptionValue.findMany.mockResolvedValue([{ label: 'Drama' }]);
             const req = makeReq({
                 body: {
-                    category: 'generos',
+                    category: 'tipos-capa',
                     label: 'Comédia, Drama, Aventura'
                 }
             });
@@ -861,7 +869,7 @@ describe('módulos administrativos', () => {
             prisma.domainOptionValue.findMany.mockResolvedValue([{ label: 'Ação' }]);
             const req = makeReq({
                 body: {
-                    category: 'generos',
+                    category: 'tipos-capa',
                     label: 'Ação'
                 }
             });
@@ -881,7 +889,7 @@ describe('módulos administrativos', () => {
                 id: 10,
                 categoryId: 1,
                 category: {
-                    slug: 'generos'
+                    slug: 'tipos-capa'
                 }
             });
             prisma.domainOptionValue.findFirst.mockResolvedValue(null);
@@ -918,7 +926,7 @@ describe('módulos administrativos', () => {
         it('bloqueia exclusão quando o valor está em uso por FK', async () => {
             prisma.domainOptionValue.findUnique.mockResolvedValue({
                 id: 10,
-                category: { slug: 'generos' }
+                category: { slug: 'tipos-capa' }
             });
             prisma.domainOptionValue.delete.mockRejectedValue({ code: 'P2003' });
             const req = makeReq({ params: { id: '10' } });
@@ -2233,8 +2241,8 @@ describe('módulos administrativos', () => {
         it.each([
             ['getWorkFormOptions', {}, () => prisma.$transaction.mockRejectedValue(new Error('falha'))],
             ['getEditionFormOptions', {}, () => prisma.$transaction.mockRejectedValue(new Error('falha'))],
-            ['listOptions', { params: { category: 'generos' }, query: {} }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
-            ['createOption', { body: { category: 'generos', label: 'Drama' } }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
+            ['listOptions', { params: { category: 'tipos-capa' }, query: {} }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
+            ['createOption', { body: { category: 'tipos-capa', label: 'Drama' } }, () => prisma.domainOptionCategory.findUnique.mockRejectedValue(new Error('falha'))],
             ['updateOption', { params: { id: '10' }, body: { label: 'Drama' } }, () => prisma.domainOptionValue.findUnique.mockRejectedValue(new Error('falha'))],
             ['deleteOption', { params: { id: '10' } }, () => prisma.domainOptionValue.findUnique.mockRejectedValue(new Error('falha'))],
             ['listWorks', { query: {} }, () => prisma.$transaction.mockRejectedValue(new Error('falha'))],
@@ -2501,8 +2509,8 @@ describe('módulos administrativos', () => {
             prisma.domainOptionCategory.findUnique.mockResolvedValue(null);
 
             await adminOptions.listOptions(makeReq({ params: {}, query: {} }), invalidParamsRes);
-            await adminOptions.listOptions(makeReq({ params: { category: 'generos' }, query: { page: '0' } }), invalidQueryRes);
-            await adminOptions.listOptions(makeReq({ params: { category: 'generos' }, query: {} }), missingCategoryRes);
+            await adminOptions.listOptions(makeReq({ params: { category: 'tipos-capa' }, query: { page: '0' } }), invalidQueryRes);
+            await adminOptions.listOptions(makeReq({ params: { category: 'tipos-capa' }, query: {} }), missingCategoryRes);
 
             expect(invalidParamsRes.status).toHaveBeenCalledWith(400);
             expect(invalidQueryRes.status).toHaveBeenCalledWith(400);
@@ -2524,7 +2532,7 @@ describe('módulos administrativos', () => {
                     dependencies: { some: { dependsOnValueId: 8 } },
                     label: { contains: 'ura', mode: 'insensitive' }
                 }),
-                orderBy: { label: 'desc' }
+                orderBy: [{ label: 'desc' }, { id: 'asc' }]
             }));
             expect(res.status).toHaveBeenCalledWith(200);
         });
@@ -2543,12 +2551,12 @@ describe('módulos administrativos', () => {
         });
 
         it('informa todos os valores existentes no cadastro em lote', async () => {
-            prisma.domainOptionCategory.findUnique.mockResolvedValue({ id: 1, slug: 'generos', name: 'Gêneros' });
+            prisma.domainOptionCategory.findUnique.mockResolvedValue({ id: 1, slug: 'tipos-capa', name: 'Tipos de capa' });
             prisma.domainOptionValue.findMany.mockResolvedValue([{ label: 'Drama' }, { label: 'Ação' }]);
             const res = makeRes();
 
             await adminOptions.createOption(makeReq({
-                body: { category: 'generos', label: 'Drama, Ação' }
+                body: { category: 'tipos-capa', label: 'Drama, Ação' }
             }), res);
 
             expect(res.status).toHaveBeenCalledWith(409);

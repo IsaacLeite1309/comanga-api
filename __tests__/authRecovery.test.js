@@ -177,16 +177,19 @@ describe('capas com concorrência e restrições reais', () => {
         expect((await db.query('SELECT id FROM media_assets WHERE id=$1',[id])).rows).toHaveLength(0);
     });
 
-    it('admin menor consulta catálogo administrativo, mas não obtém conteúdo adulto público', async () => {
+    // Decisão 7 da entrega 4: a atribuição Administrador dispensa idade e preferência
+    // apenas na LEITURA pública; perder a atribuição devolve a conta à regra comum.
+    it('admin com atribuição vigente lê conteúdo adulto e perde o acesso ao ser rebaixado', async () => {
         const id = await cover(); const created = await work(id, 'adult'); const workId = created.rows[0].id;
         await db.query("UPDATE works SET adult_content=true, visibility='Público' WHERE id=$1",[workId]);
         await db.query("UPDATE users SET nivel_acesso='Administrador', birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$1",[user.id]);
         const login = await request(app).post('/api/auth/login').send({ email: user.email, password: 'SenhaNova123!' });
         const cookie = login.headers['set-cookie'];
         expect((await request(app).get(`/api/admin/works/${workId}`).set('Cookie',cookie)).status).toBe(200);
-        expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(404);
+        expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(200);
         await db.query("UPDATE users SET nivel_acesso='Usuário Padrão' WHERE id=$1",[user.id]);
         expect((await request(app).get(`/api/admin/works/${workId}`).set('Cookie',cookie)).status).toBe(403);
+        expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(404);
     });
     it('recusa capa nula e recusa reativar um ativo em descarte',async()=>{
         await expect(work(null,'null')).rejects.toMatchObject({code:'23514'});

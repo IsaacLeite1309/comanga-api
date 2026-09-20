@@ -13,6 +13,7 @@ router.get('/users', authMiddleware, requireAdmin, adminUsers.listUsers);
 router.patch('/users/:id/role', authMiddleware, requireAdmin, adminUsers.updateUserRole);
 router.get('/options/:category', authMiddleware, requireAdmin, adminOptions.listOptions);
 router.post('/options', authMiddleware, requireAdmin, adminOptions.createOption);
+router.patch('/options/:category/order', authMiddleware, requireAdmin, adminOptions.reorderOptions);
 router.patch('/options/:id', authMiddleware, requireAdmin, adminOptions.updateOption);
 router.delete('/options/:id', authMiddleware, requireAdmin, adminOptions.deleteOption);
 router.post('/media/covers', authMiddleware, requireAdmin, media.importCover);

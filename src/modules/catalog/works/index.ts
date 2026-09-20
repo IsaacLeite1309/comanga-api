@@ -25,6 +25,8 @@ import {
     normalizeOrderedAuthors,
     getOrderedIds,
     findDuplicatedNumbers,
+    containsHentaiGenre,
+    workHasHentaiGenre,
     validateOptionIdsByCategory,
     validateWorkDomainReferences,
     createWorkSchema,
@@ -182,6 +184,22 @@ async function persistCreatedWork(
     });
 }
 
+// Obra com Hentai nunca fica como não adulta: a flag é normalizada no backend,
+// independentemente do que o formulário enviar (seção 14 do guia).
+async function normalizeAdultContentOnCreate(data: CreateWorkData) {
+    if (data.adultContent) return true;
+    return containsHentaiGenre(data.genreIds);
+}
+
+async function normalizeAdultContentOnUpdate(workId: number, data: UpdateWorkData) {
+    const hasHentai = data.genreIds
+        ? await containsHentaiGenre(data.genreIds)
+        : await workHasHentaiGenre(workId);
+
+    if (hasHentai) return true;
+    return data.adultContent;
+}
+
 async function createWork(req: Request, res: Response, next: NextFunction) {
     const validation = createWorkSchema.safeParse(req.body);
     if (!validation.success) return res.status(400).json({ error: REQUIRED_WORK_FIELDS_MESSAGE });
@@ -194,7 +212,8 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
         const dependencyError = await getCreateWorkDependencyError(data, relations);
         if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
         const slug = await createUniqueWorkSlug(data.title, prisma.work);
-        const workId = await persistCreatedWork(data, relations, slug);
+        const adultContent = await normalizeAdultContentOnCreate(data);
+        const workId = await persistCreatedWork({ ...data, adultContent }, relations, slug);
         const work = await prisma.work.findUniqueOrThrow({
             where: { id: workId },
             include: getWorkDetailInclude()
@@ -310,20 +329,26 @@ async function getWorkBySlug(req: Request, res: Response, next: NextFunction) {
     }
 }
 
+interface CurrentWorkDomainReferences {
+    country: string;
+    typeId: number;
+    type?: { systemManaged: boolean };
+    genres?: Array<{ genreId: number }>;
+    authors: Array<{ authorId: number }>;
+    originalPublishers: Array<{ publisherId: number }>;
+    serializationMagazines: Array<{ magazineId: number }>;
+}
+
 async function validatePartialWorkDomainReferences(
     data: z.infer<typeof updateWorkSchema>,
-    currentWork?: {
-        country: string;
-        typeId: number;
-        authors: Array<{ authorId: number }>;
-        originalPublishers: Array<{ publisherId: number }>;
-        serializationMagazines: Array<{ magazineId: number }>;
-    }
+    currentWork?: CurrentWorkDomainReferences
 ) {
     const validations: Array<Promise<boolean>> = [];
 
     if (data.typeId) {
-        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.typeId, [data.typeId]));
+        validations.push(validateOptionIdsByCategory(
+            WORK_DOMAIN_CATEGORIES.typeId, [data.typeId], currentWork ? [currentWork.typeId] : []
+        ));
     }
 
     if (data.originalPublisherIds && data.originalPublisherIds.length > 0) {
@@ -339,7 +364,9 @@ async function validatePartialWorkDomainReferences(
     }
 
     if (data.genreIds) {
-        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.genreIds, data.genreIds));
+        validations.push(validateOptionIdsByCategory(
+            WORK_DOMAIN_CATEGORIES.genreIds, data.genreIds, currentWork?.genres?.map(link => link.genreId)
+        ));
     }
 
     if (data.magazineIds) {
@@ -356,8 +383,16 @@ async function validatePartialWorkDomainReferences(
         return true;
     }
 
+    return validateWorkCountryReferences(data, currentWork);
+}
+
+async function validateWorkCountryReferences(
+    data: z.infer<typeof updateWorkSchema>, currentWork: CurrentWorkDomainReferences
+) {
     const country = data.country || currentWork.country;
-    const typeIds = data.typeId ? [data.typeId] : [currentWork.typeId];
+    const preservingLegacyType = currentWork.type?.systemManaged === false
+        && (!data.typeId || data.typeId === currentWork.typeId) && country === currentWork.country;
+    const typeIds = preservingLegacyType ? [] : [data.typeId || currentWork.typeId];
     const authorIds = data.authors
         ? data.authors.map((author) => author.authorId)
         : currentWork.authors.map((author) => author.authorId);
@@ -422,6 +457,8 @@ async function findWorkForUpdate(workId: number) {
             coverAssetId: true,
             country: true,
             typeId: true,
+            type: { select: { systemManaged: true } },
+            genres: { select: { genreId: true } },
             authors: { select: { authorId: true } },
             originalPublishers: { select: { publisherId: true } },
             serializationMagazines: { select: { magazineId: true } }
@@ -572,7 +609,13 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
         if (!existingWork) return res.status(404).json({ error: 'Obra não encontrada.' });
         const dependencyError = await getUpdateWorkDependencyError(workId, data, relations, existingWork);
         if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
-        await prisma.$transaction(buildWorkUpdateOperations(workId, data, relations, existingWork.coverAssetId));
+        const adultContent = await normalizeAdultContentOnUpdate(workId, data);
+        await prisma.$transaction(buildWorkUpdateOperations(
+            workId,
+            { ...data, ...(adultContent === undefined ? {} : { adultContent }) },
+            relations,
+            existingWork.coverAssetId
+        ));
         if (data.coverAssetId !== undefined && existingWork.coverAssetId !== data.coverAssetId) {
             await deleteOrphanedCoverAsset(existingWork.coverAssetId);
         }

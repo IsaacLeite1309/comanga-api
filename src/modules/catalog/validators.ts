@@ -1,6 +1,8 @@
 import prisma from '../../prisma';
+import { HENTAI_GENRE_CODE, isSystemManagedOptionCategory } from '../../utils/domainOptionCodes';
 import {
     COUNTRY_CATEGORY_SLUG,
+    COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS,
     COUNTRY_DEPENDENT_CATEGORY_SLUGS,
     EDITION_FORM_OPTION_CATEGORIES,
     WORK_DOMAIN_CATEGORIES
@@ -39,19 +41,27 @@ async function validateSelectedOptionsByCountry(
     });
     const valuesById = new Map(values.map((value) => [value.id, value]));
 
-    return countryDependentSelections.every((selection) => selection.ids.every((id) => {
-        const value = valuesById.get(id);
-        if (!value) return true;
-        const countryDependencies = value.dependencies.filter((dependency) => (
-            dependency.dependsOnValue.category.slug === COUNTRY_CATEGORY_SLUG
-        ));
-        return countryDependencies.length === 0 || countryDependencies.some((dependency) => (
-            dependency.dependsOnValue.label === country
-        ));
-    }));
+    return countryDependentSelections.every((selection) => {
+        const dependencyIsMandatory = COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS.has(selection.categorySlug);
+
+        return selection.ids.every((id) => {
+            const value = valuesById.get(id);
+            if (!value) return true;
+            const countryDependencies = value.dependencies.filter((dependency) => (
+                dependency.dependsOnValue.category.slug === COUNTRY_CATEGORY_SLUG
+            ));
+
+            if (countryDependencies.some((dependency) => dependency.dependsOnValue.label === country)) {
+                return true;
+            }
+
+            // Sem dependência declarada, só as categorias não obrigatórias passam.
+            return !dependencyIsMandatory && countryDependencies.length === 0;
+        });
+    });
 }
 
-async function validateOptionIdsByCategory(categorySlug: string, ids: number[]) {
+async function validateOptionIdsByCategory(categorySlug: string, ids: number[], existingIds: number[] = []) {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
 
     if (uniqueIds.length === 0) {
@@ -61,7 +71,9 @@ async function validateOptionIdsByCategory(categorySlug: string, ids: number[]) 
     const count = await prisma.domainOptionValue.count({
         where: {
             id: { in: uniqueIds },
-            active: true,
+            ...(isSystemManagedOptionCategory(categorySlug)
+                ? { OR: [{ systemManaged: true, active: true }, { id: { in: existingIds } }] }
+                : { active: true }),
             category: {
                 slug: categorySlug
             }
@@ -136,7 +148,41 @@ function parsePositiveId(value: string | string[] | undefined) {
     return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// Identidade estável do gênero Hentai: nenhuma consulta compara o rótulo textual.
+async function containsHentaiGenre(genreIds: number[]) {
+    const uniqueIds = [...new Set(genreIds.filter(Boolean))];
+
+    if (uniqueIds.length === 0) return false;
+
+    const hentaiCount = await prisma.domainOptionValue.count({
+        where: {
+            id: { in: uniqueIds },
+            code: HENTAI_GENRE_CODE,
+            category: { slug: WORK_DOMAIN_CATEGORIES.genreIds }
+        }
+    });
+
+    return hentaiCount > 0;
+}
+
+async function workHasHentaiGenre(workId: number) {
+    const genre = await prisma.workGenre.findFirst({
+        where: {
+            workId,
+            genre: {
+                code: HENTAI_GENRE_CODE,
+                category: { slug: WORK_DOMAIN_CATEGORIES.genreIds }
+            }
+        },
+        select: { genreId: true }
+    });
+
+    return Boolean(genre);
+}
+
 export {
+    containsHentaiGenre,
+    workHasHentaiGenre,
     validateSelectedOptionsByCountry,
     validateOptionIdsByCategory,
     validateEditionDomainReferences,
