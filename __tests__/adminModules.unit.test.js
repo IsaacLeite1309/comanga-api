@@ -1,9 +1,22 @@
 const prisma = {
     user: {
         findMany: jest.fn(),
+        findUnique: jest.fn(),
         count: jest.fn(),
         update: jest.fn()
     },
+    profile: {
+        findUnique: jest.fn()
+    },
+    userProfile: {
+        findMany: jest.fn(),
+        upsert: jest.fn(),
+        deleteMany: jest.fn()
+    },
+    session: {
+        updateMany: jest.fn()
+    },
+    $queryRaw: jest.fn(),
     domainOptionCategory: {
         findUnique: jest.fn()
     },
@@ -31,7 +44,8 @@ const prisma = {
     },
     workGenre: {
         createMany: jest.fn(),
-        deleteMany: jest.fn()
+        deleteMany: jest.fn(),
+        findFirst: jest.fn()
     },
     workDemography: {
         createMany: jest.fn(),
@@ -66,6 +80,7 @@ const prisma = {
     volume: {
         count: jest.fn(),
         create: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -100,7 +115,12 @@ function makeReq(overrides = {}) {
         query: {},
         params: {},
         body: {},
-        user: { userId: 'admin-1', role: 'Administrador' },
+        user: {
+            userId: 'admin-1',
+            role: 'Administrador',
+            activeProfile: 'Administrador',
+            profiles: ['Administrador', 'Usuário Padrão']
+        },
         ...overrides
     };
 }
@@ -132,8 +152,8 @@ describe('módulos administrativos', () => {
                     id: 'user-2',
                     username: 'zeta',
                     email: 'zeta@teste.local',
-                    nivelAcesso: 'Usuário Padrão',
-                    status: 'Ativada'
+                    status: 'Ativada',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
                 }
             ];
             prisma.$transaction.mockResolvedValue([users, 1]);
@@ -154,7 +174,7 @@ describe('módulos administrativos', () => {
             expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
                     OR: expect.any(Array),
-                    nivelAcesso: 'Usuário Padrão',
+                    userProfiles: { none: { profile: { code: 'ADMINISTRADOR' } } },
                     status: 'Ativada'
                 }),
                 orderBy: { username: 'desc' },
@@ -163,7 +183,7 @@ describe('módulos administrativos', () => {
             }));
             expect(prisma.user.count).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
-                    nivelAcesso: 'Usuário Padrão',
+                    userProfiles: { none: { profile: { code: 'ADMINISTRADOR' } } },
                     status: 'Ativada'
                 })
             }));
@@ -175,6 +195,7 @@ describe('módulos administrativos', () => {
                         username: 'zeta',
                         email: 'zeta@teste.local',
                         role: 'Usuário Padrão',
+                        profiles: ['Usuário Padrão'],
                         status: 'Ativada'
                     }
                 ],
@@ -185,6 +206,20 @@ describe('módulos administrativos', () => {
                     totalPages: 1
                 }
             });
+        });
+
+        it('filtra administradores pela atribuicao de perfil', async () => {
+            prisma.$transaction.mockResolvedValue([[], 0]);
+            const req = makeReq({ query: { role: 'Administrador' } });
+            const res = makeRes();
+
+            await adminUsers.listUsers(req, res);
+
+            expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+                where: expect.objectContaining({
+                    userProfiles: { some: { profile: { code: 'ADMINISTRADOR' } } }
+                })
+            }));
         });
 
         it('rejeita filtros inválidos', async () => {
@@ -212,14 +247,33 @@ describe('módulos administrativos', () => {
     });
 
     describe('updateUserRole', () => {
-        it('atualiza nivel de acesso de outro usuario', async () => {
-            prisma.user.update.mockResolvedValue({
-                id: 'user-2',
-                username: 'maria',
-                email: 'maria@teste.local',
-                nivelAcesso: 'Administrador',
-                status: 'Ativada'
-            });
+        function mockProfiles() {
+            prisma.profile.findUnique.mockImplementation(({ where }) => Promise.resolve(
+                where.code === 'ADMINISTRADOR'
+                    ? { id: 2, code: 'ADMINISTRADOR', name: 'Administrador' }
+                    : { id: 1, code: 'USUARIO_PADRAO', name: 'Usuário Padrão' }
+            ));
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.userProfile.upsert.mockResolvedValue({});
+            prisma.userProfile.deleteMany.mockResolvedValue({ count: 1 });
+            prisma.session.updateMany.mockResolvedValue({ count: 0 });
+            prisma.user.update.mockResolvedValue({});
+        }
+
+        it('concede a atribuicao Administrador a outra conta e sincroniza o campo legado', async () => {
+            mockProfiles();
+            prisma.user.findUnique
+                .mockResolvedValueOnce({ id: 'user-2' })
+                .mockResolvedValueOnce({
+                    id: 'user-2',
+                    username: 'maria',
+                    email: 'maria@teste.local',
+                    status: 'Ativada',
+                    userProfiles: [
+                        { profile: { code: 'ADMINISTRADOR', name: 'Administrador' } },
+                        { profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }
+                    ]
+                });
             const req = makeReq({
                 params: { id: 'user-2' },
                 body: { role: 'Administrador' }
@@ -228,9 +282,12 @@ describe('módulos administrativos', () => {
 
             await adminUsers.updateUserRole(req, res);
 
+            expect(prisma.userProfile.upsert).toHaveBeenCalledWith(expect.objectContaining({
+                where: { userId_profileId: { userId: 'user-2', profileId: 2 } }
+            }));
             expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 'user-2' },
-                data: { nivelAcesso: 'Administrador' }
+                data: { nivelAcesso: 'Administrador', preferredProfileId: 2 }
             }));
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
@@ -239,9 +296,59 @@ describe('módulos administrativos', () => {
                     username: 'maria',
                     email: 'maria@teste.local',
                     role: 'Administrador',
+                    profiles: ['Administrador', 'Usuário Padrão'],
                     status: 'Ativada'
                 }
             });
+        });
+
+        it('remove a atribuicao Administrador preservando o perfil padrao', async () => {
+            mockProfiles();
+            prisma.userProfile.findMany.mockResolvedValue([
+                { profile: { name: 'Administrador' } },
+                { profile: { name: 'Usuário Padrão' } }
+            ]);
+            prisma.$queryRaw.mockResolvedValue([{ id: 'admin-1' }, { id: 'user-2' }]);
+            prisma.user.findUnique
+                .mockResolvedValueOnce({ id: 'user-2' })
+                .mockResolvedValueOnce({
+                    id: 'user-2',
+                    username: 'maria',
+                    email: 'maria@teste.local',
+                    status: 'Ativada',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
+                });
+            const req = makeReq({ params: { id: 'user-2' }, body: { role: 'Usuário Padrão' } });
+            const res = makeRes();
+
+            await adminUsers.updateUserRole(req, res);
+
+            expect(prisma.userProfile.deleteMany).toHaveBeenCalledWith({
+                where: { userId: 'user-2', profileId: 2 }
+            });
+            expect(prisma.userProfile.upsert).toHaveBeenCalledWith(expect.objectContaining({
+                where: { userId_profileId: { userId: 'user-2', profileId: 1 } }
+            }));
+            expect(res.json).toHaveBeenCalledWith({
+                user: expect.objectContaining({ role: 'Usuário Padrão', profiles: ['Usuário Padrão'] })
+            });
+        });
+
+        it('bloqueia a remocao do ultimo administrador efetivo', async () => {
+            mockProfiles();
+            prisma.userProfile.findMany.mockResolvedValue([
+                { profile: { name: 'Administrador' } },
+                { profile: { name: 'Usuário Padrão' } }
+            ]);
+            prisma.$queryRaw.mockResolvedValue([{ id: 'user-2' }]);
+            prisma.user.findUnique.mockResolvedValueOnce({ id: 'user-2' });
+            const req = makeReq({ params: { id: 'user-2' }, body: { role: 'Usuário Padrão' } });
+            const res = makeRes();
+
+            await adminUsers.updateUserRole(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(prisma.userProfile.deleteMany).not.toHaveBeenCalled();
         });
 
         it('bloqueia automodificacao do administrador autenticado', async () => {
@@ -274,7 +381,8 @@ describe('módulos administrativos', () => {
         });
 
         it('retorna 404 quando usuario alvo nao existe', async () => {
-            prisma.user.update.mockRejectedValue({ code: 'P2025' });
+            prisma.$queryRaw.mockResolvedValue([]);
+            prisma.user.findUnique.mockResolvedValue(null);
             const req = makeReq({
                 params: { id: 'user-2' },
                 body: { role: 'Administrador' }
@@ -288,7 +396,7 @@ describe('módulos administrativos', () => {
 
         it('encaminha falha inesperada da atualizacao de nivel ao handler global', async () => {
             const error = new Error('falha inesperada');
-            prisma.user.update.mockRejectedValue(error);
+            prisma.$queryRaw.mockRejectedValue(error);
             const req = makeReq({
                 params: { id: 'user-2' },
                 body: { role: 'Administrador' }

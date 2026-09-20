@@ -69,7 +69,8 @@ describe('middlewares unitarios', () => {
                     username: 'isaac',
                     email: 'user@teste.local',
                     nivelAcesso: 'Usuário Padrão',
-                    status: 'Pendente'
+                    status: 'Pendente',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
                 }
             });
             const req = { headers: { cookie: 'comanga_session=abc123' } };
@@ -91,7 +92,8 @@ describe('middlewares unitarios', () => {
                     username: 'isaac',
                     email: 'user@teste.local',
                     nivelAcesso: 'Usuário Padrão',
-                    status: 'Ativada'
+                    status: 'Ativada',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
                 }
             });
             prisma.session.updateMany.mockResolvedValue({ count: 1 });
@@ -105,9 +107,74 @@ describe('middlewares unitarios', () => {
                 where: expect.objectContaining({ id: 1 }),
                 data: { lastUsedAt: expect.any(Date) }
             }));
-            expect(req.user).toEqual(expect.objectContaining({ userId: 'user-1', role: 'Usuário Padrão' }));
+            expect(req.user).toEqual(expect.objectContaining({
+                userId: 'user-1',
+                role: 'Usuário Padrão',
+                activeProfile: 'Usuário Padrão',
+                profiles: ['Usuário Padrão'],
+                hasAdminAssignment: false
+            }));
             expect(req.session).toEqual(expect.objectContaining({ id: 1, tokenHash: expect.any(String) }));
             expect(next).toHaveBeenCalledTimes(1);
+        });
+
+        it('rebaixa o perfil ativo quando a conta perdeu a atribuicao administrativa', async () => {
+            prisma.session.findFirst.mockResolvedValue({
+                id: 7,
+                lastUsedAt: new Date(),
+                activeProfile: { code: 'ADMINISTRADOR', name: 'Administrador' },
+                user: {
+                    id: 'user-1',
+                    username: 'isaac',
+                    email: 'user@teste.local',
+                    nivelAcesso: 'Usuário Padrão',
+                    status: 'Ativada',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
+                }
+            });
+            const req = { headers: { cookie: 'comanga_session=abc123' } };
+            const res = makeRes();
+            const next = jest.fn();
+
+            await authMiddleware(req, res, next);
+
+            expect(req.user).toEqual(expect.objectContaining({
+                activeProfile: 'Usuário Padrão',
+                profiles: ['Usuário Padrão'],
+                hasAdminAssignment: false
+            }));
+            expect(next).toHaveBeenCalledTimes(1);
+        });
+
+        it('mantem o perfil ativo administrador quando a atribuicao continua vigente', async () => {
+            prisma.session.findFirst.mockResolvedValue({
+                id: 8,
+                lastUsedAt: new Date(),
+                activeProfile: { code: 'ADMINISTRADOR', name: 'Administrador' },
+                user: {
+                    id: 'user-1',
+                    username: 'isaac',
+                    email: 'user@teste.local',
+                    nivelAcesso: 'Administrador',
+                    status: 'Ativada',
+                    userProfiles: [
+                        { profile: { code: 'ADMINISTRADOR', name: 'Administrador' } },
+                        { profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }
+                    ]
+                }
+            });
+            const req = { headers: { cookie: 'comanga_session=abc123' } };
+            const res = makeRes();
+            const next = jest.fn();
+
+            await authMiddleware(req, res, next);
+
+            expect(req.user).toEqual(expect.objectContaining({
+                role: 'Administrador',
+                activeProfile: 'Administrador',
+                profiles: ['Administrador', 'Usuário Padrão'],
+                hasAdminAssignment: true
+            }));
         });
 
         it('nao regrava lastUsedAt quando a sessao foi usada recentemente', async () => {
@@ -119,7 +186,11 @@ describe('middlewares unitarios', () => {
                     username: 'isaac',
                     email: 'user@teste.local',
                     nivelAcesso: 'Administrador',
-                    status: 'Ativada'
+                    status: 'Ativada',
+                    userProfiles: [
+                        { profile: { code: 'ADMINISTRADOR', name: 'Administrador' } },
+                        { profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }
+                    ]
                 }
             });
             const req = { headers: { cookie: 'comanga_session=abc123' } };
@@ -146,8 +217,14 @@ describe('middlewares unitarios', () => {
     });
 
     describe('rbacMiddleware', () => {
-        it('bloqueia usuario sem role permitida', () => {
-            const req = { user: { role: 'Usuário Padrão' } };
+        it('bloqueia perfil ativo sem permissao mesmo com atribuicao administrativa', () => {
+            const req = {
+                user: {
+                    role: 'Usuário Padrão',
+                    activeProfile: 'Usuário Padrão',
+                    profiles: ['Administrador', 'Usuário Padrão']
+                }
+            };
             const res = makeRes();
             const next = jest.fn();
             const middleware = requireRole('Administrador');
@@ -158,8 +235,42 @@ describe('middlewares unitarios', () => {
             expect(next).not.toHaveBeenCalled();
         });
 
-        it('permite usuario com role autorizada', () => {
-            const req = { user: { role: 'Administrador' } };
+        it('bloqueia perfil ativo administrador sem atribuicao vigente na conta', () => {
+            const req = {
+                user: {
+                    role: 'Administrador',
+                    activeProfile: 'Administrador',
+                    profiles: ['Usuário Padrão']
+                }
+            };
+            const res = makeRes();
+            const next = jest.fn();
+            const middleware = requireRole('Administrador');
+
+            middleware(req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('bloqueia requisicao sem usuario autenticado', () => {
+            const res = makeRes();
+            const next = jest.fn();
+
+            requireRole('Administrador')({}, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('permite perfil ativo administrador com atribuicao vigente', () => {
+            const req = {
+                user: {
+                    role: 'Administrador',
+                    activeProfile: 'Administrador',
+                    profiles: ['Administrador', 'Usuário Padrão']
+                }
+            };
             const res = makeRes();
             const next = jest.fn();
             const middleware = requireRole('Administrador');

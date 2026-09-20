@@ -116,6 +116,7 @@ describe('Rotas administrativas de usuarios', () => {
                 username: zelda.username,
                 email: zelda.email,
                 role: 'Usuário Padrão',
+                profiles: ['Usuário Padrão'],
                 status: 'Ativada'
             });
         });
@@ -157,8 +158,17 @@ describe('Rotas administrativas de usuarios', () => {
                 username: target.username,
                 email: target.email,
                 role: 'Administrador',
+                profiles: ['Administrador', 'Usuário Padrão'],
                 status: 'Ativada'
             });
+
+            const assignments = await db.query(
+                `SELECT p.code FROM user_profiles up
+                 JOIN profiles p ON p.id = up.profile_id
+                 WHERE up.user_id = $1 ORDER BY p.code`,
+                [targetId]
+            );
+            expect(assignments.rows.map((row) => row.code)).toEqual(['ADMINISTRADOR', 'USUARIO_PADRAO']);
 
             const updatedUser = await db.query(
                 'SELECT nivel_acesso FROM users WHERE id = $1',

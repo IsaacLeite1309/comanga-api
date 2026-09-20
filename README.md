@@ -212,3 +212,11 @@ Calendário público, Estante Digital, Lista de Desejos, enriquecimento autentic
 
 - [comanga-web](https://github.com/IsaacLeite1309/comanga-web) - SPA React.
 - [comanga-docs](https://github.com/IsaacLeite1309/comanga-docs) - documentação técnica, requisitos e planejamento.
+
+## Perfis e edição da própria conta
+
+A migration `20260920120000_perfis_de_acesso` preserva usuários e sessões e cria atribuições de perfis; `nivel_acesso` permanece sincronizado durante a transição. Login e `GET /api/users/me` devolvem `profiles` e `active_profile`.
+
+`PATCH /api/users/me/active-profile` muda o contexto da sessão e a preferência do próximo login; não concede atribuições. Administração exige perfil ativo Administrador e atribuição vigente. O último administrador ativado é protegido, inclusive em operações concorrentes.
+
+`PATCH /api/users/me/username` altera apenas a própria conta. `PATCH /api/users/me/password` valida senha atual, confirmação e política vigente, mantém a sessão atual e revoga as demais. Recuperação por token revoga todas. As antigas rotas `GET /api/users/:id` e `PUT /api/users/:id` foram removidas. Aplicar a migration antes de usar os novos contratos; não remover ainda a coluna legada.

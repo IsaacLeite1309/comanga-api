@@ -21,3 +21,8 @@ export const passwordSchema = z.string().regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(
     'Utilize no mínimo 8 caracteres, incluindo pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial.')
     .refine(value => Buffer.byteLength(value, 'utf8') <= 72,
         'A senha deve ter no máximo 72 bytes em UTF-8; acentos e emojis podem ocupar mais de um byte.');
+
+// Regra única de nome de usuário: vale para o cadastro e para a alteração pelo perfil.
+export const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+export const USERNAME_RULE_MESSAGE = 'Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais.';
+export const usernameSchema = z.string().regex(USERNAME_PATTERN, USERNAME_RULE_MESSAGE);

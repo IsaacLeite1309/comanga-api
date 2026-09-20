@@ -10,11 +10,24 @@ const prisma = {
     },
     session: {
         create: jest.fn(),
+        update: jest.fn(),
         updateMany: jest.fn()
+    },
+    profile: {
+        findUnique: jest.fn()
+    },
+    userProfile: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+        deleteMany: jest.fn()
     },
     $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn()
 };
+
+const STANDARD_PROFILE = { id: 1, code: 'USUARIO_PADRAO', name: 'Usuário Padrão' };
+const ADMIN_PROFILE = { id: 2, code: 'ADMINISTRADOR', name: 'Administrador' };
 
 const mailer = {
     sendActivationEmail: jest.fn()
@@ -52,6 +65,8 @@ describe('autenticação e usuários', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         prisma.$transaction.mockImplementation(callback => callback(prisma));
+        prisma.profile.findUnique.mockResolvedValue(STANDARD_PROFILE);
+        prisma.userProfile.findMany.mockResolvedValue([{ profile: { name: STANDARD_PROFILE.name } }]);
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -401,10 +416,78 @@ describe('autenticação e usuários', () => {
             await auth.loginUser(req, res);
 
             expect(prisma.session.create).toHaveBeenCalledWith(expect.objectContaining({
-                data: expect.objectContaining({ userId: 'user-1', sessionTokenHash: expect.any(String) })
+                data: expect.objectContaining({
+                    userId: 'user-1',
+                    sessionTokenHash: expect.any(String),
+                    activeProfileId: STANDARD_PROFILE.id
+                })
             }));
             expect(res.cookie).toHaveBeenCalled();
             expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                user: expect.objectContaining({
+                    profiles: ['Usuário Padrão'],
+                    active_profile: 'Usuário Padrão'
+                })
+            }));
+        });
+
+        it('inicia a sessao com o perfil preferido que a conta realmente possui', async () => {
+            prisma.user.findUnique.mockResolvedValue({
+                id: 'user-1',
+                username: 'isaac',
+                passwordHash: 'hash',
+                status: 'Ativada',
+                preferredProfileId: ADMIN_PROFILE.id
+            });
+            prisma.profile.findUnique.mockImplementation(({ where }) => Promise.resolve(
+                where.code === 'ADMINISTRADOR' || where.id === ADMIN_PROFILE.id ? ADMIN_PROFILE : STANDARD_PROFILE
+            ));
+            prisma.userProfile.findUnique.mockResolvedValue({ profileId: ADMIN_PROFILE.id });
+            prisma.userProfile.findMany.mockResolvedValue([
+                { profile: { name: 'Administrador' } },
+                { profile: { name: 'Usuário Padrão' } }
+            ]);
+            prisma.session.create.mockResolvedValue({});
+            jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+            const req = makeReq({ body: { email: 'user@teste.local', password: 'correta' } });
+            const res = makeRes();
+
+            await auth.loginUser(req, res);
+
+            expect(prisma.session.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ activeProfileId: ADMIN_PROFILE.id })
+            }));
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                user: expect.objectContaining({
+                    active_profile: 'Administrador',
+                    profiles: ['Administrador', 'Usuário Padrão']
+                })
+            }));
+        });
+
+        it('ignora preferencia de perfil que a conta ja nao possui', async () => {
+            prisma.user.findUnique.mockResolvedValue({
+                id: 'user-1',
+                username: 'isaac',
+                passwordHash: 'hash',
+                status: 'Ativada',
+                preferredProfileId: ADMIN_PROFILE.id
+            });
+            prisma.userProfile.findUnique.mockResolvedValue(null);
+            prisma.session.create.mockResolvedValue({});
+            jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+            const req = makeReq({ body: { email: 'user@teste.local', password: 'correta' } });
+            const res = makeRes();
+
+            await auth.loginUser(req, res);
+
+            expect(prisma.session.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ activeProfileId: STANDARD_PROFILE.id })
+            }));
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                user: expect.objectContaining({ active_profile: 'Usuário Padrão' })
+            }));
         });
     });
 
@@ -414,23 +497,31 @@ describe('autenticação e usuários', () => {
                 id: 'user-1',
                 username: 'isaac',
                 email: 'user@teste.local',
-                conteudoAdulto: false,
-                nivelAcesso: 'Usuário Padrão'
+                conteudoAdulto: false
             });
-            const req = makeReq({ user: { userId: 'user-1' } });
+            const req = makeReq({
+                user: { userId: 'user-1', profiles: ['Usuário Padrão'], activeProfile: 'Usuário Padrão' }
+            });
             const res = makeRes();
 
             await users.getUserProfile(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                user: expect.objectContaining({ conteudo_adulto: false })
+                user: expect.objectContaining({
+                    conteudo_adulto: false,
+                    role: 'Usuário Padrão',
+                    profiles: ['Usuário Padrão'],
+                    active_profile: 'Usuário Padrão'
+                })
             }));
         });
 
         it('retorna 404 quando perfil autenticado nao existe em /api/auth/me', async () => {
             prisma.user.findUnique.mockResolvedValue(null);
-            const req = makeReq({ user: { userId: 'user-1' } });
+            const req = makeReq({
+                user: { userId: 'user-1', profiles: ['Usuário Padrão'], activeProfile: 'Usuário Padrão' }
+            });
             const res = makeRes();
 
             await users.getUserProfile(req, res);
@@ -444,67 +535,31 @@ describe('autenticação e usuários', () => {
                 email: 'user@teste.local',
                 birthDate: new Date('2000-01-01'), conteudoAdulto: true
             });
-            const req = makeReq({ user: { userId: 'user-1' } });
+            const req = makeReq({
+                user: { userId: 'user-1', profiles: ['Usuário Padrão'], activeProfile: 'Usuário Padrão' }
+            });
             const res = makeRes();
 
             await users.getOwnUserProfile(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                user: expect.objectContaining({ conteudo_adulto: true })
+                user: expect.objectContaining({
+                    conteudo_adulto: true,
+                    profiles: ['Usuário Padrão'],
+                    active_profile: 'Usuário Padrão'
+                })
             }));
         });
 
         it('retorna 404 quando perfil autenticado nao existe em /api/users/me', async () => {
             prisma.user.findUnique.mockResolvedValue(null);
-            const req = makeReq({ user: { userId: 'user-1' } });
+            const req = makeReq({
+                user: { userId: 'user-1', profiles: ['Usuário Padrão'], activeProfile: 'Usuário Padrão' }
+            });
             const res = makeRes();
 
             await users.getOwnUserProfile(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(404);
-        });
-
-        it('bloqueia IDOR para usuario padrao em getUserById', async () => {
-            const req = makeReq({
-                params: { id: 'user-2' },
-                user: { userId: 'user-1', role: 'Usuário Padrão' }
-            });
-            const res = makeRes();
-
-            await users.getUserById(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(403);
-        });
-
-        it('permite administrador consultar usuario por id', async () => {
-            prisma.user.findUnique.mockResolvedValue({
-                username: 'isaac',
-                email: 'user@teste.local',
-                conteudoAdulto: false,
-                status: 'Ativada',
-                nivelAcesso: 'Usuário Padrão'
-            });
-            const req = makeReq({
-                params: { id: 'user-2' },
-                user: { userId: 'admin-1', role: 'Administrador' }
-            });
-            const res = makeRes();
-
-            await users.getUserById(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(200);
-        });
-
-        it('retorna 404 quando usuario consultado por id nao existe', async () => {
-            prisma.user.findUnique.mockResolvedValue(null);
-            const req = makeReq({
-                params: { id: 'user-2' },
-                user: { userId: 'admin-1', role: 'Administrador' }
-            });
-            const res = makeRes();
-
-            await users.getUserById(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -549,29 +604,6 @@ describe('autenticação e usuários', () => {
             expect(res.status).toHaveBeenCalledWith(404);
         });
 
-        it('bloqueia IDOR para usuario padrao em updateUserById', async () => {
-            const req = makeReq({
-                params: { id: 'user-2' },
-                user: { userId: 'user-1', role: 'Usuário Padrão' }
-            });
-            const res = makeRes();
-
-            await users.updateUserById(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(403);
-        });
-
-        it('permite atualizacao generica quando usuario padrao acessa o proprio id', async () => {
-            const req = makeReq({
-                params: { id: 'user-1' },
-                user: { userId: 'user-1', role: 'Usuário Padrão' }
-            });
-            const res = makeRes();
-
-            await users.updateUserById(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(200);
-        });
     });
 
     describe('logoutUser', () => {
@@ -641,6 +673,7 @@ describe('autenticação e usuários', () => {
             expect(prisma.user.delete).toHaveBeenCalledWith({
                 where: { id: 'user-1' }
             });
+            expect(prisma.$queryRaw).toHaveBeenCalled();
             expect(res.clearCookie).toHaveBeenCalled();
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({ message: 'Conta excluida permanentemente.' });

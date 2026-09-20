@@ -11,7 +11,8 @@ const domains = {
     "users": {"path": "src/modules/users", "dependencies": ["auth"]},
     "catalog": {"path": "src/modules/catalog", "dependencies": ["media"]},
     "media": {"path": "src/modules/media", "dependencies": []},
-    "admin-users": {"path": "src/modules/admin/users", "dependencies": []},
+    // A administração de usuários passou a conceder/remover perfis, cuja regra vive em auth.
+    "admin-users": {"path": "src/modules/admin/users", "dependencies": ["auth"]},
     "admin-options": {"path": "src/modules/admin/options", "dependencies": ["catalog"]},
     "public-catalog": {"path": "src/modules/public-catalog", "dependencies": []}
 };

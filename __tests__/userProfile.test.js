@@ -7,7 +7,6 @@ const app = require('../src/app');
 const runId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 const testEmailDomain = 'profile-test.local';
 const validPassword = 'SenhaForte123!';
-const deniedMessage = 'Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil.';
 
 function makeUser(overrides = {}) {
     const suffix = overrides.suffix || Math.random().toString(16).slice(2, 8);
@@ -81,13 +80,17 @@ describe('GET /api/users/me', () => {
                 username: user.username,
                 email: user.email,
                 can_enable_adult_content: true,
-                conteudo_adulto: true
+                conteudo_adulto: true,
+                profiles: ['Usuário Padrão'],
+                active_profile: 'Usuário Padrão'
             }
         });
         expect(Object.keys(response.body.user).sort()).toEqual([
+            'active_profile',
             'can_enable_adult_content',
             'conteudo_adulto',
             'email',
+            'profiles',
             'username'
         ]);
     });
@@ -96,30 +99,5 @@ describe('GET /api/users/me', () => {
         const response = await request(app).get('/api/users/me');
 
         expect(response.status).toBe(401);
-    });
-});
-
-describe('GET /api/users/:id IDOR', () => {
-    beforeEach(async () => {
-        await deleteTestUsers();
-    });
-
-    afterEach(async () => {
-        await deleteTestUsers();
-    });
-
-    it('bloqueia usuario padrao tentando consultar perfil de outro usuario RN0022', async () => {
-        const requester = makeUser({ suffix: 'requester' });
-        const target = makeUser({ suffix: 'target' });
-        await insertUser(requester);
-        const targetResult = await insertUser(target);
-        const sessionCookie = await loginUser(requester);
-
-        const response = await request(app)
-            .get(`/api/users/${targetResult.rows[0].id}`)
-            .set('Cookie', sessionCookie);
-
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({ error: deniedMessage });
     });
 });
