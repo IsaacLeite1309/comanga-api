@@ -1,4 +1,4 @@
-﻿import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import prisma from '../../../prisma';
 import {
     SELF_ROLE_CHANGE_MESSAGE,
@@ -7,7 +7,7 @@ import {
     getAuthenticatedAdminId,
     listUsersQuerySchema,
     updateRoleSchema
-} from '../shared';
+} from './domain';
 
 async function listUsers(req: Request, res: Response, next: NextFunction) {
     const validation = listUsersQuerySchema.safeParse(req.query);
@@ -105,10 +105,7 @@ async function updateUserRole(req: Request, res: Response, next: NextFunction) {
         return next(error);
     }
 }
-
-
-export = {
+export {
     listUsers,
     updateUserRole
 };
-

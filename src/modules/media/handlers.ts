@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
-import { getCoverImportService, getCoverRemovalService } from '../../../infrastructure/container';
-import structuredLogger, { StructuredLogger } from '../../../infrastructure/logging/structuredLogger';
+import structuredLogger, { StructuredLogger } from '../../infrastructure/logging/structuredLogger';
 import type { CoverImportService } from './CoverImportService';
 import type { CoverRemovalService } from './CoverRemovalService';
 
@@ -83,13 +82,5 @@ function createAdminMediaHandlers({
     };
 }
 
-const handlers = createAdminMediaHandlers({
-    getImportService: getCoverImportService,
-    getRemovalService: getCoverRemovalService
-});
-
-export = {
-    ...handlers,
-    createAdminMediaHandlers,
-    importCoverSchema
-};
+export { createAdminMediaHandlers, importCoverSchema };
+export type { AdminMediaDependencies };

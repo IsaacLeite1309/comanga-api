@@ -19,6 +19,18 @@ Frontend React/Vercel -> API REST/Render -> Prisma -> PostgreSQL/Neon
 
 O código é organizado por domínio em `src/modules`, com módulos de autenticação, usuários, catálogo, administração e catálogo público. A aplicação se inspira em Clean Architecture e Ports and Adapters de forma pragmática; módulos existentes ainda usam Prisma diretamente quando isso é adequado ao estágio atual do projeto.
 
+### Fronteiras dos módulos
+
+Cada domínio possui uma API pública em `index.ts`: `auth`, `users`, `catalog`, `media`, `admin/users`, `admin/options` e `public-catalog`. Rotas e outros domínios consomem somente essas entradas; os handlers são exportados diretamente, sem controllers intermediários. Implementações, schemas, consultas e mapeadores pertencem ao domínio correspondente.
+
+As dependências entre domínios são explícitas em `eslint.config.js`. O catálogo consome a API de mídia, usuários consomem os contratos de autenticação, e opções administrativas consomem os contratos de catálogo. A infraestrutura fornece os adapters e não importa os módulos; os serviços são compostos dentro dos próprios domínios. O banco PostgreSQL e o Prisma Client permanecem compartilhados, com transações e contratos HTTP preservados.
+
+`npm run lint` verifica as fronteiras com `eslint-plugin-boundaries`, ciclos e resolução de imports com `eslint-plugin-import-x` e o resolver TypeScript. Todo arquivo de produção deve pertencer a um domínio, à composição ou à base compartilhada; arquivos sem classificação e imports de testes são recusados. Imports entre domínios entram somente por `index.ts`. O código de produção usa a sintaxe `import` do TypeScript (compilada para CommonJS na API); `require()`, `module.require()`, `require.resolve()` e caminhos dinâmicos calculados são recusados para manter a detecção de ciclos verificável.
+
+O ESLint também limita a complexidade ciclomática a 15, a profundidade de blocos a 4 e cada função a 80 linhas de código, sempre como erro. Comentários e linhas vazias não entram na contagem. Apenas testes (`*.test.*`, `*.spec.*`, `__tests__`) e arquivos gerados (`*.generated.*`, `src/generated/`) têm exceção de tamanho; complexidade e profundidade continuam obrigatórias. Saídas de build e dependências já ficam fora do lint. Os testes da configuração verificam os limites e o alcance dessas exceções.
+
+A limpeza de capas está em `src/commands/cleanupDiscardedCovers.ts`, usa a API pública de mídia e é verificada antes da compilação. `npm run media:cleanup` continua disponível e executa a entrada compilada. Os testes em `scripts/eslint-architecture.test.cjs` usam o próprio ESLint com a configuração real em projetos temporários; `npm run test:architecture` faz parte dos checks completos. Os testes funcionais podem acessar implementações internas dos módulos.
+
 ## Funcionalidades implementadas
 
 ### Contas, sessão e segurança
@@ -151,7 +163,7 @@ A API local usa a porta `3000` por padrão. O frontend local deve apontar `VITE_
 | `npm start` | Executa a versão compilada. |
 | `npm test` | Executa testes Jest e Supertest. |
 | `npm run test:coverage` | Gera cobertura de todos os testes. |
-| `npm run lint` | Executa ESLint. |
+| `npm run lint` | Executa ESLint, incluindo fronteiras arquiteturais, imports e ciclos. |
 | `npm run prisma:generate` | Gera o Prisma Client. |
 | `npm run migrate:dev` | Cria/aplica migration no banco de desenvolvimento. |
 | `npm run migrate:test` | Aplica migrations no banco de teste. |
@@ -162,10 +174,11 @@ A API local usa a porta `3000` por padrão. O frontend local deve apontar `VITE_
 
 Use Node.js 22 e `npm ci` para instalar as versões do lockfile.
 
-- `npm run check`: lint sem avisos, build e cobertura mínima de 80% em cada métrica.
+- `npm run check`: fronteiras arquiteturais, lint sem avisos, build e cobertura mínima de 80% em cada métrica.
+- `npm run test:architecture`: regressões da configuração arquitetural do ESLint em projetos temporários.
 - `npm run check:online`: auditoria de todas as dependências, incluindo ferramentas de desenvolvimento.
 - `npm run test:unit`: todos os testes unitários, sem credenciais ou banco real.
-- `npm run check:integration`: aplica o histórico de migrations e executa todos os testes com cobertura.
+- `npm run check:integration`: executa lint e regressões arquiteturais, aplica o histórico de migrations e executa todos os testes com cobertura.
 
 Para integração, configure `DATABASE_URL_TEST` com um banco exclusivo cujo nome seja `test`, comece com `test_` ou termine em `_test`. Ele deve ser diferente de `DATABASE_URL` e `DIRECT_URL`. Os testes criam e excluem seus próprios registros; nunca use dados reais. `migrate:test` aplica migrations com `prisma migrate deploy`, preservando o schema e o histórico existente.
 

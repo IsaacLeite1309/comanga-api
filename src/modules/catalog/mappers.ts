@@ -1,62 +1,11 @@
 import { AUTHOR_ROLE_VALUES } from './constants';
+
 import type { EditionInput, OptionSummary, VolumeInput, WorkDetailInput, WorkSummaryInput } from './types';
 import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
 
 function normalizeCoverUrl(asset: WorkSummaryInput['coverAsset']) {
     if (!asset) return null;
     return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
-}
-
-function normalizeUser(user: {
-    id: string;
-    username: string;
-    email: string;
-    nivelAcesso: string;
-    status: string;
-}) {
-    return {
-        id: String(user.id),
-        username: user.username,
-        email: user.email,
-        role: user.nivelAcesso,
-        status: user.status
-    };
-}
-
-function normalizeOptionValue(value: {
-    id: number;
-    label: string;
-    category: {
-        slug: string;
-        name: string;
-    };
-    dependencies?: Array<{
-        dependsOnValue: {
-            id: number;
-            label: string;
-            category: {
-                slug: string;
-                name: string;
-            };
-        };
-    }>;
-}) {
-    return {
-        id: value.id,
-        label: value.label,
-        category: {
-            slug: value.category.slug,
-            name: value.category.name
-        },
-        depends_on: value.dependencies?.map((dependency) => ({
-            id: dependency.dependsOnValue.id,
-            label: dependency.dependsOnValue.label,
-            category: {
-                slug: dependency.dependsOnValue.category.slug,
-                name: dependency.dependsOnValue.category.name
-            }
-        })) || []
-    };
 }
 
 function normalizeOptionSummary(value: OptionSummary | null | undefined) {
@@ -215,8 +164,6 @@ function findDuplicatedNumbers(values: number[]) {
 }
 
 export {
-    normalizeUser,
-    normalizeOptionValue,
     normalizeOptionSummary,
     getAuthorRolePriority,
     getAuthorHighestRolePriority,

@@ -1,30 +1,35 @@
-﻿import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import prisma from '../../../prisma';
 import {
-    DUPLICATE_OPTION_MESSAGE,
-    OPTION_IN_USE_MESSAGE,
-    WORK_FORM_OPTION_CATEGORIES,
-    EDITION_FORM_OPTION_CATEGORIES,
     COUNTRY_DEPENDENT_CATEGORY_SLUGS,
-    PrismaKnownError,
-    normalizeOptionValue,
+    EDITION_FORM_OPTION_CATEGORIES,
+    WORK_FORM_OPTION_CATEGORIES
+} from '../../catalog';
+import { DUPLICATE_OPTION_MESSAGE, OPTION_IN_USE_MESSAGE } from './constants';
+import { normalizeOptionValue } from './mappers';
+import {
     categoryParamSchema,
-    listOptionsQuerySchema,
     createOptionSchema,
-    updateOptionSchema,
+    listOptionsQuerySchema,
+    updateOptionSchema
+} from './schemas';
+import {
     findCategoryBySlug,
+    findDuplicateSubmittedLabels,
+    findExistingOptionLabels,
     findListableCategoryBySlug,
+    formatExistingDuplicateMessage,
+    formatSubmittedDuplicateMessage,
     isManageableOptionCategory,
     optionLabelExists,
     parseOptionLabelsForCategory,
-    findDuplicateSubmittedLabels,
-    findExistingOptionLabels,
-    formatSubmittedDuplicateMessage,
-    formatExistingDuplicateMessage,
-    validateCountryDependencies,
-    getOptionValueSelect,
-    buildWorkFormOptionQuery
-} from '../shared';
+    validateCountryDependencies
+} from './services';
+import { buildFormOptionQuery, getOptionValueSelect } from './queries';
+
+interface PrismaKnownError {
+    code?: string;
+}
 
 async function getWorkFormOptions(_req: Request, res: Response, next: NextFunction) {
     try {
@@ -35,11 +40,11 @@ async function getWorkFormOptions(_req: Request, res: Response, next: NextFuncti
             magazines,
             originalPublishers
         ] = await prisma.$transaction([
-            buildWorkFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.authors),
-            buildWorkFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.workTypes),
-            buildWorkFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.genres),
-            buildWorkFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.magazines),
-            buildWorkFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.originalPublishers)
+            buildFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.authors),
+            buildFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.workTypes),
+            buildFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.genres),
+            buildFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.magazines),
+            buildFormOptionQuery(WORK_FORM_OPTION_CATEGORIES.originalPublishers)
         ]);
 
         return res.status(200).json({
@@ -75,10 +80,10 @@ async function getEditionFormOptions(_req: Request, res: Response, next: NextFun
             coverTypes,
             formats
         ] = await prisma.$transaction([
-            buildWorkFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.brazilianPublishers),
-            buildWorkFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.editionTypes),
-            buildWorkFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.coverTypes),
-            buildWorkFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.formats)
+            buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.brazilianPublishers),
+            buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.editionTypes),
+            buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.coverTypes),
+            buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.formats)
         ]);
 
         return res.status(200).json({
@@ -407,9 +412,7 @@ async function deleteOption(req: Request, res: Response, next: NextFunction) {
         return next(error);
     }
 }
-
-
-export = {
+export {
     getWorkFormOptions,
     getEditionFormOptions,
     listOptions,
@@ -417,4 +420,3 @@ export = {
     updateOption,
     deleteOption
 };
-

@@ -1,9 +1,10 @@
-﻿import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import prisma from '../../../prisma';
 import {
+    activateCoverAsset,
     deleteOrphanedCoverAsset,
     isCoverAssetAttachable
-} from '../../admin/media/coverAssetLifecycle';
+} from '../../media';
 import {
     INVALID_DOMAIN_REFERENCE_MESSAGE,
     EDITION_DUPLICATED_MESSAGE,
@@ -22,7 +23,7 @@ import {
     updateEditionVisibilitySchema,
     getEditionInclude,
     parsePositiveId
-} from '../../admin/shared';
+} from '../shared';
 
 async function createEdition(req: Request, res: Response, next: NextFunction) {
     const workId = parsePositiveId(req.params.workId);
@@ -76,10 +77,7 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
                     data: createData,
                     include: getEditionInclude()
                 });
-                await tx.mediaAsset.update({
-                    where: { id: data.coverAssetId as string },
-                    data: { status: 'Ativo', ativadoEm: new Date() }
-                });
+                await activateCoverAsset(tx, data.coverAssetId as string);
                 return createdEdition;
             })
             : await prisma.edition.create({ data: createData, include: getEditionInclude() });
@@ -231,10 +229,7 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
         const edition = shouldActivateCover
             ? await prisma.$transaction(async (tx) => {
                 const updatedEdition = await updateEditionRecord(tx as typeof prisma);
-                await tx.mediaAsset.update({
-                    where: { id: data.coverAssetId as string },
-                    data: { status: 'Ativo', ativadoEm: new Date() }
-                });
+                await activateCoverAsset(tx, data.coverAssetId as string);
                 return updatedEdition;
             })
             : await updateEditionRecord(prisma);
@@ -367,9 +362,7 @@ async function updateEditionVisibility(req: Request, res: Response, next: NextFu
         return next(error);
     }
 }
-
-
-export = {
+export {
     createEdition,
     listEditionsByWork,
     getEditionById,
@@ -377,4 +370,3 @@ export = {
     deleteEdition,
     updateEditionVisibility
 };
-

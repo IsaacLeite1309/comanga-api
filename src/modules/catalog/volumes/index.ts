@@ -1,11 +1,12 @@
-﻿import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../../../prisma';
 import {
+    activateCoverAsset,
     deleteOrphanedCoverAsset,
     isCoverAssetAttachable
-} from '../../admin/media/coverAssetLifecycle';
+} from '../../media';
 import {
     VOLUME_DUPLICATED_MESSAGE,
     PUBLIC_VOLUME_DELETE_MESSAGE,
@@ -18,36 +19,51 @@ import {
     updateVolumeSchema,
     listVolumesQuerySchema,
     parsePositiveId
-} from '../../admin/shared';
+} from '../shared';
 
-function buildVolumeData(data: Partial<z.infer<typeof volumePayloadBaseSchema>>, mode: 'create' | 'update' = 'create') {
-    const payload: Record<string, unknown> = {
-        number: data.number,
-        coverAssetId: data.coverAssetId,
-        singleVolume: data.singleVolume === undefined && mode === 'create' ? false : data.singleVolume,
-        pages: data.pages ?? null,
-        price: data.price ?? null,
-        priceCurrency: data.priceCurrency === undefined && mode === 'create' ? 'R$' : data.priceCurrency,
-        isbn10: data.isbn10 === undefined ? undefined : data.isbn10 || null,
-        isbn13: data.isbn13 === undefined ? undefined : data.isbn13 || null,
-        affiliateLink: data.affiliateLink === undefined ? undefined : data.affiliateLink || null,
-        synopsis: data.synopsis === undefined ? undefined : data.synopsis || null
-    };
+type VolumePayload = Partial<z.infer<typeof volumePayloadBaseSchema>>;
 
+function withCreateDefault<T>(value: T | undefined, fallback: T, mode: 'create' | 'update') {
+    return value === undefined && mode === 'create' ? fallback : value;
+}
+
+function normalizeOptionalNullable<T>(value: T | null | undefined) {
+    return value === undefined ? undefined : value || null;
+}
+
+function buildVolumeReleaseData(data: VolumePayload, mode: 'create' | 'update') {
     const releaseDatePrecision = data.releaseDatePrecision ?? (mode === 'create' ? 'Completa' : undefined);
 
     if (releaseDatePrecision !== undefined) {
-        payload.releaseDatePrecision = releaseDatePrecision;
-        payload.releaseYear = data.releaseYear ?? null;
-        payload.releaseMonth = ['Completa', 'Mes e ano'].includes(releaseDatePrecision) ? data.releaseMonth ?? null : null;
-        payload.releaseDay = releaseDatePrecision === 'Completa' ? data.releaseDay ?? null : null;
-    } else {
-        if ('releaseYear' in data) payload.releaseYear = data.releaseYear ?? null;
-        if ('releaseMonth' in data) payload.releaseMonth = data.releaseMonth ?? null;
-        if ('releaseDay' in data) payload.releaseDay = data.releaseDay ?? null;
+        return {
+            releaseDatePrecision,
+            releaseYear: data.releaseYear ?? null,
+            releaseMonth: ['Completa', 'Mes e ano'].includes(releaseDatePrecision) ? data.releaseMonth ?? null : null,
+            releaseDay: releaseDatePrecision === 'Completa' ? data.releaseDay ?? null : null
+        };
     }
 
-    return payload as Prisma.VolumeUncheckedUpdateInput;
+    return {
+        ...('releaseYear' in data ? { releaseYear: data.releaseYear ?? null } : {}),
+        ...('releaseMonth' in data ? { releaseMonth: data.releaseMonth ?? null } : {}),
+        ...('releaseDay' in data ? { releaseDay: data.releaseDay ?? null } : {})
+    };
+}
+
+function buildVolumeData(data: VolumePayload, mode: 'create' | 'update' = 'create') {
+    return {
+        number: data.number,
+        coverAssetId: data.coverAssetId,
+        singleVolume: withCreateDefault(data.singleVolume, false, mode),
+        pages: data.pages ?? null,
+        price: data.price ?? null,
+        priceCurrency: withCreateDefault(data.priceCurrency, 'R$', mode),
+        isbn10: normalizeOptionalNullable(data.isbn10),
+        isbn13: normalizeOptionalNullable(data.isbn13),
+        affiliateLink: normalizeOptionalNullable(data.affiliateLink),
+        synopsis: normalizeOptionalNullable(data.synopsis),
+        ...buildVolumeReleaseData(data, mode)
+    } as Prisma.VolumeUncheckedUpdateInput;
 }
 
 async function createVolume(req: Request, res: Response, next: NextFunction) {
@@ -96,10 +112,7 @@ async function createVolume(req: Request, res: Response, next: NextFunction) {
         const volume = validation.data.coverAssetId
             ? await prisma.$transaction(async (tx) => {
                 const createdVolume = await createVolumeRecord(tx as typeof prisma);
-                await tx.mediaAsset.update({
-                    where: { id: validation.data.coverAssetId as string },
-                    data: { status: 'Ativo', ativadoEm: new Date() }
-                });
+                await activateCoverAsset(tx, validation.data.coverAssetId as string);
                 return createdVolume;
             })
             : await createVolumeRecord(prisma);
@@ -255,10 +268,7 @@ async function updateVolume(req: Request, res: Response, next: NextFunction) {
         const volume = shouldActivateCover
             ? await prisma.$transaction(async (tx) => {
                 const updatedVolume = await updateVolumeRecord(tx as typeof prisma);
-                await tx.mediaAsset.update({
-                    where: { id: validation.data.coverAssetId as string },
-                    data: { status: 'Ativo', ativadoEm: new Date() }
-                });
+                await activateCoverAsset(tx, validation.data.coverAssetId as string);
                 return updatedVolume;
             })
             : await updateVolumeRecord(prisma);
@@ -311,13 +321,10 @@ async function deleteVolume(req: Request, res: Response, next: NextFunction) {
         return next(error);
     }
 }
-
-
-export = {
+export {
     createVolume,
     listVolumesByEdition,
     getVolumeById,
     updateVolume,
     deleteVolume
 };
-

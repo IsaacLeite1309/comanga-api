@@ -1,4 +1,4 @@
-import prisma from '../../../prisma';
+import prisma from '../../prisma';
 import type { MediaAssetRepository } from './CoverImportService';
 import type { CoverRemovalRepository } from './CoverRemovalService';
 

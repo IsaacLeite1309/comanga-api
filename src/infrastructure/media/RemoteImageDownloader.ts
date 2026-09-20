@@ -54,40 +54,48 @@ function parseSourceUrl(value: string, base?: URL): URL {
     }
 }
 
-function isPrivateOrReservedAddress(address: string): boolean {
-    if (net.isIPv4(address)) {
-        const [first, second, third] = address.split('.').map(Number);
-        return first === 0
-            || first === 10
-            || first === 127
-            || (first === 100 && second >= 64 && second <= 127)
-            || (first === 169 && second === 254)
-            || (first === 172 && second >= 16 && second <= 31)
-            || (first === 192 && second === 0 && third === 0)
-            || (first === 192 && second === 168)
-            || (first === 198 && (second === 18 || second === 19))
-            || first >= 224;
-    }
+function isReservedIpv4Range(first: number, second: number): boolean {
+    return (first === 100 && second >= 64 && second <= 127)
+        || (first === 169 && second === 254)
+        || (first === 172 && second >= 16 && second <= 31)
+        || (first === 198 && (second === 18 || second === 19));
+}
 
+function isPrivateOrReservedIpv4(address: string): boolean {
+    const [first, second, third] = address.split('.').map(Number);
+    return first === 0
+        || first === 10
+        || first === 127
+        || (first === 192 && second === 0 && third === 0)
+        || (first === 192 && second === 168)
+        || first >= 224
+        || isReservedIpv4Range(first, second);
+}
+
+function isPrivateOrReservedMappedIpv4(mapped: string): boolean {
+    if (net.isIPv4(mapped)) return isPrivateOrReservedIpv4(mapped);
+    const groups = mapped.split(':');
+    if (groups.length !== 2) return true;
+
+    const high = Number.parseInt(groups[0], 16);
+    const low = Number.parseInt(groups[1], 16);
+    if (!Number.isInteger(high) || !Number.isInteger(low)) return true;
+
+    return isPrivateOrReservedAddress([
+        high >> 8,
+        high & 255,
+        low >> 8,
+        low & 255
+    ].join('.'));
+}
+
+function isPrivateOrReservedAddress(address: string): boolean {
+    if (net.isIPv4(address)) return isPrivateOrReservedIpv4(address);
     if (!net.isIPv6(address)) return true;
+
     const normalized = address.toLowerCase();
     if (normalized.startsWith('::ffff:')) {
-        const mapped = normalized.slice(7);
-        if (net.isIPv4(mapped)) return isPrivateOrReservedAddress(mapped);
-        const groups = mapped.split(':');
-        if (groups.length === 2) {
-            const high = Number.parseInt(groups[0], 16);
-            const low = Number.parseInt(groups[1], 16);
-            if (Number.isInteger(high) && Number.isInteger(low)) {
-                return isPrivateOrReservedAddress([
-                    high >> 8,
-                    high & 255,
-                    low >> 8,
-                    low & 255
-                ].join('.'));
-            }
-        }
-        return true;
+        return isPrivateOrReservedMappedIpv4(normalized.slice(7));
     }
     return normalized === '::'
         || normalized === '::1'
@@ -184,6 +192,23 @@ async function readLimitedBody(response: Response, maxBytes: number): Promise<Bu
     return Buffer.concat(chunks, totalBytes);
 }
 
+function validateImageResponse(response: Response, maxBytes: number): string {
+    if (!response.ok) {
+        throw mediaError(400, 'MEDIA_SOURCE_UNAVAILABLE', 'Não foi possível baixar a imagem de origem.');
+    }
+
+    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+    if (!contentType || !ALLOWED_CONTENT_TYPES.has(contentType)) {
+        throw mediaError(415, 'MEDIA_FORMAT_NOT_ALLOWED', 'A capa deve estar nos formatos JPG, PNG, WebP ou AVIF.');
+    }
+
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+        throw mediaError(413, 'MEDIA_TOO_LARGE', 'A imagem excede o tamanho máximo permitido.');
+    }
+    return contentType;
+}
+
 async function downloadRemoteImage(sourceUrl: string, options: DownloadOptions = {}): Promise<DownloadedImage> {
     const fetchImpl = options.fetchImpl;
     const lookupImpl = options.lookupImpl || (lookup as LookupLike);
@@ -216,19 +241,7 @@ async function downloadRemoteImage(sourceUrl: string, options: DownloadOptions =
             continue;
         }
 
-        if (!response.ok) {
-            throw mediaError(400, 'MEDIA_SOURCE_UNAVAILABLE', 'Não foi possível baixar a imagem de origem.');
-        }
-
-        const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
-        if (!contentType || !ALLOWED_CONTENT_TYPES.has(contentType)) {
-            throw mediaError(415, 'MEDIA_FORMAT_NOT_ALLOWED', 'A capa deve estar nos formatos JPG, PNG, WebP ou AVIF.');
-        }
-
-        const declaredLength = Number(response.headers.get('content-length'));
-        if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-            throw mediaError(413, 'MEDIA_TOO_LARGE', 'A imagem excede o tamanho máximo permitido.');
-        }
+        const contentType = validateImageResponse(response, maxBytes);
 
         return {
             bytes: await readLimitedBody(response, maxBytes),

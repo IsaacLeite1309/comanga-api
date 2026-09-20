@@ -1,8 +1,8 @@
 import { PrismaMediaAssetRepository } from './PrismaMediaAssetRepository';
 import type { Prisma } from '@prisma/client';
-import prisma from '../../../prisma';
-import { getMediaStorage } from '../../../infrastructure/container';
-import structuredLogger from '../../../infrastructure/logging/structuredLogger';
+import prisma from '../../prisma';
+import { getMediaStorage } from '../../infrastructure/container';
+import structuredLogger from '../../infrastructure/logging/structuredLogger';
 
 async function isCoverAssetAttachable(assetId: string, currentAssetId?: string | null): Promise<boolean> {
     const asset = await prisma.mediaAsset.findUnique({

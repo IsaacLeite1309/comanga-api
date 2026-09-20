@@ -1,5 +1,5 @@
 import express from 'express';
-import optionalSessionMiddleware from '../middlewares/optionalSessionMiddleware';
+import auth from '../modules/auth';
 import {
     getPublicCatalogOptions,
     getPublicEditionDetails,
@@ -13,11 +13,11 @@ import {
 const router = express.Router();
 
 router.get('/catalog-options', getPublicCatalogOptions);
-router.get('/works', optionalSessionMiddleware, listPublicWorks);
-router.get('/works/:slug', optionalSessionMiddleware, getPublicWorkDetails);
-router.get('/authors/:authorId/works', optionalSessionMiddleware, listPublicAuthorWorks);
-router.get('/editions', optionalSessionMiddleware, listPublicEditions);
-router.get('/editions/:editionId', optionalSessionMiddleware, getPublicEditionDetails);
-router.get('/volumes/:volumeId', optionalSessionMiddleware, getPublicVolumeDetails);
+router.get('/works', auth.optionalSessionMiddleware, listPublicWorks);
+router.get('/works/:slug', auth.optionalSessionMiddleware, getPublicWorkDetails);
+router.get('/authors/:authorId/works', auth.optionalSessionMiddleware, listPublicAuthorWorks);
+router.get('/editions', auth.optionalSessionMiddleware, listPublicEditions);
+router.get('/editions/:editionId', auth.optionalSessionMiddleware, getPublicEditionDetails);
+router.get('/volumes/:volumeId', auth.optionalSessionMiddleware, getPublicVolumeDetails);
 
 export default router;

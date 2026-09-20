@@ -22,7 +22,7 @@ describe('datas privadas e logs seguros', () => {
 });
 
 describe('contratos de criação e alteração de capas', () => {
-    const { createWorkSchema, editionPayloadSchema, updateWorkSchema, updateEditionSchema, updateVolumeSchema } = require('../src/modules/admin/schemas');
+    const { createWorkSchema, editionPayloadSchema, updateWorkSchema, updateEditionSchema, updateVolumeSchema } = require('../src/modules/catalog/schemas');
     const asset = '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e';
     const work = { title: 'Obra', typeId: 1, country: 'Japão', originalPublicationStatus: 'Completa', authors: [{ authorId: 1, roles: ['História e Arte'] }] };
     const edition = { brazilianPublisherId: 1, editionTypeId: 2, coverTypeId: 3, formatId: 4, chronologicalNumber: 1, brazilPublicationStatus: 'Completa' };

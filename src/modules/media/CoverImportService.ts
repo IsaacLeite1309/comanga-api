@@ -1,23 +1,9 @@
 import crypto from 'node:crypto';
-import type MediaStorage from '../../../infrastructure/contracts/MediaStorage';
-import type { DownloadedImage } from '../../../infrastructure/media/RemoteImageDownloader';
-import type { MediaPublicUrlResolver } from '../../../infrastructure/media/mediaPublicUrl';
-import { resolveCoverUrl } from '../../../infrastructure/media/mediaPublicUrl';
-
-interface ProcessedMediaObject {
-    kind: string;
-    body: Buffer;
-    contentType: string;
-    width: number;
-    height: number;
-}
-
-interface ProcessedCover {
-    master: ProcessedMediaObject;
-    variants: ProcessedMediaObject[];
-    checksum: string;
-    format: string;
-}
+import type MediaStorage from '../../infrastructure/contracts/MediaStorage';
+import type { DownloadedImage } from '../../infrastructure/media/RemoteImageDownloader';
+import type { ProcessedCover } from '../../infrastructure/media/CoverImageProcessor';
+import type { MediaPublicUrlResolver } from '../../infrastructure/media/mediaPublicUrl';
+import { resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
 
 interface PersistedAsset {
     id: string;
@@ -141,7 +127,5 @@ export type {
     CoverImportDependencies,
     ImportCoverInput,
     MediaAssetRepository,
-    PersistedAsset,
-    ProcessedCover,
-    ProcessedMediaObject
+    PersistedAsset
 };

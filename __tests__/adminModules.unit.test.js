@@ -82,7 +82,9 @@ const prisma = {
 
 jest.mock('../src/prisma', () => prisma);
 
-const adminController = require('../src/controllers/adminController');
+const adminUsers = require('../src/modules/admin/users');
+const adminOptions = require('../src/modules/admin/options');
+const catalog = require('../src/modules/catalog');
 
 function makeRes() {
     const res = {
@@ -103,7 +105,7 @@ function makeReq(overrides = {}) {
     };
 }
 
-describe('adminController unitario', () => {
+describe('módulos administrativos', () => {
     beforeEach(() => {
         jest.resetAllMocks();
         prisma.mediaAsset.findUnique.mockResolvedValue({
@@ -147,7 +149,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.listUsers(req, res);
+            await adminUsers.listUsers(req, res);
 
             expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
@@ -189,7 +191,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ query: { order: 'INVALIDO' } });
             const res = makeRes();
 
-            await adminController.listUsers(req, res);
+            await adminUsers.listUsers(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.user.findMany).not.toHaveBeenCalled();
@@ -202,7 +204,7 @@ describe('adminController unitario', () => {
             const res = makeRes();
             const next = jest.fn();
 
-            await adminController.listUsers(req, res, next);
+            await adminUsers.listUsers(req, res, next);
 
             expect(next).toHaveBeenCalledWith(error);
             expect(res.status).not.toHaveBeenCalledWith(500);
@@ -224,7 +226,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateUserRole(req, res);
+            await adminUsers.updateUserRole(req, res);
 
             expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 'user-2' },
@@ -249,7 +251,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateUserRole(req, res);
+            await adminUsers.updateUserRole(req, res);
 
             expect(res.status).toHaveBeenCalledWith(403);
             expect(res.json).toHaveBeenCalledWith({
@@ -265,7 +267,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateUserRole(req, res);
+            await adminUsers.updateUserRole(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.user.update).not.toHaveBeenCalled();
@@ -279,7 +281,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateUserRole(req, res);
+            await adminUsers.updateUserRole(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -294,7 +296,7 @@ describe('adminController unitario', () => {
             const res = makeRes();
             const next = jest.fn();
 
-            await adminController.updateUserRole(req, res, next);
+            await adminUsers.updateUserRole(req, res, next);
 
             expect(next).toHaveBeenCalledWith(error);
             expect(res.status).not.toHaveBeenCalledWith(500);
@@ -328,7 +330,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.listOptions(req, res);
+            await adminOptions.listOptions(req, res);
 
             expect(prisma.domainOptionValue.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
@@ -416,7 +418,7 @@ describe('adminController unitario', () => {
             const req = makeReq();
             const res = makeRes();
 
-            await adminController.getWorkFormOptions(req, res);
+            await adminOptions.getWorkFormOptions(req, res);
 
             expect(prisma.$transaction).toHaveBeenCalledWith([
                 'authorsQuery',
@@ -480,7 +482,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(prisma.domainOptionValue.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: {
@@ -507,7 +509,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({
@@ -575,7 +577,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(prisma.domainOptionValue.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
                 where: expect.objectContaining({
@@ -650,7 +652,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(prisma.domainOptionValue.create).toHaveBeenCalledTimes(3);
             expect(prisma.domainOptionValue.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
@@ -711,7 +713,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(prisma.domainOptionValue.create).toHaveBeenCalledTimes(1);
             expect(prisma.domainOptionValue.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -737,7 +739,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -757,7 +759,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createOption(req, res);
+            await adminOptions.createOption(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -796,7 +798,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateOption(req, res);
+            await adminOptions.updateOption(req, res);
 
             expect(prisma.domainOptionValue.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 10 },
@@ -814,7 +816,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { id: '10' } });
             const res = makeRes();
 
-            await adminController.deleteOption(req, res);
+            await adminOptions.deleteOption(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -832,11 +834,11 @@ describe('adminController unitario', () => {
             });
             prisma.$transaction.mockResolvedValueOnce([[], 0]);
 
-            await adminController.listOptions(makeReq({
+            await adminOptions.listOptions(makeReq({
                 params: { category: 'paises-origem' },
                 query: {}
             }), listRes);
-            await adminController.createOption(makeReq({
+            await adminOptions.createOption(makeReq({
                 body: { category: 'miolos', label: 'Offset' }
             }), createRes);
 
@@ -857,11 +859,11 @@ describe('adminController unitario', () => {
             const updateRes = makeRes();
             const deleteRes = makeRes();
 
-            await adminController.updateOption(makeReq({
+            await adminOptions.updateOption(makeReq({
                 params: { id: '10' },
                 body: { label: 'Brasil' }
             }), updateRes);
-            await adminController.deleteOption(makeReq({ params: { id: '10' } }), deleteRes);
+            await adminOptions.deleteOption(makeReq({ params: { id: '10' } }), deleteRes);
 
             expect(updateRes.status).toHaveBeenCalledWith(404);
             expect(deleteRes.status).toHaveBeenCalledWith(404);
@@ -969,7 +971,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createWork(req, res);
+            await catalog.createWork(req, res);
 
             expect(prisma.work.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
@@ -1036,7 +1038,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { slug: 'naruto' } });
             const res = makeRes();
 
-            await adminController.getWorkBySlug(req, res, jest.fn());
+            await catalog.getWorkBySlug(req, res, jest.fn());
 
             expect(prisma.work.findUnique).toHaveBeenCalledWith(expect.objectContaining({
                 where: { slug: 'naruto' }
@@ -1053,7 +1055,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { slug: 'obra-inexistente' } });
             const res = makeRes();
 
-            await adminController.getWorkBySlug(req, res, jest.fn());
+            await catalog.getWorkBySlug(req, res, jest.fn());
 
             expect(res.status).toHaveBeenCalledWith(404);
             expect(res.json).toHaveBeenCalledWith({ error: 'Obra não encontrada.' });
@@ -1075,7 +1077,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createWork(req, res);
+            await catalog.createWork(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({ error: 'Autor duplicado!' });
@@ -1111,7 +1113,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createWork(req, res);
+            await catalog.createWork(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({ error: 'Um ou mais valores selecionados são inválidos.' });
@@ -1133,7 +1135,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createWork(req, res);
+            await catalog.createWork(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.work.findFirst).not.toHaveBeenCalled();
@@ -1153,7 +1155,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createWork(req, res, jest.fn());
+            await catalog.createWork(req, res, jest.fn());
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.work.findFirst).not.toHaveBeenCalled();
@@ -1175,7 +1177,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.listWorks(req, res);
+            await catalog.listWorks(req, res);
 
             expect(prisma.work.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
@@ -1226,7 +1228,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateWork(req, res);
+            await catalog.updateWork(req, res);
 
             expect(prisma.work.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 1 },
@@ -1279,7 +1281,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateWork(req, res);
+            await catalog.updateWork(req, res);
 
             expect(prisma.work.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 1 },
@@ -1353,7 +1355,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateWork(req, res);
+            await catalog.updateWork(req, res);
 
             expect(prisma.work.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 1 }
@@ -1401,7 +1403,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateWork(req, res);
+            await catalog.updateWork(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.work.findUnique).not.toHaveBeenCalled();
@@ -1415,7 +1417,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { id: '1' } });
             const res = makeRes();
 
-            await adminController.deleteWork(req, res);
+            await catalog.deleteWork(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1436,7 +1438,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateWorkVisibility(req, res);
+            await catalog.updateWorkVisibility(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1454,7 +1456,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { id: '1' } });
             const res = makeRes();
 
-            await adminController.deleteWork(req, res);
+            await catalog.deleteWork(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1501,7 +1503,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createEdition(req, res);
+            await catalog.createEdition(req, res);
 
             expect(prisma.edition.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
@@ -1539,7 +1541,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createEdition(req, res);
+            await catalog.createEdition(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1556,7 +1558,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.listEditionsByWork(req, res);
+            await catalog.listEditionsByWork(req, res);
 
             expect(prisma.edition.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: { workId: 1 },
@@ -1587,7 +1589,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateEditionVisibility(req, res);
+            await catalog.updateEditionVisibility(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1617,7 +1619,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateEditionVisibility(req, res);
+            await catalog.updateEditionVisibility(req, res);
 
             expect(prisma.edition.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 20 },
@@ -1649,7 +1651,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { id: '20' } });
             const res = makeRes();
 
-            await adminController.deleteEdition(req, res);
+            await catalog.deleteEdition(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1703,7 +1705,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createVolume(req, res);
+            await catalog.createVolume(req, res);
 
             expect(prisma.volume.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
@@ -1747,7 +1749,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.createVolume(req, res);
+            await catalog.createVolume(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1764,7 +1766,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.listVolumesByEdition(req, res);
+            await catalog.listVolumesByEdition(req, res);
 
             expect(prisma.volume.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: { editionId: 20 },
@@ -1789,7 +1791,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { id: '30' } });
             const res = makeRes();
 
-            await adminController.getVolumeById(req, res);
+            await catalog.getVolumeById(req, res);
 
             expect(prisma.volume.findUnique).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 30 }
@@ -1805,7 +1807,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ params: { id: '30' } });
             const res = makeRes();
 
-            await adminController.deleteVolume(req, res);
+            await catalog.deleteVolume(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -1883,7 +1885,7 @@ describe('adminController unitario', () => {
         ])('rejeita identificador invalido em %s', async (handlerName, request) => {
             const res = makeRes();
 
-            await adminController[handlerName](makeReq(request), res);
+            await catalog[handlerName](makeReq(request), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({ error: 'Formato de identificador invalido.' });
@@ -1901,7 +1903,7 @@ describe('adminController unitario', () => {
         ])('rejeita payload ou filtro invalido em %s', async (handlerName, request) => {
             const res = makeRes();
 
-            await adminController[handlerName](makeReq(request), res);
+            await catalog[handlerName](makeReq(request), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
         });
@@ -1926,7 +1928,7 @@ describe('adminController unitario', () => {
             arrange();
             const res = makeRes();
 
-            await adminController[handlerName](makeReq(request), res);
+            await catalog[handlerName](makeReq(request), res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -1959,7 +1961,7 @@ describe('adminController unitario', () => {
             const res = makeRes();
             const next = jest.fn();
 
-            await adminController[handlerName](makeReq(request), res, next);
+            await (adminOptions[handlerName] ?? catalog[handlerName])(makeReq(request), res, next);
 
             expect(next).toHaveBeenCalledWith(expect.any(Error));
             expect(res.status).not.toHaveBeenCalledWith(500);
@@ -1976,8 +1978,8 @@ describe('adminController unitario', () => {
             const detailRes = makeRes();
             const updateRes = makeRes();
 
-            await adminController.getEditionById(makeReq({ params: { id: '20' } }), detailRes);
-            await adminController.updateEdition(makeReq({
+            await catalog.getEditionById(makeReq({ params: { id: '20' } }), detailRes);
+            await catalog.updateEdition(makeReq({
                 params: { id: '20' },
                 body: {
                     ...editionBody,
@@ -2003,7 +2005,7 @@ describe('adminController unitario', () => {
             prisma.$transaction.mockResolvedValue([edition]);
             const res = makeRes();
 
-            await adminController.deleteEdition(makeReq({ params: { id: '20' } }), res);
+            await catalog.deleteEdition(makeReq({ params: { id: '20' } }), res);
 
             expect(prisma.$transaction).toHaveBeenCalledWith(['deleteEditionQuery']);
             expect(res.status).toHaveBeenCalledWith(200);
@@ -2016,7 +2018,7 @@ describe('adminController unitario', () => {
             prisma.$transaction.mockResolvedValue([edition, { count: 2 }]);
             const res = makeRes();
 
-            await adminController.updateEditionVisibility(makeReq({
+            await catalog.updateEditionVisibility(makeReq({
                 params: { id: '20' },
                 body: { visibility: 'Privado' }
             }), res);
@@ -2033,7 +2035,7 @@ describe('adminController unitario', () => {
             prisma.volume.create.mockResolvedValue(volume);
             const res = makeRes();
 
-            await adminController.createVolume(makeReq({
+            await catalog.createVolume(makeReq({
                 params: { editionId: '20' },
                 body: volumeBody
             }), res);
@@ -2063,7 +2065,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateVolume(makeReq({
+            await catalog.updateVolume(makeReq({
                 params: { id: '30' },
                 body: {
                     releaseDatePrecision: precision,
@@ -2085,7 +2087,7 @@ describe('adminController unitario', () => {
             prisma.volume.delete.mockResolvedValue({ id: 30 });
             const res = makeRes();
 
-            await adminController.deleteVolume(makeReq({ params: { id: '30' } }), res);
+            await catalog.deleteVolume(makeReq({ params: { id: '30' } }), res);
 
             expect(prisma.volume.delete).toHaveBeenCalledWith({ where: { id: 30 } });
             expect(res.status).toHaveBeenCalledWith(200);
@@ -2107,7 +2109,7 @@ describe('adminController unitario', () => {
             arrange();
             const res = makeRes();
 
-            await adminController[handlerName](makeReq(request), res);
+            await (adminOptions[handlerName] ?? catalog[handlerName])(makeReq(request), res);
 
             expect([404, 409]).toContain(res.status.mock.calls[0][0]);
         });
@@ -2133,7 +2135,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.getWorkById(makeReq({ params: { id: '1' } }), res);
+            await catalog.getWorkById(makeReq({ params: { id: '1' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
@@ -2159,7 +2161,7 @@ describe('adminController unitario', () => {
             prisma.$transaction.mockResolvedValue([[], 0]);
             const res = makeRes();
 
-            await adminController.listWorks(makeReq({ query: { sortBy } }), res);
+            await catalog.listWorks(makeReq({ query: { sortBy } }), res);
 
             expect(prisma.work.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 orderBy: expectedOrderBy
@@ -2188,7 +2190,7 @@ describe('adminController unitario', () => {
             ]);
             const res = makeRes();
 
-            await adminController.listWorks(makeReq({ query: { sortBy, order } }), res);
+            await catalog.listWorks(makeReq({ query: { sortBy, order } }), res);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
@@ -2202,9 +2204,9 @@ describe('adminController unitario', () => {
             const invalidQueryRes = makeRes();
             prisma.domainOptionCategory.findUnique.mockResolvedValue(null);
 
-            await adminController.listOptions(makeReq({ params: {}, query: {} }), invalidParamsRes);
-            await adminController.listOptions(makeReq({ params: { category: 'generos' }, query: { page: '0' } }), invalidQueryRes);
-            await adminController.listOptions(makeReq({ params: { category: 'generos' }, query: {} }), missingCategoryRes);
+            await adminOptions.listOptions(makeReq({ params: {}, query: {} }), invalidParamsRes);
+            await adminOptions.listOptions(makeReq({ params: { category: 'generos' }, query: { page: '0' } }), invalidQueryRes);
+            await adminOptions.listOptions(makeReq({ params: { category: 'generos' }, query: {} }), missingCategoryRes);
 
             expect(invalidParamsRes.status).toHaveBeenCalledWith(400);
             expect(invalidQueryRes.status).toHaveBeenCalledWith(400);
@@ -2216,7 +2218,7 @@ describe('adminController unitario', () => {
             prisma.$transaction.mockResolvedValue([[], 0]);
             const res = makeRes();
 
-            await adminController.listOptions(makeReq({
+            await adminOptions.listOptions(makeReq({
                 params: { category: 'autores' },
                 query: { term: 'ura', dependsOn: '8', order: 'DESC' }
             }), res);
@@ -2236,7 +2238,7 @@ describe('adminController unitario', () => {
             prisma.domainOptionValue.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
             const res = makeRes();
 
-            await adminController.createOption(makeReq({
+            await adminOptions.createOption(makeReq({
                 body: { category: 'autores', label: 'Autor novo', dependsOnValueIds: [999] }
             }), res);
 
@@ -2249,7 +2251,7 @@ describe('adminController unitario', () => {
             prisma.domainOptionValue.findMany.mockResolvedValue([{ label: 'Drama' }, { label: 'Ação' }]);
             const res = makeRes();
 
-            await adminController.createOption(makeReq({
+            await adminOptions.createOption(makeReq({
                 body: { category: 'generos', label: 'Drama, Ação' }
             }), res);
 
@@ -2265,7 +2267,7 @@ describe('adminController unitario', () => {
         ])('rejeita data de publicacao incompleta do volume', async (body) => {
             const res = makeRes();
 
-            await adminController.createVolume(makeReq({ params: { editionId: '20' }, body }), res);
+            await catalog.createVolume(makeReq({ params: { editionId: '20' }, body }), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.edition.findUnique).not.toHaveBeenCalled();
@@ -2282,10 +2284,10 @@ describe('adminController unitario', () => {
                 authors: [{ authorId: 1, roles: ['História'] }]
             };
 
-            await adminController.createWork(makeReq({
+            await catalog.createWork(makeReq({
                 body: { ...baseBody, genreIds: [2, 2] }
             }), duplicatedRes);
-            await adminController.createWork(makeReq({
+            await catalog.createWork(makeReq({
                 body: {
                     ...baseBody,
                     originalPublicationStartYear: 2020,
@@ -2301,7 +2303,7 @@ describe('adminController unitario', () => {
             prisma.work.findFirst.mockResolvedValue({ id: 99 });
             const res = makeRes();
 
-            await adminController.createWork(makeReq({
+            await catalog.createWork(makeReq({
                 body: {
                     title: 'Repetida',
                     typeId: 1,
@@ -2322,7 +2324,7 @@ describe('adminController unitario', () => {
             prisma.$transaction.mockResolvedValue([{ id: 1 }]);
             const res = makeRes();
 
-            await adminController.deleteWork(makeReq({ params: { id: '1' } }), res);
+            await catalog.deleteWork(makeReq({ params: { id: '1' } }), res);
 
             expect(prisma.$transaction).toHaveBeenCalledWith(['deleteWorkQuery']);
             expect(res.status).toHaveBeenCalledWith(200);
@@ -2355,7 +2357,7 @@ describe('adminController unitario', () => {
             });
             const res = makeRes();
 
-            await adminController.updateWorkVisibility(makeReq({
+            await catalog.updateWorkVisibility(makeReq({
                 params: { id: '1' },
                 body: { visibility }
             }), res);
@@ -2368,7 +2370,7 @@ describe('adminController unitario', () => {
             prisma.volume.update.mockResolvedValue(volume);
             const res = makeRes();
 
-            await adminController.updateVolume(makeReq({
+            await catalog.updateVolume(makeReq({
                 params: { id: '30' },
                 body: { releaseYear: 2024, releaseMonth: 2, releaseDay: 3 }
             }), res);
@@ -2387,7 +2389,7 @@ describe('adminController unitario', () => {
             const req = makeReq({ user: undefined, params: { id: 'user-2' }, body: { role: 'Administrador' } });
             const res = makeRes();
 
-            await expect(adminController.updateUserRole(req, res)).rejects.toThrow(
+            await expect(adminUsers.updateUserRole(req, res)).rejects.toThrow(
                 'Usuário autenticado não encontrado na requisição.'
             );
         });

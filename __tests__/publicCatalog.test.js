@@ -98,42 +98,51 @@ async function createWork({
     const work = result.rows[0];
     fixture.workIds.push(work.id);
 
+    await createWorkRelations(work.id, {
+        authorIds, genreIds, demographics, originalPublisherIds, serializationMagazineIds
+    });
+
+    return work;
+}
+
+async function createWorkRelations(workId, {
+    authorIds, genreIds, demographics, originalPublisherIds, serializationMagazineIds
+}) {
     for (const authorId of authorIds) {
         await db.query(
             'INSERT INTO work_authors (work_id, author_id) VALUES ($1, $2)',
-            [work.id, authorId]
+            [workId, authorId]
         );
     }
 
     for (const genreId of genreIds) {
         await db.query(
             'INSERT INTO work_genres (work_id, genre_id) VALUES ($1, $2)',
-            [work.id, genreId]
+            [workId, genreId]
         );
     }
 
     for (const demography of demographics) {
         await db.query(
             'INSERT INTO work_demographies (work_id, demography) VALUES ($1, $2)',
-            [work.id, demography]
+            [workId, demography]
         );
     }
 
     for (const [position, publisherId] of originalPublisherIds.entries()) {
         await db.query(
             'INSERT INTO work_original_publishers (work_id, publisher_id, position) VALUES ($1, $2, $3)',
-            [work.id, publisherId, position]
+            [workId, publisherId, position]
         );
     }
 
     for (const [position, magazineId] of serializationMagazineIds.entries()) {
         await db.query(
             'INSERT INTO work_serialization_magazines (work_id, magazine_id, position) VALUES ($1, $2, $3)',
-            [work.id, magazineId, position]
+            [workId, magazineId, position]
         );
     }
 
-    return work;
 }
 
 async function createEdition({

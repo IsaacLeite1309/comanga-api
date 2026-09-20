@@ -10,7 +10,7 @@ jest.mock('../src/prisma', () => ({
     default: { mediaAsset: mockMediaAsset, $transaction: callback => callback({ mediaAsset: mockMediaAsset, $queryRaw: jest.fn().mockResolvedValue([]) }) }
 }));
 
-const { PrismaMediaAssetRepository } = require('../src/modules/admin/media/PrismaMediaAssetRepository');
+const { PrismaMediaAssetRepository } = require('../src/modules/media/PrismaMediaAssetRepository');
 
 describe('PrismaMediaAssetRepository', () => {
     const repository = new PrismaMediaAssetRepository();

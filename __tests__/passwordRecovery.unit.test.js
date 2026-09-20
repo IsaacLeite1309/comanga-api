@@ -7,10 +7,10 @@ const prisma = {
 };
 const sendPasswordResetEmail = jest.fn();
 jest.mock('../src/prisma', () => prisma);
-jest.mock('../src/infrastructure/container', () => ({ authNotificationService: { sendPasswordResetEmail } }));
 jest.mock('../src/infrastructure/logging/structuredLogger', () => ({ error: jest.fn() }));
-const { requestPasswordReset, resetPassword, RECOVERY_MESSAGE } = require('../src/modules/auth/passwordRecovery');
-const { createRecoveryRateLimiter } = require('../src/middlewares/recoveryRateLimiter');
+const { createPasswordRecoveryHandlers, RECOVERY_MESSAGE } = require('../src/modules/auth/passwordRecovery');
+const { createRecoveryRateLimiter } = require('../src/modules/auth/recoveryRateLimiter');
+const { requestPasswordReset, resetPassword } = createPasswordRecoveryHandlers({ sendPasswordResetEmail });
 const makeRes = () => { const res = { status: jest.fn(() => res), json: jest.fn(() => res), setHeader: jest.fn() }; return res; };
 const input = { token: 'a'.repeat(64), password: 'SenhaNova123!', confirmPassword: 'SenhaNova123!' };
 
