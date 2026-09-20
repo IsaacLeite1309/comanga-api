@@ -238,3 +238,7 @@ A migration `20260920123000_controlled_domain_options` semeia tipos de Obra e g�
 `PATCH /api/admin/options/:category/order` ordena apenas tipos-edicao com valueIds, normalizando 0..n-1; inativos ocupam posição. As listas devolvem metadados de controle e atividade.
 
 Hentai força a marca adulta na escrita. Leituras públicas e opções respeitam idade/preferência e associação ao gênero mesmo em dados legados inconsistentes. Administrador com atribuição vigente e conta ativada tem exceção de leitura, independentemente de idade, preferência e perfil ativo; escrita administrativa continua exigindo perfil Administrador ativo. catalog-options usa sessão opcional, Vary: Cookie e Cache-Control: private, no-store e devolve countryIds/countries por tipo.
+
+## Regressões transversais
+
+As verificações cobrem autorização administrativa, sessões antigas/revogadas, isolamento de falhas e comparação do schema Prisma com o banco migrado. Erros 5xx não expõem códigos internos do ORM. A relação de tokens de recuperação explicita onUpdate: NoAction para corresponder à FK existente, sem nova migration. Executar check e check:integration em banco descartável dedicado; cobertura mínima de 80% em todas as métricas.
