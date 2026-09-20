@@ -23,7 +23,8 @@ const mailer = {
 jest.mock('../src/prisma', () => prisma);
 jest.mock('../src/utils/mailer', () => mailer);
 
-const userController = require('../src/controllers/userController');
+const auth = require('../src/modules/auth');
+const users = require('../src/modules/users');
 
 function makeRes() {
     const res = {
@@ -47,7 +48,7 @@ function makeReq(overrides = {}) {
     };
 }
 
-describe('userController unitario', () => {
+describe('autenticação e usuários', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         prisma.$transaction.mockImplementation(callback => callback(prisma));
@@ -72,7 +73,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: { ...validBody, username: 'x' } });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.user.findFirst).not.toHaveBeenCalled();
@@ -83,7 +84,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: validBody });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ field: 'email' }));
@@ -94,7 +95,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: validBody });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ field: 'username' }));
@@ -107,7 +108,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: validBody });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(prisma.user.create).toHaveBeenCalled();
             expect(res.status).toHaveBeenCalledWith(201);
@@ -121,7 +122,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: validBody });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(mailer.sendActivationEmail).toHaveBeenCalledWith(
                 validBody.email,
@@ -140,7 +141,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: validBody });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -159,7 +160,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: validBody });
             const res = makeRes();
 
-            await userController.registerUser(req, res);
+            await auth.registerUser(req, res);
 
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
@@ -185,7 +186,7 @@ describe('userController unitario', () => {
             const req = makeReq({ params: { token: 'token-valido' } });
             const res = makeRes();
 
-            await userController.activateAccount(req, res);
+            await auth.activateAccount(req, res);
 
             expect(tx.user.updateMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({ id: 'user-1', activationToken: 'token-valido' }),
@@ -207,7 +208,7 @@ describe('userController unitario', () => {
             const req = makeReq({ params: { token: 'token-concorrente' } });
             const res = makeRes();
 
-            await userController.activateAccount(req, res);
+            await auth.activateAccount(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({ error: 'Link de ativação inválido!' });
@@ -222,7 +223,7 @@ describe('userController unitario', () => {
             const req = makeReq({ params: { token: 'invalido' } });
             const res = makeRes();
 
-            await userController.activateAccount(req, res);
+            await auth.activateAccount(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({ error: 'Link de ativação inválido!' });
@@ -240,7 +241,7 @@ describe('userController unitario', () => {
             const req = makeReq({ params: { token: 'expirado' } });
             const res = makeRes();
 
-            await userController.activateAccount(req, res);
+            await auth.activateAccount(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
         });
@@ -250,7 +251,7 @@ describe('userController unitario', () => {
         it('exige e-mail no corpo da requisicao', async () => {
             const res = makeRes();
 
-            await userController.resendActivation(makeReq(), res);
+            await auth.resendActivation(makeReq(), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
         });
@@ -259,7 +260,7 @@ describe('userController unitario', () => {
             prisma.user.findUnique.mockResolvedValue(null);
             const res = makeRes();
 
-            await userController.resendActivation(makeReq({ body: { email: 'nao@existe.local' } }), res);
+            await auth.resendActivation(makeReq({ body: { email: 'nao@existe.local' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -268,7 +269,7 @@ describe('userController unitario', () => {
             prisma.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'isaac', status: 'Ativada' });
             const res = makeRes();
 
-            await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
+            await auth.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
         });
@@ -277,7 +278,7 @@ describe('userController unitario', () => {
             prisma.user.findUnique.mockResolvedValue({ id: 'user-1', username: 'isaac', status: 'Bloqueada' });
             const res = makeRes();
 
-            await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
+            await auth.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(res.json).toHaveBeenCalledWith({
@@ -293,7 +294,7 @@ describe('userController unitario', () => {
             mailer.sendActivationEmail.mockResolvedValue();
             const res = makeRes();
 
-            await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
+            await auth.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
             expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 'user-1' },
@@ -308,7 +309,7 @@ describe('userController unitario', () => {
             mailer.sendActivationEmail.mockRejectedValue(new Error('SMTP off'));
             const res = makeRes();
 
-            await userController.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
+            await auth.resendActivation(makeReq({ body: { email: 'user@teste.local' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(502);
             expect(res.json).toHaveBeenCalledWith({
@@ -322,7 +323,7 @@ describe('userController unitario', () => {
         it('exige e-mail e senha', async () => {
             const res = makeRes();
 
-            await userController.loginUser(makeReq({ body: { email: 'user@teste.local' } }), res);
+            await auth.loginUser(makeReq({ body: { email: 'user@teste.local' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
         });
@@ -331,7 +332,7 @@ describe('userController unitario', () => {
             prisma.user.findUnique.mockResolvedValue(null);
             const res = makeRes();
 
-            await userController.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'senha' } }), res);
+            await auth.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'senha' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(401);
         });
@@ -347,7 +348,7 @@ describe('userController unitario', () => {
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(false);
             const res = makeRes();
 
-            await userController.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'errada' } }), res);
+            await auth.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'errada' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(401);
         });
@@ -363,7 +364,7 @@ describe('userController unitario', () => {
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
             const res = makeRes();
 
-            await userController.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'correta' } }), res);
+            await auth.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'correta' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(403);
         });
@@ -379,7 +380,7 @@ describe('userController unitario', () => {
             jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
             const res = makeRes();
 
-            await userController.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'correta' } }), res);
+            await auth.loginUser(makeReq({ body: { email: 'user@teste.local', password: 'correta' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(403);
         });
@@ -397,7 +398,7 @@ describe('userController unitario', () => {
             const req = makeReq({ body: { email: 'user@teste.local', password: 'correta' } });
             const res = makeRes();
 
-            await userController.loginUser(req, res);
+            await auth.loginUser(req, res);
 
             expect(prisma.session.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({ userId: 'user-1', sessionTokenHash: expect.any(String) })
@@ -419,7 +420,7 @@ describe('userController unitario', () => {
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
 
-            await userController.getUserProfile(req, res);
+            await users.getUserProfile(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
@@ -432,7 +433,7 @@ describe('userController unitario', () => {
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
 
-            await userController.getUserProfile(req, res);
+            await users.getUserProfile(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -446,7 +447,7 @@ describe('userController unitario', () => {
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
 
-            await userController.getOwnUserProfile(req, res);
+            await users.getOwnUserProfile(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
@@ -459,7 +460,7 @@ describe('userController unitario', () => {
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
 
-            await userController.getOwnUserProfile(req, res);
+            await users.getOwnUserProfile(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -471,7 +472,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.getUserById(req, res);
+            await users.getUserById(req, res);
 
             expect(res.status).toHaveBeenCalledWith(403);
         });
@@ -490,7 +491,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.getUserById(req, res);
+            await users.getUserById(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
         });
@@ -503,7 +504,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.getUserById(req, res);
+            await users.getUserById(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -511,7 +512,7 @@ describe('userController unitario', () => {
         it('valida tipo booleano na preferencia +18', async () => {
             const res = makeRes();
 
-            await userController.updateAdultContent(makeReq({ body: { conteudo_adulto: 'sim' } }), res);
+            await users.updateAdultContent(makeReq({ body: { conteudo_adulto: 'sim' } }), res);
 
             expect(res.status).toHaveBeenCalledWith(400);
         });
@@ -525,7 +526,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.updateAdultContent(req, res);
+            await users.updateAdultContent(req, res);
 
             expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 'user-1' },
@@ -543,7 +544,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.updateAdultContent(req, res);
+            await users.updateAdultContent(req, res);
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
@@ -555,7 +556,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.updateUserById(req, res);
+            await users.updateUserById(req, res);
 
             expect(res.status).toHaveBeenCalledWith(403);
         });
@@ -567,7 +568,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.updateUserById(req, res);
+            await users.updateUserById(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
         });
@@ -579,7 +580,7 @@ describe('userController unitario', () => {
             const req = makeReq({ session: { id: 10, tokenHash: 'hash' } });
             const res = makeRes();
 
-            await userController.logoutUser(req, res);
+            await auth.logoutUser(req, res);
 
             expect(prisma.session.updateMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 10, revokedAt: null },
@@ -595,7 +596,7 @@ describe('userController unitario', () => {
             const req = makeReq({ user: { userId: 'user-1' } });
             const res = makeRes();
 
-            await userController.deleteOwnAccount(req, res);
+            await users.deleteOwnAccount(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
             expect(prisma.user.findUnique).not.toHaveBeenCalled();
@@ -614,7 +615,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.deleteOwnAccount(req, res);
+            await users.deleteOwnAccount(req, res);
 
             expect(bcrypt.compare).toHaveBeenCalledWith('senha-errada', 'hash-salvo');
             expect(prisma.user.delete).not.toHaveBeenCalled();
@@ -635,7 +636,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.deleteOwnAccount(req, res);
+            await users.deleteOwnAccount(req, res);
 
             expect(prisma.user.delete).toHaveBeenCalledWith({
                 where: { id: 'user-1' }
@@ -653,7 +654,7 @@ describe('userController unitario', () => {
             });
             const res = makeRes();
 
-            await userController.deleteOwnAccount(req, res);
+            await users.deleteOwnAccount(req, res);
 
             expect(prisma.user.delete).not.toHaveBeenCalled();
             expect(res.clearCookie).toHaveBeenCalled();

@@ -1,7 +1,7 @@
 const {
     volumePayloadSchema,
     updateVolumeSchema
-} = require('../src/modules/admin/schemas');
+} = require('../src/modules/catalog/schemas');
 
 const validVolume = {
     number: 1,

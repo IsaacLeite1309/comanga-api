@@ -1,7 +1,55 @@
-import type { Request } from 'express';
 import prisma from '../../prisma';
-import { EDITION_FORM_OPTION_CATEGORIES, WORK_DOMAIN_CATEGORIES } from './constants';
-import { validateSelectedOptionsByCountry } from './optionServices';
+import {
+    COUNTRY_CATEGORY_SLUG,
+    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
+    EDITION_FORM_OPTION_CATEGORIES,
+    WORK_DOMAIN_CATEGORIES
+} from './constants';
+
+async function validateSelectedOptionsByCountry(
+    selections: Array<{ categorySlug: string; ids: number[] }>,
+    country: string
+) {
+    const countryDependentSelections = selections
+        .filter((selection) => COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(selection.categorySlug))
+        .map((selection) => ({
+            ...selection,
+            ids: [...new Set(selection.ids.filter(Boolean))]
+        }))
+        .filter((selection) => selection.ids.length > 0);
+
+    if (countryDependentSelections.length === 0) return true;
+
+    const optionIds = countryDependentSelections.flatMap((selection) => selection.ids);
+    const values = await prisma.domainOptionValue.findMany({
+        where: { id: { in: optionIds }, active: true },
+        select: {
+            id: true,
+            dependencies: {
+                select: {
+                    dependsOnValue: {
+                        select: {
+                            label: true,
+                            category: { select: { slug: true } }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    const valuesById = new Map(values.map((value) => [value.id, value]));
+
+    return countryDependentSelections.every((selection) => selection.ids.every((id) => {
+        const value = valuesById.get(id);
+        if (!value) return true;
+        const countryDependencies = value.dependencies.filter((dependency) => (
+            dependency.dependsOnValue.category.slug === COUNTRY_CATEGORY_SLUG
+        ));
+        return countryDependencies.length === 0 || countryDependencies.some((dependency) => (
+            dependency.dependsOnValue.label === country
+        ));
+    }));
+}
 
 async function validateOptionIdsByCategory(categorySlug: string, ids: number[]) {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -81,14 +129,6 @@ async function validateWorkDomainReferences(data: {
     ], data.country);
 }
 
-function getAuthenticatedAdminId(req: Request): string {
-    if (!req.user) {
-        throw new Error('Usuário autenticado não encontrado na requisição.');
-    }
-
-    return req.user.userId;
-}
-
 function parsePositiveId(value: string | string[] | undefined) {
     if (Array.isArray(value) || value === undefined) return null;
 
@@ -97,9 +137,9 @@ function parsePositiveId(value: string | string[] | undefined) {
 }
 
 export {
+    validateSelectedOptionsByCountry,
     validateOptionIdsByCategory,
     validateEditionDomainReferences,
     validateWorkDomainReferences,
-    getAuthenticatedAdminId,
     parsePositiveId
 };

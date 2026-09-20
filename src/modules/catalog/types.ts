@@ -2,6 +2,7 @@ interface PrismaKnownError {
     code?: string;
 }
 
+
 interface OptionSummary {
     id: number | string;
     label: string;

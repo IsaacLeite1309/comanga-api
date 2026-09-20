@@ -6,7 +6,7 @@ const prisma = {
 
 jest.mock('../src/prisma', () => prisma);
 
-const optionalSessionMiddleware = require('../src/middlewares/optionalSessionMiddleware').default;
+const { optionalSessionMiddleware } = require('../src/modules/auth');
 
 describe('sessão opcional do catálogo público', () => {
     beforeEach(() => {

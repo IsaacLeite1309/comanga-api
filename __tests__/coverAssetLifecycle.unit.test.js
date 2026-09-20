@@ -25,7 +25,7 @@ const {
     activateCoverAsset,
     deleteOrphanedCoverAsset,
     isCoverAssetAttachable
-} = require('../src/modules/admin/media/coverAssetLifecycle');
+} = require('../src/modules/media/coverAssetLifecycle');
 
 describe('ciclo de vida da capa vinculada', () => {
     beforeEach(() => {
@@ -79,6 +79,14 @@ describe('ciclo de vida da capa vinculada', () => {
             where: { id: 'asset-id' },
             data: { status: 'Ativo', ativadoEm: expect.any(Date) }
         });
+    });
+
+    it('preserva a operação Prisma sem antecipá-la ao compor uma transação em lote', () => {
+        const operation = { then: jest.fn() };
+        const client = { mediaAsset: { update: jest.fn().mockReturnValue(operation) } };
+
+        expect(activateCoverAsset(client, 'asset-id')).toBe(operation);
+        expect(operation.then).not.toHaveBeenCalled();
     });
 
     it('ignora ausência e ativos vinculados ao limpar órfãos', async () => {

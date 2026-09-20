@@ -1,44 +1,6 @@
-import prisma from '../../prisma';
-import { COUNTRY_DEPENDENT_CATEGORY_SLUGS, WORK_SORT_FIELDS } from './constants';
-import { normalizeWorkSummary } from './mappers';
 
-function getOptionValueSelect(includeDependencies: boolean) {
-    return {
-        id: true,
-        label: true,
-        category: {
-            select: {
-                slug: true,
-                name: true
-            }
-        },
-        ...(includeDependencies
-            ? {
-                dependencies: {
-                    select: {
-                        dependsOnValue: {
-                            select: {
-                                id: true,
-                                label: true,
-                                category: {
-                                    select: {
-                                        slug: true,
-                                        name: true
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    orderBy: {
-                        dependsOnValue: {
-                            label: 'asc' as const
-                        }
-                    }
-                }
-            }
-            : {})
-    };
-}
+import { WORK_SORT_FIELDS } from './constants';
+import { normalizeWorkSummary } from './mappers';
 
 function getWorkSummaryInclude() {
     return {
@@ -146,21 +108,6 @@ function sortWorkSummariesInMemory(
     });
 }
 
-function buildWorkFormOptionQuery(categorySlug: string) {
-    return prisma.domainOptionValue.findMany({
-        where: {
-            active: true,
-            category: {
-                slug: categorySlug
-            }
-        },
-        select: getOptionValueSelect(COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(categorySlug)),
-        orderBy: {
-            label: 'asc'
-        }
-    });
-}
-
 function getWorkDetailInclude() {
     return {
         ...getWorkSummaryInclude(),
@@ -225,11 +172,9 @@ function getWorkDetailInclude() {
 }
 
 export {
-    getOptionValueSelect,
     getWorkSummaryInclude,
     getEditionInclude,
     getWorkOrderBy,
     sortWorkSummariesInMemory,
-    buildWorkFormOptionQuery,
     getWorkDetailInclude
 };

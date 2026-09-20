@@ -11,7 +11,7 @@ const {
     createLoginRateLimiter,
     RATE_LIMIT_MESSAGE,
     LOGIN_FAILURE_WINDOW_MS
-} = require('../src/middlewares/loginRateLimiter');
+} = require('../src/modules/auth/loginRateLimiter');
 
 function makeRateLimitResponse() {
     const response = {

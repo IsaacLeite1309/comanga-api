@@ -115,8 +115,7 @@ async function runStage({ url, virtualUsers, durationMs, timeoutMs, metricsUrl, 
     };
 }
 
-async function main() {
-    const args = parseArguments(process.argv.slice(2));
+function getTargetUrl(args) {
     const targetUrl = args.url || process.env.LOAD_TEST_URL;
     const confirmedHost = args['confirm-host'] || process.env.LOAD_TEST_CONFIRM_HOST;
 
@@ -131,11 +130,14 @@ async function main() {
         throw new Error('A URL do teste deve usar HTTP ou HTTPS.');
     }
 
+    return { targetUrl, parsedUrl };
+}
+
+function getRunConfiguration(args, parsedUrl) {
     const stages = parseStages(args.stages || process.env.LOAD_TEST_STAGES || '10,25,50,100');
     const durationSeconds = Number(args.duration || process.env.LOAD_TEST_DURATION_SECONDS || 30);
     const timeoutMs = Number(args.timeout || process.env.LOAD_TEST_TIMEOUT_MS || 10000);
     const metricsUrl = args['metrics-url'] || process.env.LOAD_TEST_METRICS_URL;
-    const opsToken = process.env.OPS_METRICS_TOKEN;
 
     if (metricsUrl && new globalThis.URL(metricsUrl).origin !== parsedUrl.origin) {
         throw new Error('A URL de metricas deve pertencer a mesma origem do alvo.');
@@ -145,6 +147,14 @@ async function main() {
         throw new Error('A duracao deve estar entre 1 e 300 segundos.');
     }
 
+    return { stages, durationSeconds, timeoutMs, metricsUrl };
+}
+
+async function main() {
+    const args = parseArguments(process.argv.slice(2));
+    const { targetUrl, parsedUrl } = getTargetUrl(args);
+    const { stages, durationSeconds, timeoutMs, metricsUrl } = getRunConfiguration(args, parsedUrl);
+    const opsToken = process.env.OPS_METRICS_TOKEN;
     const report = {
         generatedAt: new Date().toISOString(),
         target: `${parsedUrl.origin}${parsedUrl.pathname}`,

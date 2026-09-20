@@ -1,5 +1,5 @@
 /* global Buffer */
-const { CoverImportService } = require('../src/modules/admin/media/CoverImportService');
+const { CoverImportService } = require('../src/modules/media/CoverImportService');
 
 describe('CoverImportService', () => {
     function setup(overrides = {}) {

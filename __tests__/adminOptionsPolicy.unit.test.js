@@ -11,7 +11,7 @@ const {
     findListableCategoryBySlug,
     isListableOptionCategory,
     isManageableOptionCategory
-} = require('../src/modules/admin/optionServices');
+} = require('../src/modules/admin/options/services');
 
 describe('politica de categorias administrativas', () => {
     beforeEach(() => jest.clearAllMocks());

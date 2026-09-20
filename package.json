@@ -17,11 +17,12 @@
     "migrate:dev": "prisma migrate dev",
     "prisma:generate": "prisma generate",
     "test:unit": "jest --config jest.unit.config.js --runInBand",
-    "check": "npm run lint && npm run build && npm run test:coverage:unit",
-    "check:integration": "npm run migrate:test && npm run test:coverage",
+    "check": "npm run lint && npm run test:architecture && npm run build && npm run test:coverage:unit",
+    "check:integration": "npm run lint && npm run test:architecture && npm run migrate:test && npm run test:coverage",
     "check:online": "npm audit",
     "check:covers": "node scripts/check-catalog-covers.js",
-    "media:cleanup": "npm run build && node scripts/cleanup-discarded-covers.js"
+    "media:cleanup": "npm run build && node dist/src/commands/cleanupDiscardedCovers.js",
+    "test:architecture": "node --test scripts/eslint-architecture.test.cjs"
   },
   "repository": {
     "type": "git",
@@ -55,6 +56,9 @@
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
     "eslint": "^10.4.1",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.2.0",
+    "eslint-plugin-import-x": "4.17.1",
     "jest": "^30.5.1",
     "prisma": "^6.19.0",
     "supertest": "^7.2.2",

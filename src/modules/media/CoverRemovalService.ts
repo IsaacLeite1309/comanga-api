@@ -1,5 +1,5 @@
-import ApplicationError from '../../../errors/ApplicationError';
-import type MediaStorage from '../../../infrastructure/contracts/MediaStorage';
+import ApplicationError from '../../errors/ApplicationError';
+import type MediaStorage from '../../infrastructure/contracts/MediaStorage';
 
 interface RemovableCoverAsset {
     id: string;

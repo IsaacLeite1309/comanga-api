@@ -7,9 +7,8 @@ const prisma = {
 
 jest.mock('../src/prisma', () => prisma);
 
-const authMiddleware = require('../src/middlewares/authMiddleware');
-const rbacMiddleware = require('../src/middlewares/rbacMiddleware');
-const loginRateLimiter = require('../src/middlewares/loginRateLimiter');
+const { authMiddleware, requireRole } = require('../src/modules/auth');
+const { defaultLimiter, LOGIN_FAILURE_LIMIT, RATE_LIMIT_MESSAGE } = require('../src/modules/auth/loginRateLimiter');
 const errorHandler = require('../src/middlewares/errorHandler');
 
 function makeRes() {
@@ -29,7 +28,7 @@ function makeRes() {
 describe('middlewares unitarios', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        loginRateLimiter.resetLoginRateLimiter();
+        defaultLimiter.reset();
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -151,7 +150,7 @@ describe('middlewares unitarios', () => {
             const req = { user: { role: 'Usuário Padrão' } };
             const res = makeRes();
             const next = jest.fn();
-            const middleware = rbacMiddleware.requireRole('Administrador');
+            const middleware = requireRole('Administrador');
 
             middleware(req, res, next);
 
@@ -163,7 +162,7 @@ describe('middlewares unitarios', () => {
             const req = { user: { role: 'Administrador' } };
             const res = makeRes();
             const next = jest.fn();
-            const middleware = rbacMiddleware.requireRole('Administrador');
+            const middleware = requireRole('Administrador');
 
             middleware(req, res, next);
 
@@ -176,12 +175,12 @@ describe('middlewares unitarios', () => {
         it('bloqueia a sexta tentativa apos cinco falhas de login no mesmo IP', () => {
             const ip = '198.51.100.10';
 
-            for (let attempt = 0; attempt < loginRateLimiter.LOGIN_FAILURE_LIMIT; attempt += 1) {
+            for (let attempt = 0; attempt < LOGIN_FAILURE_LIMIT; attempt += 1) {
                 const req = { ip, socket: {} };
                 const res = makeRes();
                 const next = jest.fn();
 
-                loginRateLimiter.loginRateLimiter(req, res, next);
+                defaultLimiter.middleware(req, res, next);
                 expect(next).toHaveBeenCalledTimes(1);
 
                 res.statusCode = 401;
@@ -192,11 +191,11 @@ describe('middlewares unitarios', () => {
             const blockedRes = makeRes();
             const blockedNext = jest.fn();
 
-            loginRateLimiter.loginRateLimiter(blockedReq, blockedRes, blockedNext);
+            defaultLimiter.middleware(blockedReq, blockedRes, blockedNext);
 
             expect(blockedRes.status).toHaveBeenCalledWith(429);
             expect(blockedRes.json).toHaveBeenCalledWith({
-                error: loginRateLimiter.RATE_LIMIT_MESSAGE,
+                error: RATE_LIMIT_MESSAGE,
                 code: 'LOGIN_RATE_LIMITED'
             });
             expect(blockedNext).not.toHaveBeenCalled();
@@ -207,14 +206,14 @@ describe('middlewares unitarios', () => {
             const failedReq = { ip, socket: {} };
             const failedRes = makeRes();
 
-            loginRateLimiter.loginRateLimiter(failedReq, failedRes, jest.fn());
+            defaultLimiter.middleware(failedReq, failedRes, jest.fn());
             failedRes.statusCode = 401;
             failedRes.finishCallback();
 
             const successReq = { ip, socket: {} };
             const successRes = makeRes();
 
-            loginRateLimiter.loginRateLimiter(successReq, successRes, jest.fn());
+            defaultLimiter.middleware(successReq, successRes, jest.fn());
             successRes.statusCode = 200;
             successRes.finishCallback();
 
@@ -222,7 +221,7 @@ describe('middlewares unitarios', () => {
             const nextRes = makeRes();
             const next = jest.fn();
 
-            loginRateLimiter.loginRateLimiter(nextReq, nextRes, next);
+            defaultLimiter.middleware(nextReq, nextRes, next);
 
             expect(next).toHaveBeenCalledTimes(1);
             expect(nextRes.status).not.toHaveBeenCalledWith(429);

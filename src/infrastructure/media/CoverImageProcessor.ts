@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import type { Metadata } from 'sharp';
 import ApplicationError from '../../errors/ApplicationError';
-import type { ProcessedCover, ProcessedMediaObject } from '../../modules/admin/media/CoverImportService';
 
 const DEFAULT_MAX_PIXELS = 40_000_000;
 const ALLOWED_FORMATS = new Set(['avif', 'jpeg', 'png', 'webp']);
@@ -14,6 +13,21 @@ const OUTPUTS = [
 
 interface CoverImageProcessorOptions {
     maxPixels?: number;
+}
+
+interface ProcessedMediaObject {
+    kind: string;
+    body: Buffer;
+    contentType: string;
+    width: number;
+    height: number;
+}
+
+interface ProcessedCover {
+    master: ProcessedMediaObject;
+    variants: ProcessedMediaObject[];
+    checksum: string;
+    format: string;
 }
 
 function invalidImage(cause?: unknown) {
@@ -77,4 +91,4 @@ async function processCoverImage(
 }
 
 export { processCoverImage };
-export type { CoverImageProcessorOptions };
+export type { CoverImageProcessorOptions, ProcessedCover, ProcessedMediaObject };

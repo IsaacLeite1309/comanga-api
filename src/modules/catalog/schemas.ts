@@ -1,11 +1,10 @@
 import { z } from 'zod';
+
 import {
     AUTHOR_ROLE_VALUES,
     EDITION_PUBLICATION_STATUS_VALUES,
     EDITION_VISIBILITY_VALUES,
     ORIGINAL_PUBLICATION_STATUS_VALUES,
-    ROLE_VALUES,
-    STATUS_VALUES,
     VOLUME_PRICE_CURRENCY_VALUES,
     VOLUME_RELEASE_PRECISION_VALUES,
     WORK_COUNTRY_VALUES,
@@ -13,42 +12,6 @@ import {
     WORK_SORT_FIELDS,
     WORK_VISIBILITY_VALUES
 } from './constants';
-
-const listUsersQuerySchema = z.object({
-    term: z.string().trim().optional(),
-    role: z.enum(ROLE_VALUES).optional(),
-    status: z.enum(STATUS_VALUES).optional(),
-    order: z.enum(['ASC', 'DESC']).default('ASC'),
-    page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(8)
-});
-
-const updateRoleSchema = z.object({
-    role: z.enum(ROLE_VALUES)
-});
-
-const categoryParamSchema = z.object({
-    category: z.string().trim().min(1)
-});
-
-const listOptionsQuerySchema = z.object({
-    term: z.string().trim().optional(),
-    dependsOn: z.coerce.number().int().positive().optional(),
-    order: z.enum(['ASC', 'DESC']).default('ASC'),
-    page: z.coerce.number().int().min(1).default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(6)
-});
-
-const createOptionSchema = z.object({
-    category: z.string().trim().min(1),
-    label: z.string().trim().min(1),
-    dependsOnValueIds: z.array(z.coerce.number().int().positive()).optional().default([])
-});
-
-const updateOptionSchema = z.object({
-    label: z.string().trim().min(1),
-    dependsOnValueIds: z.array(z.coerce.number().int().positive()).optional()
-});
 
 const workAuthorSchema = z.object({
     authorId: z.coerce.number().int().positive(),
@@ -191,20 +154,33 @@ const volumePayloadBaseSchema = z.object({
     synopsis: z.string().trim().optional().nullable()
 }).strict();
 
+interface VolumeReleaseDate {
+    releaseDatePrecision?: string | null;
+    releaseYear?: number | null;
+    releaseMonth?: number | null;
+    releaseDay?: number | null;
+}
+
+function hasCompleteVolumeReleaseDate(value: VolumeReleaseDate): value is VolumeReleaseDate & {
+    releaseYear: number;
+    releaseMonth: number;
+    releaseDay: number;
+} {
+    return Boolean(value.releaseYear && value.releaseMonth && value.releaseDay);
+}
+
 function validateVolumeReleaseDate(
-    value: {
-        releaseDatePrecision?: string | null;
-        releaseYear?: number | null;
-        releaseMonth?: number | null;
-        releaseDay?: number | null;
-    },
+    value: VolumeReleaseDate,
     ctx: z.RefinementCtx
 ) {
-    if (value.releaseDatePrecision === 'Completa' && (!value.releaseYear || !value.releaseMonth || !value.releaseDay)) {
+    const isComplete = value.releaseDatePrecision === 'Completa';
+    const hasCompleteDate = hasCompleteVolumeReleaseDate(value);
+
+    if (isComplete && !hasCompleteDate) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseDay'], message: 'Informe data completa.' });
     }
 
-    if (value.releaseDatePrecision === 'Completa' && value.releaseYear && value.releaseMonth && value.releaseDay) {
+    if (isComplete && hasCompleteDate) {
         const date = new Date(Date.UTC(value.releaseYear, value.releaseMonth - 1, value.releaseDay));
         const isSameDate = date.getUTCFullYear() === value.releaseYear
             && date.getUTCMonth() === value.releaseMonth - 1
@@ -239,12 +215,6 @@ const listVolumesQuerySchema = z.object({
 });
 
 export {
-    listUsersQuerySchema,
-    updateRoleSchema,
-    categoryParamSchema,
-    listOptionsQuerySchema,
-    createOptionSchema,
-    updateOptionSchema,
     workAuthorSchema,
     orderedWorkOptionSchema,
     createWorkSchema,

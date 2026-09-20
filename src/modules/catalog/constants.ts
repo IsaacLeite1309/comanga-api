@@ -1,8 +1,3 @@
-const ROLE_VALUES = ['Administrador', 'Usuário Padrão'] as const;
-const STATUS_VALUES = ['Pendente', 'Ativada', 'Bloqueada'] as const;
-const SELF_ROLE_CHANGE_MESSAGE = 'Você não pode alterar o nível de acesso de sua própria conta!';
-const DUPLICATE_OPTION_MESSAGE = 'Essa lista já tem esse valor cadastrado!';
-const OPTION_IN_USE_MESSAGE = 'Esse valor está vinculado a um mangá, não pode ser excluído!';
 const AUTHOR_DUPLICATED_MESSAGE = 'Autor duplicado!';
 const WORK_DUPLICATED_MESSAGE = 'Obra já cadastrada!';
 const REQUIRED_WORK_FIELDS_MESSAGE = 'Preencha os campos obrigatórios da Obra.';
@@ -51,29 +46,7 @@ const COUNTRY_DEPENDENT_CATEGORY_SLUGS = new Set([
     'revistas-serializacao',
     'editoras-originais'
 ]);
-const MANAGEABLE_OPTION_CATEGORY_SLUGS = new Set([
-    'autores',
-    'tipos-obra',
-    'generos',
-    'editoras-originais',
-    'revistas-serializacao',
-    'editoras-brasileiras',
-    'tipos-edicao',
-    'tipos-capa',
-    'formatos-fisicos'
-]);
-const LISTABLE_OPTION_CATEGORY_SLUGS = new Set([
-    ...MANAGEABLE_OPTION_CATEGORY_SLUGS,
-    COUNTRY_CATEGORY_SLUG
-]);
-const COUNTRY_DEPENDENCY_REQUIRED_MESSAGE = 'Selecione ao menos um país de origem relacionado.';
-
 export {
-    ROLE_VALUES,
-    STATUS_VALUES,
-    SELF_ROLE_CHANGE_MESSAGE,
-    DUPLICATE_OPTION_MESSAGE,
-    OPTION_IN_USE_MESSAGE,
     AUTHOR_DUPLICATED_MESSAGE,
     WORK_DUPLICATED_MESSAGE,
     REQUIRED_WORK_FIELDS_MESSAGE,
@@ -99,8 +72,5 @@ export {
     PUBLIC_VOLUME_DELETE_MESSAGE,
     VOLUME_PRICE_CURRENCY_VALUES,
     VOLUME_RELEASE_PRECISION_VALUES,
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
-    MANAGEABLE_OPTION_CATEGORY_SLUGS,
-    LISTABLE_OPTION_CATEGORY_SLUGS,
-    COUNTRY_DEPENDENCY_REQUIRED_MESSAGE
+    COUNTRY_DEPENDENT_CATEGORY_SLUGS
 };
