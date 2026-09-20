@@ -9,6 +9,7 @@ const prisma = {
         update: jest.fn(),
         delete: jest.fn()
     },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn()
 };
 
@@ -183,7 +184,10 @@ describe('bloqueios administrativos dos valores controlados', () => {
 });
 
 describe('reordenação manual de tipos de Edição', () => {
-    beforeEach(() => jest.resetAllMocks());
+    beforeEach(() => {
+        jest.resetAllMocks();
+        prisma.$transaction.mockImplementation(callback => callback(prisma));
+    });
 
     it('recusa categoria que não permite reordenação antes de consultar o banco', async () => {
         const res = makeRes();
@@ -220,7 +224,7 @@ describe('reordenação manual de tipos de Edição', () => {
         );
 
         expect(res.status).toHaveBeenCalledWith(400);
-        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(prisma.domainOptionValue.update).not.toHaveBeenCalled();
     });
 
     it('normaliza duplicatas e completa os valores omitidos preservando a ordem anterior', async () => {
@@ -228,9 +232,10 @@ describe('reordenação manual de tipos de Edição', () => {
         prisma.domainOptionValue.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }, { id: 3 }]);
         const update = jest.fn().mockResolvedValue({});
         prisma.$transaction.mockImplementation(async (callback) => callback({
+            $queryRaw: jest.fn().mockResolvedValue([]),
             domainOptionValue: {
                 update,
-                findMany: jest.fn().mockResolvedValue([])
+                findMany: jest.fn().mockResolvedValueOnce([{ id: 1 }, { id: 2 }, { id: 3 }]).mockResolvedValue([])
             }
         }));
         const res = makeRes();

@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
 import { HENTAI_GENRE_CODE, isSystemManagedOptionCategory } from '../../utils/domainOptionCodes';
 import {
@@ -24,7 +25,8 @@ async function validateSelectedOptionsByCountry(
 
     const optionIds = countryDependentSelections.flatMap((selection) => selection.ids);
     const values = await prisma.domainOptionValue.findMany({
-        where: { id: { in: optionIds }, active: true },
+        // Vínculos inativos preservados também precisam respeitar o país.
+        where: { id: { in: optionIds } },
         select: {
             id: true,
             dependencies: {
@@ -149,12 +151,12 @@ function parsePositiveId(value: string | string[] | undefined) {
 }
 
 // Identidade estável do gênero Hentai: nenhuma consulta compara o rótulo textual.
-async function containsHentaiGenre(genreIds: number[]) {
+async function containsHentaiGenre(genreIds: number[], client: Prisma.TransactionClient = prisma) {
     const uniqueIds = [...new Set(genreIds.filter(Boolean))];
 
     if (uniqueIds.length === 0) return false;
 
-    const hentaiCount = await prisma.domainOptionValue.count({
+    const hentaiCount = await client.domainOptionValue.count({
         where: {
             id: { in: uniqueIds },
             code: HENTAI_GENRE_CODE,
@@ -165,8 +167,8 @@ async function containsHentaiGenre(genreIds: number[]) {
     return hentaiCount > 0;
 }
 
-async function workHasHentaiGenre(workId: number) {
-    const genre = await prisma.workGenre.findFirst({
+async function workHasHentaiGenre(workId: number, client: Prisma.TransactionClient = prisma) {
+    const genre = await client.workGenre.findFirst({
         where: {
             workId,
             genre: {

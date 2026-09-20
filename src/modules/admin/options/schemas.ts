@@ -27,7 +27,7 @@ const updateOptionSchema = z.object({
 });
 
 const reorderOptionsSchema = z.object({
-    valueIds: z.array(z.coerce.number().int().positive()).min(1).max(200)
+    valueIds: z.array(z.coerce.number().int().positive()).min(1)
 });
 
 export {
