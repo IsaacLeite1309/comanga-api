@@ -12,11 +12,13 @@ interface MediaAssetReference {
 
 type MediaPublicUrlResolver = (objectKey: string) => string;
 
-function createMediaPublicUrlResolver(publicBaseUrl: string): MediaPublicUrlResolver {
+function createMediaPublicUrlResolver(publicBaseUrl: string, allowLocalHttp = false): MediaPublicUrlResolver {
     let baseUrl: URL;
     try {
         baseUrl = new URL(publicBaseUrl.endsWith('/') ? publicBaseUrl : `${publicBaseUrl}/`);
-        if (baseUrl.protocol !== 'https:') throw new Error('A origem pública deve usar HTTPS.');
+        const localHttp = allowLocalHttp && baseUrl.protocol === 'http:'
+            && ['localhost', '127.0.0.1', '[::1]'].includes(baseUrl.hostname);
+        if (baseUrl.protocol !== 'https:' && !localHttp) throw new Error('A origem pública deve usar HTTPS.');
     } catch (error) {
         throw new ApplicationError({
             statusCode: 503,
@@ -48,7 +50,8 @@ function resolveCoverUrl(asset: MediaAssetReference | null | undefined, resolve:
 }
 
 function mediaPublicUrlResolverFromEnvironment(environment = process.env): MediaPublicUrlResolver {
-    return createMediaPublicUrlResolver(environment.MEDIA_PUBLIC_BASE_URL || '');
+    return createMediaPublicUrlResolver(environment.MEDIA_PUBLIC_BASE_URL || '',
+        environment.MEDIA_STORAGE_DRIVER === 'local' && environment.NODE_ENV !== 'production');
 }
 
 export {

@@ -86,3 +86,15 @@ describe('URL pública derivada de mídia interna', () => {
         }
     });
 });
+
+
+describe('mídia no ambiente local', () => {
+    it('permite HTTP de loopback somente no driver local fora de produção', () => {
+        const environment = { NODE_ENV: 'development', MEDIA_STORAGE_DRIVER: 'local',
+            MEDIA_PUBLIC_BASE_URL: 'http://127.0.0.1:3000/local-media' };
+        expect(mediaPublicUrlResolverFromEnvironment(environment)('covers/a.webp'))
+            .toBe('http://127.0.0.1:3000/local-media/covers/a.webp');
+        expect(() => mediaPublicUrlResolverFromEnvironment({ ...environment, NODE_ENV: 'production' })).toThrow();
+        expect(() => mediaPublicUrlResolverFromEnvironment({ ...environment, MEDIA_PUBLIC_BASE_URL: 'http://example.com' })).toThrow();
+    });
+});

@@ -5,7 +5,7 @@ import { installGracefulShutdown } from './infrastructure/operations/gracefulShu
 
 const PORT = process.env.PORT || 3000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(Number(PORT), process.env.HOST || '0.0.0.0', () => {
     structuredLogger.info('server.started', { port: Number(PORT) || PORT });
 });
 

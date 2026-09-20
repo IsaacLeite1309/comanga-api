@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { type Request, type Response } from 'express';
 import cors, { type CorsOptions } from 'cors';
 import prisma from './prisma';
+import { localDirectory } from './infrastructure/localDirectory';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import adminRoutes from './routes/adminRoutes';
@@ -44,6 +45,10 @@ if (process.env.NODE_ENV !== 'test' || process.env.REQUEST_LOGGING_ENABLED === '
 }
 app.use(cors(corsOptions));
 app.use(express.json());
+
+if (process.env.MEDIA_STORAGE_DRIVER === 'local') {
+    app.use('/local-media', express.static(localDirectory('LOCAL_MEDIA_DIR'), { dotfiles: 'deny', index: false }));
+}
 
 app.use('/health', healthRouter);
 
