@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type { z } from 'zod';
-import { PUBLIC_VISIBILITY } from './constants';
+import { EDITION_COVER_SOURCE_VOLUME_NUMBER, PUBLIC_VISIBILITY } from './constants';
 import {
     publicAuthorWorksQuerySchema,
     publicEditionsQuerySchema,
@@ -215,17 +215,26 @@ const publicWorkSelect = {
     }
 } satisfies Prisma.WorkSelect;
 
+const publicEditionCoverSourceSelect = {
+    where: { number: EDITION_COVER_SOURCE_VOLUME_NUMBER, visibility: PUBLIC_VISIBILITY },
+    take: 1,
+    select: {
+        coverAsset: {
+            select: {
+                objectKey: true,
+                variants: {
+                    select: { kind: true, objectKey: true }
+                }
+            }
+        }
+    }
+} satisfies Prisma.Edition$volumesArgs;
+
 const publicEditionSelect = {
     id: true,
     chronologicalNumber: true,
-    coverAsset: {
-        select: {
-            objectKey: true,
-            variants: {
-                select: { kind: true, objectKey: true }
-            }
-        }
-    },
+    // Capa derivada: somente o Volume 1 público desta Edição.
+    volumes: publicEditionCoverSourceSelect,
     work: {
         select: {
             id: true,
@@ -313,7 +322,6 @@ const publicWorkDetailSelect = {
             id: true,
             chronologicalNumber: true,
             brazilPublicationStatus: true,
-            coverAsset: { select: publicCoverAssetSelect },
             brazilianPublisher: { select: { id: true, label: true } },
             editionType: { select: { id: true, label: true } },
             format: { select: { id: true, label: true } },
@@ -346,7 +354,8 @@ const publicEditionDetailSelect = {
     id: true,
     chronologicalNumber: true,
     brazilPublicationStatus: true,
-    coverAsset: { select: publicCoverAssetSelect },
+    // Capa derivada: somente o Volume 1 público desta Edição.
+    volumes: publicEditionCoverSourceSelect,
     brazilianPublisher: { select: { id: true, label: true } },
     editionType: { select: { id: true, label: true } },
     format: { select: { id: true, label: true } },
@@ -415,8 +424,25 @@ const publicVolumeDetailSelect = {
     }
 } satisfies Prisma.VolumeSelect;
 
+// A Edição aninhada nos detalhes da Obra já usa "volumes" para a prévia paginada,
+// por isso a capa derivada é buscada explicitamente pelo Volume 1 de cada Edição.
+const publicEditionCoverSourceVolumeSelect = {
+    editionId: true,
+    coverAsset: { select: publicCoverAssetSelect }
+} satisfies Prisma.VolumeSelect;
+
+function buildPublicEditionCoverSourceWhere(editionIds: number[]): Prisma.VolumeWhereInput {
+    return {
+        editionId: { in: editionIds },
+        number: EDITION_COVER_SOURCE_VOLUME_NUMBER,
+        visibility: PUBLIC_VISIBILITY
+    };
+}
+
 export {
     buildIdentitySearch,
+    buildPublicEditionCoverSourceWhere,
+    publicEditionCoverSourceVolumeSelect,
     buildPublicWorkWhere,
     buildPublicEditionWhere,
     buildPublicEditionDetailWhere,

@@ -37,7 +37,7 @@ function collectIndexNames(node, names = new Set()) {
     return names;
 }
 
-async function explainAnalyze(sql, params = [], { forceBitmap = false } = {}) {
+async function explainAnalyze(sql, params = [], { forceBitmap = false, forceIndexScan = false } = {}) {
     const client = await db.pool.connect();
 
     try {
@@ -50,6 +50,14 @@ async function explainAnalyze(sql, params = [], { forceBitmap = false } = {}) {
             // apenas por seu custo inicial equivalente.
             await client.query('SET LOCAL enable_indexscan = off');
             await client.query('SET LOCAL enable_indexonlyscan = off');
+        }
+        if (forceIndexScan) {
+            // Com poucas linhas, um bitmap sobre qualquer indice iniciado por
+            // visibility custa praticamente o mesmo que o indice composto correto
+            // (6,24 contra 6,73), e a escolha alterna conforme as estatisticas.
+            // Desligar o bitmap isola a comparacao entre os indices compostos, sem
+            // afrouxar a assercao: o indice esperado precisa cobrir as duas colunas.
+            await client.query('SET LOCAL enable_bitmapscan = off');
         }
         const result = await client.query(
             `EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`,
@@ -67,6 +75,13 @@ async function explainAnalyze(sql, params = [], { forceBitmap = false } = {}) {
 }
 
 describe('planos de consulta do catalogo publico', () => {
+    // A escolha de indice depende das estatisticas vigentes. Como as suites anteriores
+    // inserem e removem linhas, o autoanalyze pode nao ter rodado; sem estatisticas
+    // atuais o planejador alterna entre indices equivalentes de mesmo custo.
+    beforeAll(async () => {
+        await db.query('ANALYZE works, editions, volumes, work_genres, work_demographies, work_authors');
+    });
+
     it('mantem a extensao e os indices fisicos instalados no banco de teste', async () => {
         const extension = await db.query(
             "SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'"
@@ -184,7 +199,8 @@ describe('planos de consulta do catalogo publico', () => {
                AND ${column} = $1
              ORDER BY id
              LIMIT 50`,
-            [2147483640]
+            [2147483640],
+            { forceIndexScan: true }
         );
 
         expect(plan).toContain(indexName);
@@ -208,7 +224,8 @@ describe('planos de consulta do catalogo publico', () => {
                AND visibility = 'Público'
              ORDER BY id
              LIMIT 50`,
-            [2147483640]
+            [2147483640],
+            { forceIndexScan: true }
         );
 
         expect(releasePlan).toContain('idx_volumes_calendar_release');

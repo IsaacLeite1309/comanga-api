@@ -1,5 +1,6 @@
 import type {
     PublicCoverAssetInput,
+    PublicEditionCoverSourceInput,
     PublicEditionInput,
     PublicEditionPageInput,
     PublicEditionVolumeInput,
@@ -15,8 +16,15 @@ function mapCoverUrl(asset: PublicCoverAssetInput | null) {
     return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
 }
 
-function mapPublicWorkDetails(work: PublicWorkDetailInput) {
+// Sem Volume 1 público na Edição, a capa derivada é ausente: não há recurso alternativo.
+function mapDerivedEditionCoverUrl(edition: PublicEditionCoverSourceInput) {
+    return mapCoverUrl(edition.volumes[0]?.coverAsset ?? null);
+}
 
+function mapPublicWorkDetails(
+    work: PublicWorkDetailInput,
+    editionCoverAssets: ReadonlyMap<number, PublicCoverAssetInput | null> = new Map()
+) {
     return {
         id: work.id,
         slug: work.slug,
@@ -43,7 +51,7 @@ function mapPublicWorkDetails(work: PublicWorkDetailInput) {
         editions: work.editions.map((edition) => ({
             id: edition.id,
             chronologicalNumber: edition.chronologicalNumber,
-            coverUrl: mapCoverUrl(edition.coverAsset),
+            coverUrl: mapCoverUrl(editionCoverAssets.get(edition.id) ?? null),
             brazilianPublisher: mapOption(edition.brazilianPublisher),
             editionType: mapOption(edition.editionType),
             format: mapOption(edition.format),
@@ -93,7 +101,7 @@ function mapPublicEdition(edition: PublicEditionInput) {
     return {
         id: edition.id,
         chronologicalNumber: edition.chronologicalNumber,
-        coverUrl: mapCoverUrl(edition.coverAsset),
+        coverUrl: mapDerivedEditionCoverUrl(edition),
         work: {
             id: edition.work.id,
             slug: edition.work.slug,
@@ -112,7 +120,7 @@ function mapPublicEditionDetails(edition: PublicEditionPageInput) {
     return {
         id: edition.id,
         chronologicalNumber: edition.chronologicalNumber,
-        coverUrl: mapCoverUrl(edition.coverAsset),
+        coverUrl: mapDerivedEditionCoverUrl(edition),
         brazilianPublisher: mapOption(edition.brazilianPublisher),
         editionType: mapOption(edition.editionType),
         format: mapOption(edition.format),
@@ -176,6 +184,7 @@ function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
 
 export {
     mapOption,
+    mapDerivedEditionCoverUrl,
     mapPublicWork,
     mapPublicEdition,
     mapPublicWorkDetails,

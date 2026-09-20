@@ -224,3 +224,9 @@ A migration `20260920120000_perfis_de_acesso` preserva usuários e sessões e cr
 ## Metadados e ordem editorial
 
 A migration `20260920121000_work_metadata_and_author_positions` adiciona `romanized_title`, `synopsis` e `work_authors.position`. O backfill copia o título da Obra para os novos textos e exige revisão editorial posterior; autores começam em ordem alfabética. Criação exige romanizedTitle e synopsis; PATCH aceita omissão e recusa valores vazios. originalTitle permanece opcional. A pesquisa pública inclui o romanizado; duplicidade e slug continuam baseados no título. A ordem do array authors é normalizada para posições 0..n-1 e preservada nas respostas. A sinopse pública vem exclusivamente da Obra.
+
+## Capa derivada de Edição
+
+A migration `20260920122000_derive_edition_cover_from_first_volume` remove `editions.cover_asset_id`. A entrada de Edição não aceita mais coverAssetId; a saída preserva coverAssetId/coverUrl derivados exclusivamente do Volume de número 1 da mesma Edição, ou null. Publicar exige Volume 1 com capa e propaga a visibilidade aos Volumes; renumerar sua origem numa Edição pública é recusado sob bloqueio transacional.
+
+Aplicar com inventário e backup, coordenando API, Web e schema. Ativos órfãos entram em Descartando; não executar limpeza antes da decisão de rollback. O SQL documenta a restauração operacional. `npm run check:covers` inspeciona a consistência sem remover objetos.

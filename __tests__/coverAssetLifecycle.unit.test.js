@@ -39,7 +39,7 @@ describe('ciclo de vida da capa vinculada', () => {
             .mockResolvedValueOnce(null)
             .mockResolvedValueOnce({ id: 'discarded', status: 'Descartado' })
             .mockResolvedValueOnce({ id: 'current', status: 'Ativo', work: { id: 1 } })
-            .mockResolvedValueOnce({ id: 'orphan', status: 'Pendente', work: null, edition: null, volume: null });
+            .mockResolvedValueOnce({ id: 'orphan', status: 'Pendente', work: null, volume: null });
 
         await expect(isCoverAssetAttachable('missing')).resolves.toBe(false);
         await expect(isCoverAssetAttachable('discarded')).resolves.toBe(false);
@@ -48,9 +48,8 @@ describe('ciclo de vida da capa vinculada', () => {
     });
 
     it.each([
-        { work: { id: 1 }, edition: null, volume: null },
-        { work: null, edition: { id: 1 }, volume: null },
-        { work: null, edition: null, volume: { id: 1 } }
+        { work: { id: 1 }, volume: null },
+        { work: null, volume: { id: 1 } }
     ])('recusa ativo já associado a outro cadastro: %o', async (relations) => {
         mockMediaAsset.findUnique.mockResolvedValue({
             id: 'attached',
@@ -63,12 +62,32 @@ describe('ciclo de vida da capa vinculada', () => {
 
     it('processa descarte no comando separado e mantém falhas disponíveis para retry', async () => {
         mockMediaAsset.findMany.mockResolvedValueOnce([{ id: 'failed' }, { id: 'ok' }]);
-        mockMediaAsset.findFirst.mockResolvedValue({ objectKey: 'key', variants: [], work: null, edition: null, volume: null });
+        mockMediaAsset.findFirst.mockResolvedValue({ objectKey: 'key', variants: [], work: null, volume: null });
         mockDeleteObjects.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(undefined);
         await cleanupDiscardedCoverAssets();
         expect(mockDeleteObjects).toHaveBeenCalledTimes(2);
         expect(mockMediaAsset.deleteMany).toHaveBeenCalledTimes(1);
         expect(mockMediaAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'ok', status: 'Descartando' } });
+    });
+
+    it('não consulta mais a Edição para decidir se a capa está vinculada', async () => {
+        mockMediaAsset.findUnique.mockResolvedValue({ id: 'orphan', status: 'Pendente', work: null, volume: null });
+
+        await isCoverAssetAttachable('orphan');
+
+        const select = mockMediaAsset.findUnique.mock.calls[0][0].select;
+        expect(select).not.toHaveProperty('edition');
+        expect(select).toHaveProperty('work');
+        expect(select).toHaveProperty('volume');
+    });
+
+    it('consulta a capa pelo cliente transacional fornecido, sem outra conexão', async () => {
+        mockMediaAsset.findUnique.mockResolvedValue(null);
+        const tx = { mediaAsset: { findUnique: jest.fn().mockResolvedValue({
+            id: 'current', status: 'Ativo', work: null, volume: { id: 1 }
+        }) } };
+        await expect(isCoverAssetAttachable('current', 'current', tx)).resolves.toBe(true);
+        expect(mockMediaAsset.findUnique).not.toHaveBeenCalled();
     });
 
     it('ativa a capa na mesma transação do cadastro', async () => {
@@ -95,7 +114,7 @@ describe('ciclo de vida da capa vinculada', () => {
 
         mockMediaAsset.findFirst
             .mockResolvedValueOnce(null)
-            .mockResolvedValueOnce({ objectKey: 'master', variants: [], work: null, edition: { id: 1 }, volume: null });
+            .mockResolvedValueOnce({ objectKey: 'master', variants: [], work: null, volume: { id: 1 } });
         await deleteOrphanedCoverAsset('missing');
         await deleteOrphanedCoverAsset('attached');
 
@@ -111,7 +130,6 @@ describe('ciclo de vida da capa vinculada', () => {
                 { objectKey: 'covers/id/large.webp' }
             ],
             work: null,
-            edition: null,
             volume: null
         });
 
@@ -131,7 +149,6 @@ describe('ciclo de vida da capa vinculada', () => {
             objectKey: 'covers/id/master.webp',
             variants: [],
             work: null,
-            edition: null,
             volume: null
         });
         mockDeleteObjects.mockRejectedValue(error);

@@ -76,8 +76,10 @@ interface EditionInput {
     id: number;
     workId: number;
     chronologicalNumber: number;
-    coverAssetId: string | null;
-    coverAsset: CoverAssetInput | null;
+    // Somente o Volume de número 1 desta Edição, carregado como origem da capa derivada.
+    volumes?: Array<{
+        coverAsset: CoverAssetInput | null;
+    }>;
     visibility: string;
     brazilianPublisher: OptionSummary;
     editionType: OptionSummary;

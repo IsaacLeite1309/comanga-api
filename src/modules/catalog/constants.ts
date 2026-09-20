@@ -33,6 +33,10 @@ const EDITION_VISIBILITY_VALUES = ['Privado', 'Público'] as const;
 const EDITION_PUBLICATION_STATUS_VALUES = ['Completa', 'Em andamento', 'Em hiato', 'Cancelada'] as const;
 const EDITION_DUPLICATED_MESSAGE = 'Essa Obra já possui uma Edição com esse número cronológico!';
 const PRIVATE_WORK_PUBLIC_EDITION_MESSAGE = 'Essa Edição está vinculada a uma Obra privada, não pode ser publicada!';
+// A capa da Edição é derivada exclusivamente do Volume com este número na mesma Edição.
+const EDITION_COVER_SOURCE_VOLUME_NUMBER = 1;
+const EDITION_WITHOUT_COVER_SOURCE_MESSAGE = 'Essa Edição não possui o Volume 1 com capa interna válida, não pode ser publicada!';
+const PUBLIC_EDITION_COVER_SOURCE_MESSAGE = 'Esse é o Volume 1 de uma Edição pública: renumerá-lo deixaria a Edição sem capa!';
 const PUBLIC_EDITION_DELETE_MESSAGE = 'Essa Edição está pública, não pode ser excluída!';
 const WORK_WITH_EDITIONS_DELETE_MESSAGE = 'Essa Obra possui Edições vinculadas, não pode ser excluída!';
 const EDITION_WITH_VOLUMES_DELETE_MESSAGE = 'Essa Edição possui Volumes vinculados, não pode ser excluída!';
@@ -65,6 +69,9 @@ export {
     EDITION_PUBLICATION_STATUS_VALUES,
     EDITION_DUPLICATED_MESSAGE,
     PRIVATE_WORK_PUBLIC_EDITION_MESSAGE,
+    EDITION_COVER_SOURCE_VOLUME_NUMBER,
+    EDITION_WITHOUT_COVER_SOURCE_MESSAGE,
+    PUBLIC_EDITION_COVER_SOURCE_MESSAGE,
     PUBLIC_EDITION_DELETE_MESSAGE,
     WORK_WITH_EDITIONS_DELETE_MESSAGE,
     EDITION_WITH_VOLUMES_DELETE_MESSAGE,

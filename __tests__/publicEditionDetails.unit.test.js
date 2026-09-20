@@ -40,7 +40,8 @@ function editionFixture() {
         id: 10,
         chronologicalNumber: 2,
         brazilPublicationStatus: 'Em publicação',
-        coverAsset: cover('edition'),
+        // Origem única da capa: o Volume 1 público desta Edição.
+        volumes: [{ coverAsset: cover('volume-1') }],
         brazilianPublisher: { id: 1, label: 'Panini' },
         editionType: { id: 2, label: 'Deluxe' },
         format: { id: 3, label: 'Kanzenban' },
@@ -139,7 +140,7 @@ describe('detalhes públicos da Edição', () => {
             edition: expect.objectContaining({
                 id: 10,
                 chronologicalNumber: 2,
-                coverUrl: 'https://media.comanga.test/covers/edition/large.webp',
+                coverUrl: 'https://media.comanga.test/covers/volume-1/large.webp',
                 brazilPublicationStartYear: 2026,
                 brazilPublicationEndYear: null,
                 volumesCount: 26,
@@ -203,6 +204,26 @@ describe('detalhes públicos da Edição', () => {
 
         expect(res.status).toHaveBeenCalledWith(404);
         expect(res.json).toHaveBeenCalledWith({ error: 'Edição não encontrada.' });
+    });
+
+    it('representa capa ausente quando a Edição pública não tem Volume 1 público', async () => {
+        mockEditionFindFirst.mockResolvedValue({ ...editionFixture(), volumes: [] });
+        mockVolumeFindMany.mockResolvedValue([]);
+        const res = response();
+
+        await getPublicEditionDetails({ params: { editionId: '10' }, query: {} }, res, jest.fn());
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            edition: expect.objectContaining({ coverUrl: null })
+        }));
+    });
+
+    it('deriva a capa somente do Volume 1 público da própria Edição', () => {
+        expect(publicEditionDetailSelect).not.toHaveProperty('coverAsset');
+        expect(publicEditionDetailSelect.volumes).toEqual(expect.objectContaining({
+            where: { number: 1, visibility: 'Público' },
+            take: 1
+        }));
     });
 
     it('projeta apenas o resumo público necessário de cada Volume', () => {

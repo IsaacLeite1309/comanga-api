@@ -50,10 +50,10 @@ class PrismaMediaAssetRepository implements MediaAssetRepository, CoverRemovalRe
             await tx.$queryRaw`SELECT pg_advisory_xact_lock(9142026)::text`;
             const asset = await tx.mediaAsset.findFirst({
                 where: { id: assetId, ...(userId ? { createdByUserId: userId, status: { in: ['Pendente', 'Descartando'] } } : {}) },
-                select: { id: true, objectKey: true, variants: { select: { objectKey: true } }, work: { select: { id: true } }, edition: { select: { id: true } }, volume: { select: { id: true } } }
+                select: { id: true, objectKey: true, variants: { select: { objectKey: true } }, work: { select: { id: true } }, volume: { select: { id: true } } }
             });
             if (!asset) return null;
-            const attached = Boolean(asset.work || asset.edition || asset.volume);
+            const attached = Boolean(asset.work || asset.volume);
             if (!attached) await tx.mediaAsset.update({ where: { id: asset.id }, data: { status: 'Descartando' } });
             return { id: asset.id, objectKey: asset.objectKey, variants: asset.variants, attached };
         });

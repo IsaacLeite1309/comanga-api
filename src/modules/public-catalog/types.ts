@@ -46,10 +46,14 @@ interface PublicWorkInput {
     authors: PublicAuthorRelationInput[];
 }
 
-interface PublicEditionInput {
+// Somente o Volume 1 público desta Edição, carregado como origem da capa derivada.
+interface PublicEditionCoverSourceInput {
+    volumes: Array<{ coverAsset: PublicCoverAssetInput | null }>;
+}
+
+interface PublicEditionInput extends PublicEditionCoverSourceInput {
     id: number;
     chronologicalNumber: number;
-    coverAsset: PublicCoverAssetInput | null;
     work: Pick<PublicWorkInput, 'id' | 'slug' | 'title' | 'originalTitle' | 'authors'>;
     brazilianPublisher: PublicOptionInput;
     format: PublicOptionInput;
@@ -63,7 +67,6 @@ interface PublicEditionDetailInput {
     id: number;
     chronologicalNumber: number;
     brazilPublicationStatus: string;
-    coverAsset: PublicCoverAssetInput | null;
     brazilianPublisher: PublicOptionInput;
     editionType: PublicOptionInput;
     format: PublicOptionInput;
@@ -72,11 +75,10 @@ interface PublicEditionDetailInput {
     _count: { volumes: number };
 }
 
-interface PublicEditionPageInput {
+interface PublicEditionPageInput extends PublicEditionCoverSourceInput {
     id: number;
     chronologicalNumber: number;
     brazilPublicationStatus: string;
-    coverAsset: PublicCoverAssetInput | null;
     brazilianPublisher: PublicOptionInput;
     editionType: PublicOptionInput;
     format: PublicOptionInput;
@@ -138,6 +140,7 @@ interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
 export type {
     PublicOptionInput,
     PublicCoverAssetInput,
+    PublicEditionCoverSourceInput,
     PublicWorkInput,
     PublicEditionInput,
     PublicWorkDetailInput,

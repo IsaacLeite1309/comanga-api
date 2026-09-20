@@ -26,11 +26,15 @@ describe('contratos de criação e alteração de capas', () => {
     const asset = '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e';
     const work = { title: 'Obra', romanizedTitle: 'Obra', synopsis: 'Sinopse da Obra.', typeId: 1, country: 'Japão', originalPublicationStatus: 'Completa', authors: [{ authorId: 1, roles: ['História e Arte'] }] };
     const edition = { brazilianPublisherId: 1, editionTypeId: 2, coverTypeId: 3, formatId: 4, chronologicalNumber: 1, brazilPublicationStatus: 'Completa' };
-    it.each([[createWorkSchema, work], [editionPayloadSchema, edition]])('exige capa válida na criação', (schema, data) => {
+    it.each([[createWorkSchema, work]])('exige capa válida na criação', (schema, data) => {
         for (const value of [undefined, null, '', 'invalid']) expect(schema.safeParse({ ...data, coverAssetId: value }).success).toBe(false);
         expect(schema.safeParse({ ...data, coverAssetId: asset }).success).toBe(true);
     });
-    it.each([[updateWorkSchema, { title: 'Novo título' }], [updateEditionSchema, { chronologicalNumber: 2 }], [updateVolumeSchema, { pages: 120 }]])('preserva capa omitida e recusa remoção explícita', (schema, data) => {
+    it.each([[editionPayloadSchema, edition], [updateEditionSchema, { chronologicalNumber: 2 }]])('recusa capa própria de Edição, derivada do Volume 1', (schema, data) => {
+        expect(schema.safeParse(data).success).toBe(true);
+        for (const value of [asset, null, '', 'invalid']) expect(schema.safeParse({ ...data, coverAssetId: value }).success).toBe(false);
+    });
+    it.each([[updateWorkSchema, { title: 'Novo título' }], [updateVolumeSchema, { pages: 120 }]])('preserva capa omitida e recusa remoção explícita', (schema, data) => {
         expect(schema.safeParse(data).success).toBe(true);
         expect(schema.safeParse({ ...data, coverAssetId: null }).success).toBe(false);
         expect(schema.safeParse({ ...data, coverAssetId: '' }).success).toBe(false);
