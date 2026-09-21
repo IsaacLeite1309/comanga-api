@@ -45,6 +45,21 @@ function validWorkPayload(overrides = {}) {
 }
 
 describe('contrato dos metadados próprios da Obra', () => {
+    it('impede crédito redundante de História e Arte para o mesmo autor', () => {
+        const redundantCredit = workAuthorSchema.safeParse({
+            authorId: 4,
+            roles: ['História e Arte', 'História']
+        });
+        const compatibleCredits = workAuthorSchema.safeParse({
+            authorId: 4,
+            roles: ['Criador Original', 'Ilustrador']
+        });
+
+        expect(redundantCredit.success).toBe(false);
+        expect(redundantCredit.error.issues[0].path).toEqual(['roles']);
+        expect(compatibleCredits.success).toBe(true);
+    });
+
     it('exige título romanizado e sinopse no cadastro', () => {
         const withoutRomanizedTitle = createWorkSchema.safeParse(
             validWorkPayload({ romanizedTitle: undefined })
