@@ -27,7 +27,6 @@ interface PublicVolumePreviewInput {
     releaseYear: number | null;
     releaseMonth: number | null;
     releaseDay: number | null;
-    synopsis?: string | null;
     coverAsset: PublicCoverAssetInput | null;
 }
 
@@ -40,6 +39,7 @@ interface PublicWorkInput {
     slug: string;
     title: string;
     originalTitle: string | null;
+    romanizedTitle: string;
     coverAsset: PublicCoverAssetInput | null;
     country: string;
     type: PublicOptionInput;
@@ -121,6 +121,7 @@ interface PublicVolumeDetailInput {
 }
 
 interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
+    synopsis: string;
     originalPublicationStartYear: number | null;
     originalPublicationEndYear: number | null;
     originalVolumeCount: number | null;

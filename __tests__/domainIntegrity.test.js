@@ -83,13 +83,15 @@ describe('integridade dos valores fechados do dominio', () => {
             `INSERT INTO works (
                 cover_asset_id,
                 title,
+                romanized_title,
+                synopsis,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 visibility,
                 atualizado_em
-             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', 'Oculto', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', 'Oculto', NOW())`,
             [`integrity_${runId}_invalid_visibility`, `integrity-${runId}-invalid-visibility`, typeId]
         )).rejects.toMatchObject({ code: '23514' });
     });
@@ -105,12 +107,14 @@ describe('integridade dos valores fechados do dominio', () => {
                 `INSERT INTO works (
                     cover_asset_id,
                     title,
+                    romanized_title,
+                    synopsis,
                     slug,
                     type_id,
                     country,
                     original_publication_status,
                     atualizado_em
-                 ) VALUES ('${await createTestCover(client, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', NOW())
+                 ) VALUES ('${await createTestCover(client, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', NOW())
                  RETURNING id`,
                 [`integrity_${runId}_publisher`, `integrity-${runId}-publisher`, typeId]
             );
@@ -168,12 +172,14 @@ describe('integridade dos valores fechados do dominio', () => {
             `INSERT INTO works (
                 cover_asset_id,
                 title,
+                romanized_title,
+                synopsis,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', NOW())
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', NOW())
              RETURNING id, slug`,
             [title, slug, typeId]
         );
@@ -182,12 +188,14 @@ describe('integridade dos valores fechados do dominio', () => {
             `INSERT INTO works (
                 cover_asset_id,
                 title,
+                romanized_title,
+                synopsis,
                 slug,
                 type_id,
                 country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1, $2, $3, 'Japão', 'Completa', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', NOW())`,
             [`${title}_duplicated`, slug, typeId]
         )).rejects.toMatchObject({ code: '23505' });
 
@@ -211,14 +219,16 @@ describe('integridade dos valores fechados do dominio', () => {
                 `INSERT INTO works (
                 cover_asset_id,
                     title,
+                    romanized_title,
+                    synopsis,
                     slug,
                     type_id,
                     country,
                     original_publication_status,
                     atualizado_em
                  ) VALUES
-                    ('${await createTestCover(client)}', $1, NULL, $3, 'Japão', 'Completa', NOW()),
-                    ('${await createTestCover(client)}', $2, NULL, $3, 'Japão', 'Completa', NOW())`,
+                    ('${await createTestCover(client)}', $1::text, $1::text, $1::text, NULL, $3, 'Japão', 'Completa', NOW()),
+                    ('${await createTestCover(client)}', $2::text, $2::text, $2::text, NULL, $3, 'Japão', 'Completa', NOW())`,
                 [
                     `integrity_${runId}_Ação Total`,
                     `integrity_${runId}_Acao Total`,

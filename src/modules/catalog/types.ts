@@ -22,6 +22,7 @@ interface WorkSummaryInput {
     slug: string;
     title: string;
     originalTitle: string | null;
+    romanizedTitle: string;
     visibility: string;
     adultContent: boolean;
     coverAssetId: string | null;
@@ -30,6 +31,7 @@ interface WorkSummaryInput {
     type: OptionSummary;
     country: string;
     authors?: Array<{
+        position?: number;
         author: OptionSummary;
         roles?: Array<{
             role: string;
@@ -41,6 +43,7 @@ interface WorkSummaryInput {
 }
 
 interface WorkDetailInput extends WorkSummaryInput {
+    synopsis: string;
     originalPublicationStartYear: number | null;
     originalPublicationEndYear: number | null;
     originalVolumeCount: number | null;
@@ -51,6 +54,7 @@ interface WorkDetailInput extends WorkSummaryInput {
     }>;
     originalPublicationStatus: string | null;
     authors?: Array<{
+        position?: number;
         author: OptionSummary;
         roles?: Array<{
             role: string;

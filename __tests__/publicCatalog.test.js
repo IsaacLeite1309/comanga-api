@@ -48,9 +48,18 @@ async function createOption(categorySlug, suffix, active = true) {
     return result.rows[0];
 }
 
+function workOwnMetadata(title, romanizedTitle, synopsis) {
+    return {
+        romanizedTitle: romanizedTitle || title,
+        synopsis: synopsis || `Sinopse pr\u00f3pria de ${title}.`
+    };
+}
+
 async function createWork({
     suffix,
     originalTitle = null,
+    romanizedTitle,
+    synopsis,
     typeId = fixture.options.typeOne.id,
     country = 'Jap\u00e3o',
     visibility = PUBLIC_VISIBILITY,
@@ -66,12 +75,15 @@ async function createWork({
 }) {
     const title = `${fixturePrefix}_${suffix}`;
     const slug = `${fixturePrefix}-${suffix}`.toLowerCase().replace(/_/g, '-');
+    const ownMetadata = workOwnMetadata(title, romanizedTitle, synopsis);
     const result = await db.query(
         `INSERT INTO works (
             cover_asset_id,
             slug,
             title,
             original_title,
+            romanized_title,
+            synopsis,
             type_id,
             country,
             original_publication_start_year,
@@ -80,12 +92,14 @@ async function createWork({
             visibility,
             adult_content,
             atualizado_em
-         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-         RETURNING id, slug, title`,
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+         RETURNING id, slug, title, romanized_title, synopsis`,
         [
             slug,
             title,
             originalTitle,
+            ownMetadata.romanizedTitle,
+            ownMetadata.synopsis,
             typeId,
             country,
             originalPublicationStartYear,
@@ -108,10 +122,10 @@ async function createWork({
 async function createWorkRelations(workId, {
     authorIds, genreIds, demographics, originalPublisherIds, serializationMagazineIds
 }) {
-    for (const authorId of authorIds) {
+    for (const [position, authorId] of authorIds.entries()) {
         await db.query(
-            'INSERT INTO work_authors (work_id, author_id) VALUES ($1, $2)',
-            [workId, authorId]
+            'INSERT INTO work_authors (work_id, author_id, position) VALUES ($1, $2, $3)',
+            [workId, authorId, position]
         );
     }
 
@@ -260,6 +274,7 @@ describe('catálogo público', () => {
         fixture.options.typeTwo = await createOption('tipos-obra', 'type-two');
         fixture.options.authorOne = await createOption('autores', 'author-one');
         fixture.options.authorTwo = await createOption('autores', 'author-two');
+        fixture.options.authorZulu = await createOption('autores', 'author-zulu');
         fixture.options.genreOne = await createOption('generos', 'genre-one');
         fixture.options.genreTwo = await createOption('generos', 'genre-two');
         fixture.options.inactiveGenre = await createOption('generos', 'genre-inactive', false);
@@ -280,7 +295,9 @@ describe('catálogo público', () => {
         fixture.works.complete = await createWork({
             suffix: 'alpha',
             originalTitle: `${fixturePrefix}_original-alpha`,
-            authorIds: [fixture.options.authorOne.id],
+            romanizedTitle: `${fixturePrefix}_romanized-alpha`,
+            synopsis: `${fixturePrefix} sinopse pr\u00f3pria da Obra.`,
+            authorIds: [fixture.options.authorZulu.id, fixture.options.authorOne.id],
             genreIds: [fixture.options.genreOne.id, fixture.options.genreTwo.id],
             demographics: ['Shonen', 'Seinen'],
             originalPublisherIds: [fixture.options.originalPublisherOne.id],
@@ -429,11 +446,18 @@ describe('catálogo público', () => {
             coverUrl: expect.any(String),
             type: expect.objectContaining({ id: fixture.options.typeOne.id }),
             country: 'Jap\u00e3o',
-            authors: [{
-                id: fixture.options.authorOne.id,
-                label: fixture.options.authorOne.label
-            }]
+            authors: [
+                {
+                    id: fixture.options.authorZulu.id,
+                    label: fixture.options.authorZulu.label
+                },
+                {
+                    id: fixture.options.authorOne.id,
+                    label: fixture.options.authorOne.label
+                }
+            ]
         }));
+        expect(response.body.works[0].romanizedTitle).toBe(`${fixturePrefix}_romanized-alpha`);
         expect(response.body.works[0]).not.toHaveProperty('adultContent');
         expect(response.body.works[0]).not.toHaveProperty('visibility');
     });
@@ -562,11 +586,20 @@ describe('catálogo público', () => {
             coverUrl: expect.any(String),
             type: fixture.options.typeOne,
             country: 'Japão',
-            authors: [{
-                id: fixture.options.authorOne.id,
-                label: fixture.options.authorOne.label,
-                roles: []
-            }],
+            romanizedTitle: `${fixturePrefix}_romanized-alpha`,
+            synopsis: `${fixturePrefix} sinopse pr\u00f3pria da Obra.`,
+            authors: [
+                {
+                    id: fixture.options.authorZulu.id,
+                    label: fixture.options.authorZulu.label,
+                    roles: []
+                },
+                {
+                    id: fixture.options.authorOne.id,
+                    label: fixture.options.authorOne.label,
+                    roles: []
+                }
+            ],
             genres: expect.arrayContaining([fixture.options.genreOne, fixture.options.genreTwo]),
             demographics: ['Seinen', 'Shonen']
         }));
@@ -629,10 +662,16 @@ describe('catálogo público', () => {
                 id: fixture.works.complete.id,
                 slug: fixture.works.complete.slug,
                 title: fixture.works.complete.title,
-                authors: [{
-                    id: fixture.options.authorOne.id,
-                    label: fixture.options.authorOne.label
-                }]
+                authors: [
+                    {
+                        id: fixture.options.authorZulu.id,
+                        label: fixture.options.authorZulu.label
+                    },
+                    {
+                        id: fixture.options.authorOne.id,
+                        label: fixture.options.authorOne.label
+                    }
+                ]
             }),
             brazilianPublisher: {
                 id: fixture.options.publisherOne.id,
@@ -801,6 +840,19 @@ describe('catálogo público', () => {
         });
         expect(response.body.works[0]).not.toHaveProperty('visibility');
         expect(response.body.works[0]).not.toHaveProperty('adultContent');
+    });
+
+    it('lista os Autores de cada Obra na ordem editorial, n\u00e3o em ordem alfab\u00e9tica', async () => {
+        const response = await request(app)
+            .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .query({ page: 1, limit: 1 });
+
+        expect(response.status).toBe(200);
+        expect(response.body.works[0].authors.map((author) => author.id)).toEqual([
+            fixture.options.authorZulu.id,
+            fixture.options.authorOne.id
+        ]);
+        expect(response.body.works[0].romanizedTitle).toBe(`${fixturePrefix}_romanized-alpha`);
     });
 
     it('libera Obras adultas apenas para sessão elegível', async () => {

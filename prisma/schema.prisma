@@ -136,6 +136,8 @@ model Work {
   slug String @unique @db.VarChar(255)
   title String @db.VarChar(255)
   originalTitle String? @map("original_title") @db.VarChar(255)
+  romanizedTitle String @map("romanized_title") @db.VarChar(255)
+  synopsis String @db.Text
   originalPublicationStartYear Int? @map("original_publication_start_year")
   originalPublicationEndYear Int? @map("original_publication_end_year")
   originalVolumeCount Int? @map("original_volume_count")
@@ -160,6 +162,7 @@ model Work {
   @@index([title], map: "idx_works_title")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_title_trgm")
   @@index([originalTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_original_title_trgm")
+  @@index([romanizedTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_romanized_title_trgm")
   @@index([typeId], map: "idx_works_type")
   @@index([country], map: "idx_works_country")
   @@index([originalPublicationStatus], map: "idx_works_original_publication_status")
@@ -291,12 +294,14 @@ model WorkOriginalPublisher {
 model WorkAuthor {
   workId Int @map("work_id")
   authorId Int @map("author_id")
+  position Int @default(0)
   work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
   author DomainOptionValue @relation("WorkAuthorAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   roles WorkAuthorRole[]
 
   @@id([workId, authorId])
   @@unique([workId, authorId], map: "work_authors_work_author_unique")
+  @@index([workId, position], map: "idx_work_authors_position")
   @@index([authorId], map: "idx_work_authors_author")
   @@index([authorId, workId], map: "idx_work_authors_author_work")
   @@map("work_authors")

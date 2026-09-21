@@ -27,8 +27,8 @@ let user, typeId;
 const covers = [];
 async function cover() { const id = await createTestCover(db, prefix); covers.push(id); return id; }
 async function work(id, suffix) {
-    return db.query(`INSERT INTO works (title, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
-        VALUES ($1, $1, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
+    return db.query(`INSERT INTO works (title, romanized_title, synopsis, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
+        VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
 }
 describe('integração de autenticação e capas', () => {
 beforeAll(async () => {
