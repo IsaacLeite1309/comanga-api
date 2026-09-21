@@ -1,4 +1,4 @@
-import { AUTHOR_ROLE_VALUES } from './constants';
+import { AUTHOR_ROLE_PRIORITY_VALUES } from './constants';
 
 import type { EditionInput, OptionSummary, VolumeInput, WorkDetailInput, WorkSummaryInput } from './types';
 import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
@@ -18,8 +18,8 @@ function normalizeOptionSummary(value: OptionSummary | null | undefined) {
 }
 
 function getAuthorRolePriority(role: string) {
-    const priority = AUTHOR_ROLE_VALUES.findIndex((value) => value === role);
-    return priority === -1 ? AUTHOR_ROLE_VALUES.length : priority;
+    const priority = AUTHOR_ROLE_PRIORITY_VALUES.findIndex((value) => value === role);
+    return priority === -1 ? AUTHOR_ROLE_PRIORITY_VALUES.length : priority;
 }
 
 // A ordem dos creditos e a posicao editorial persistida; os papeis nao a definem.
@@ -31,6 +31,15 @@ function sortAuthorsByPosition<T extends { position?: number }>(authors: T[]) {
             || firstAuthor.index - secondAuthor.index
         ))
         .map((item) => item.author);
+}
+
+function sortAuthorsByCredit<T extends { author: OptionSummary; roles?: Array<{ role: string }> }>(authors: T[]) {
+    return [...authors].sort((firstAuthor, secondAuthor) => {
+        const firstPriority = Math.min(...(firstAuthor.roles || []).map((item) => getAuthorRolePriority(item.role)));
+        const secondPriority = Math.min(...(secondAuthor.roles || []).map((item) => getAuthorRolePriority(item.role)));
+        return firstPriority - secondPriority
+            || firstAuthor.author.label.localeCompare(secondAuthor.author.label, 'pt-BR', { sensitivity: 'base' });
+    });
 }
 
 function normalizeOrderedAuthors<T extends { position?: number }>(authors: T[]) {
@@ -69,7 +78,7 @@ function normalizeWorkSummary(work: WorkSummaryInput) {
         coverAssetId: work.coverAssetId,
         coverUrl: normalizeCoverUrl(work.coverAsset),
         editionsCount: work.editionsCount ?? work._count?.editions ?? 0,
-        authors: sortAuthorsByPosition(work.authors || []).map((item) => normalizeOptionSummary(item.author))
+        authors: sortAuthorsByCredit(work.authors || []).map((item) => normalizeOptionSummary(item.author))
     };
 }
 
@@ -83,7 +92,7 @@ function normalizeWorkDetail(work: WorkDetailInput) {
         directRelease: work.directRelease,
         originalPublishers: work.originalPublishers?.map((item) => normalizeOptionSummary(item.publisher)) || [],
         originalPublicationStatus: work.originalPublicationStatus,
-        authors: sortAuthorsByPosition(work.authors || []).map((item) => ({
+        authors: sortAuthorsByCredit(work.authors || []).map((item) => ({
             author: normalizeOptionSummary(item.author),
             roles: normalizeAuthorRoles(item.roles)
         })) || [],
@@ -168,6 +177,7 @@ export {
     normalizeOptionSummary,
     getAuthorRolePriority,
     sortAuthorsByPosition,
+    sortAuthorsByCredit,
     normalizeOrderedAuthors,
     normalizeAuthorRoles,
     hasDuplicatedStrings,

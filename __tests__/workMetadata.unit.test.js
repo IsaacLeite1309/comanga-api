@@ -8,6 +8,7 @@ const {
 } = require('../src/modules/catalog/schemas');
 const {
     normalizeOrderedAuthors,
+    sortAuthorsByCredit,
     normalizeWorkDetail,
     normalizeWorkSummary
 } = require('../src/modules/catalog/mappers');
@@ -252,6 +253,17 @@ describe('sinopse própria na página pública da Obra', () => {
 });
 
 describe('ordem editorial dos Autores', () => {
+    it('ordena créditos pelo papel e depois pelo nome do autor', () => {
+        const authors = sortAuthorsByCredit([
+            { author: { id: 1, label: 'Zeta' }, roles: [{ role: 'Ilustrador' }] },
+            { author: { id: 2, label: 'Beta' }, roles: [{ role: 'História' }] },
+            { author: { id: 3, label: 'Alfa' }, roles: [{ role: 'História' }] },
+            { author: { id: 4, label: 'Gama' }, roles: [{ role: 'Criador Original' }] }
+        ]);
+
+        expect(authors.map((item) => item.author.label)).toEqual(['Gama', 'Alfa', 'Beta', 'Zeta']);
+    });
+
     it('normaliza posições contíguas a partir de 0 pela ordem recebida', () => {
         expect(normalizeOrderedAuthors([
             { authorId: 11, roles: ['Ilustrador'] },
@@ -290,7 +302,7 @@ describe('ordem editorial dos Autores', () => {
         expect(negativePosition.success).toBe(false);
     });
 
-    it('ordena autores pela posição, não mais pela prioridade dos papéis', () => {
+    it('ordena autores pelo papel, ignorando posições previamente persistidas', () => {
         const authors = [
             { position: 1, author: { id: 4, label: 'Masashi Kishimoto' }, roles: [{ role: 'História e Arte' }] },
             { position: 0, author: { id: 11, label: 'Osamu Tezuka' }, roles: [{ role: 'Ilustrador' }] }
@@ -316,9 +328,9 @@ describe('ordem editorial dos Autores', () => {
             authors
         });
 
-        expect(detail.authors.map((item) => item.author.id)).toEqual([11, 4]);
-        expect(detail.authors[0].roles).toEqual(['Ilustrador']);
-        expect(detail.authors[1].roles).toEqual(['História e Arte']);
+        expect(detail.authors.map((item) => item.author.id)).toEqual([4, 11]);
+        expect(detail.authors[0].roles).toEqual(['História e Arte']);
+        expect(detail.authors[1].roles).toEqual(['Ilustrador']);
     });
 
     it('consulta autores ordenados por posição na área administrativa e no catálogo público', () => {

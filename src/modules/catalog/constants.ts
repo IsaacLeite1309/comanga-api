@@ -4,7 +4,8 @@ const REQUIRED_WORK_FIELDS_MESSAGE = 'Preencha os campos obrigatórios da Obra.'
 const INVALID_DOMAIN_REFERENCE_MESSAGE = 'Um ou mais valores selecionados são inválidos.';
 const WORK_VISIBILITY_VALUES = ['Privado', 'Público'] as const;
 const WORK_SORT_FIELDS = ['title', 'author', 'country', 'type', 'editions', 'visibility'] as const;
-const AUTHOR_ROLE_VALUES = ['História e Arte', 'História', 'Arte', 'Criador Original', 'História Original', 'Ilustrador'] as const;
+const AUTHOR_ROLE_VALUES = ['História e Arte', 'História', 'Arte', 'Criador Original', 'História Original', 'Ilustrador', 'Design de Personagens'] as const;
+const AUTHOR_ROLE_PRIORITY_VALUES = ['Criador Original', 'História Original', 'História e Arte', 'História', 'Arte', 'Ilustrador', 'Design de Personagens'] as const;
 const WORK_COUNTRY_VALUES = ['Japão', 'Coreia do Sul', 'China', 'Taiwan'] as const;
 const ORIGINAL_PUBLICATION_STATUS_VALUES = ['Completa', 'Em andamento', 'Em hiato', 'Cancelada'] as const;
 const WORK_DEMOGRAPHY_VALUES = ['Shonen', 'Shoujo', 'Seinen', 'Josei', 'Kodomo'] as const;
@@ -54,6 +55,7 @@ export {
     WORK_VISIBILITY_VALUES,
     WORK_SORT_FIELDS,
     AUTHOR_ROLE_VALUES,
+    AUTHOR_ROLE_PRIORITY_VALUES,
     WORK_COUNTRY_VALUES,
     ORIGINAL_PUBLICATION_STATUS_VALUES,
     WORK_DEMOGRAPHY_VALUES,
