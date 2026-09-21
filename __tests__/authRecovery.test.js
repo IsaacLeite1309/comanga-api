@@ -2,10 +2,22 @@ process.env.MEDIA_PUBLIC_BASE_URL = 'https://media.example.test';
 const bcrypt = require('bcrypt');
 const request = require('supertest');
 const db = require('../src/database');
-const mailer = { sendActivationEmail: jest.fn(), sendPasswordResetEmail: jest.fn() };
-jest.mock('../src/utils/mailer', () => mailer);
+const mockMailer = { sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined) };
+jest.mock('../src/modules/auth', () => {
+    const actual = jest.requireActual('../src/modules/auth');
+    const { createPasswordRecoveryHandlers } = jest.requireActual('../src/modules/auth/passwordRecovery');
+    return {
+        ...actual,
+        ...createPasswordRecoveryHandlers({
+            sendPasswordResetEmail: ({ toEmail, username, token }) => (
+                mockMailer.sendPasswordResetEmail(toEmail, username, token)
+            )
+        })
+    };
+});
 const app = require('../src/app');
 const { requestPasswordReset } = require('../src/modules/auth');
+const mailer = mockMailer;
 const { createTestCover } = require('./helpers/cover');
 const { PrismaMediaAssetRepository } = require('../src/modules/media/PrismaMediaAssetRepository');
 const { CoverRemovalService } = require('../src/modules/media/CoverRemovalService');
@@ -55,11 +67,10 @@ describe('senha e idade com banco real', () => {
         expect(login.status).toBe(200);
         for (let i = 0; i < 2; i++) {
             if (i) await db.query("UPDATE password_reset_tokens SET created_at=NOW() - INTERVAL '61 seconds' WHERE user_id=$1", [user.id]);
-            expect((await request(app).post('/api/auth/forgot-password').send({ email: user.email })).status).toBe(200);
-            // Delivery continues in the awaited handler after the neutral response.
-            for (let attempt = 0; attempt < 100 && mailer.sendPasswordResetEmail.mock.calls.length < i + 1; attempt++) {
-                await new Promise(resolve => global.setTimeout(resolve, 10));
-            }
+            const response = { status: jest.fn(() => response), json: jest.fn(() => response) };
+            await requestPasswordReset({ body: { email: user.email } }, response);
+            expect(response.status).toHaveBeenCalledWith(200);
+            expect(response.json).toHaveBeenCalledWith({ message: 'Se houver uma conta apta para este e-mail, enviaremos as instruções de recuperação.' });
             expect(mailer.sendPasswordResetEmail).toHaveBeenCalledTimes(i + 1);
         }
         const oldToken = mailer.sendPasswordResetEmail.mock.calls[0][2];
@@ -107,8 +118,10 @@ describe('senha e idade com banco real', () => {
         }
     });
     it('rejeita menor mesmo com a preferência adulterada e mantém data privada', async () => {
-        await db.query("UPDATE users SET birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$1",[user.id]);
-        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: 'SenhaNova123!' });
+        const passwordHash = await bcrypt.hash(pass, 10);
+        await db.query("UPDATE users SET password_hash=$1, birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$2",[passwordHash,user.id]);
+        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: pass });
+        expect(login.status).toBe(200);
         const cookie = login.headers['set-cookie'];
         const profile = await request(app).get('/api/users/me').set('Cookie',cookie);
         expect(profile.body.user).toMatchObject({ conteudo_adulto:false, can_enable_adult_content:false });
@@ -179,9 +192,11 @@ describe('capas com concorrência e restrições reais', () => {
 
     it('admin menor consulta catálogo administrativo, mas não obtém conteúdo adulto público', async () => {
         const id = await cover(); const created = await work(id, 'adult'); const workId = created.rows[0].id;
+        const passwordHash = await bcrypt.hash(pass, 10);
         await db.query("UPDATE works SET adult_content=true, visibility='Público' WHERE id=$1",[workId]);
-        await db.query("UPDATE users SET nivel_acesso='Administrador', birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$1",[user.id]);
-        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: 'SenhaNova123!' });
+        await db.query("UPDATE users SET password_hash=$1, nivel_acesso='Administrador', birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$2",[passwordHash,user.id]);
+        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: pass });
+        expect(login.status).toBe(200);
         const cookie = login.headers['set-cookie'];
         expect((await request(app).get(`/api/admin/works/${workId}`).set('Cookie',cookie)).status).toBe(200);
         expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(404);

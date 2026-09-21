@@ -11,6 +11,15 @@ import type {
 } from './types';
 import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
 
+const AUTHOR_ROLE_PRIORITY = ['Criador Original', 'História Original', 'História e Arte', 'História', 'Arte', 'Ilustrador', 'Design de Personagens'];
+
+function authorPriority(roles: Array<{ role: string }>) {
+    return Math.min(...roles.map(({ role }) => {
+        const index = AUTHOR_ROLE_PRIORITY.indexOf(role);
+        return index === -1 ? AUTHOR_ROLE_PRIORITY.length : index;
+    }));
+}
+
 function mapCoverUrl(asset: PublicCoverAssetInput | null) {
     if (!asset) return null;
     return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
@@ -40,9 +49,12 @@ function mapPublicWorkDetails(
         directRelease: work.directRelease,
         originalPublicationStatus: work.originalPublicationStatus,
         synopsis: work.synopsis,
-        authors: work.authors.map(({ author, roles }) => ({
+        authors: [...work.authors].sort((first, second) => (
+            authorPriority(first.roles) - authorPriority(second.roles)
+            || first.author.label.localeCompare(second.author.label, 'pt-BR', { sensitivity: 'base' })
+        )).map(({ author, roles }) => ({
             ...mapOption(author),
-            roles: roles.map(({ role }) => role)
+            roles: [...roles].sort((first, second) => authorPriority([first]) - authorPriority([second])).map(({ role }) => role)
         })),
         genres: work.genres.map(({ genre }) => mapOption(genre)),
         demographics: work.demographics.map(({ demography }) => demography),

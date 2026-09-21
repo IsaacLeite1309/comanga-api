@@ -589,13 +589,13 @@ describe('catálogo público', () => {
             synopsis: `${fixturePrefix} sinopse pr\u00f3pria da Obra.`,
             authors: [
                 {
-                    id: fixture.options.authorZulu.id,
-                    label: fixture.options.authorZulu.label,
+                    id: fixture.options.authorOne.id,
+                    label: fixture.options.authorOne.label,
                     roles: []
                 },
                 {
-                    id: fixture.options.authorOne.id,
-                    label: fixture.options.authorOne.label,
+                    id: fixture.options.authorZulu.id,
+                    label: fixture.options.authorZulu.label,
                     roles: []
                 }
             ],
