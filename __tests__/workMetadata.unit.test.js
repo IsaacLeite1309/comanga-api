@@ -45,18 +45,23 @@ function validWorkPayload(overrides = {}) {
 }
 
 describe('contrato dos metadados próprios da Obra', () => {
-    it('impede crédito redundante de História e Arte para o mesmo autor', () => {
-        const redundantCredit = workAuthorSchema.safeParse({
+    it('impede créditos redundantes de História e Arte para o mesmo autor', () => {
+        const combinedAndSeparateCredit = workAuthorSchema.safeParse({
             authorId: 4,
             roles: ['História e Arte', 'História']
+        });
+        const separateCredits = workAuthorSchema.safeParse({
+            authorId: 4,
+            roles: ['História', 'Arte']
         });
         const compatibleCredits = workAuthorSchema.safeParse({
             authorId: 4,
             roles: ['Criador Original', 'Ilustrador']
         });
 
-        expect(redundantCredit.success).toBe(false);
-        expect(redundantCredit.error.issues[0].path).toEqual(['roles']);
+        expect(combinedAndSeparateCredit.success).toBe(false);
+        expect(combinedAndSeparateCredit.error.issues[0].path).toEqual(['roles']);
+        expect(separateCredits.success).toBe(false);
         expect(compatibleCredits.success).toBe(true);
     });
 
