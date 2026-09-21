@@ -1137,12 +1137,12 @@ describe('módulos administrativos', () => {
                     originalPublicationStatus: 'Completa',
                     authors: [
                         expect.objectContaining({
-                            author: { id: 4, label: 'Masashi Kishimoto' },
-                            roles: ['História e Arte']
-                        }),
-                        expect.objectContaining({
                             author: { id: 11, label: 'Osamu Tezuka' },
                             roles: ['Criador Original', 'Ilustrador']
+                        }),
+                        expect.objectContaining({
+                            author: { id: 4, label: 'Masashi Kishimoto' },
+                            roles: ['História e Arte']
                         })
                     ]
                 })
@@ -1380,7 +1380,7 @@ describe('módulos administrativos', () => {
                         {
                             position: 0,
                             author: { id: 4, label: 'Masashi Kishimoto' },
-                            roles: [{ role: 'História' }, { role: 'Arte' }]
+                            roles: [{ role: 'História e Arte' }]
                         }
                     ],
                     demographics: [{ demography: 'Seinen' }]
@@ -1395,7 +1395,7 @@ describe('módulos administrativos', () => {
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
-                        { authorId: 4, roles: ['História', 'Arte'] },
+                        { authorId: 4, roles: ['História e Arte'] },
                         { authorId: 11, roles: ['Ilustrador'] }
                     ],
                     demographies: ['Seinen']
@@ -1422,8 +1422,7 @@ describe('módulos administrativos', () => {
             });
             expect(prisma.workAuthorRole.createMany).toHaveBeenCalledWith({
                 data: [
-                    { workId: 1, authorId: 4, role: 'História' },
-                    { workId: 1, authorId: 4, role: 'Arte' },
+                    { workId: 1, authorId: 4, role: 'História e Arte' },
                     { workId: 1, authorId: 11, role: 'Ilustrador' }
                 ]
             });
@@ -1439,7 +1438,7 @@ describe('módulos administrativos', () => {
                     authors: [
                         expect.objectContaining({
                             author: { id: 4, label: 'Masashi Kishimoto' },
-                            roles: ['História', 'Arte']
+                            roles: ['História e Arte']
                         }),
                         expect.objectContaining({
                             author: { id: 11, label: 'Osamu Tezuka' },

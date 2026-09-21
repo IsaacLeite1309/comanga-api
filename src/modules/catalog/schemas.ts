@@ -17,6 +17,17 @@ const workAuthorSchema = z.object({
     authorId: z.coerce.number().int().positive(),
     roles: z.array(z.enum(AUTHOR_ROLE_VALUES)).min(1),
     position: z.coerce.number().int().min(0).optional()
+}).superRefine((author, context) => {
+    const hasCombinedCredit = author.roles.includes('História e Arte');
+    const hasHistoryCredit = author.roles.includes('História');
+    const hasArtCredit = author.roles.includes('Arte');
+    if ((hasCombinedCredit && (hasHistoryCredit || hasArtCredit)) || (hasHistoryCredit && hasArtCredit)) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['roles'],
+            message: 'Selecione apenas História e Arte, História ou Arte para o mesmo autor.'
+        });
+    }
 });
 
 const orderedWorkOptionSchema = z.union([

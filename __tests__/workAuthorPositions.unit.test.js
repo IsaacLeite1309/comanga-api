@@ -112,7 +112,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
         prisma.work.create.mockResolvedValue({ id: 1 });
     });
 
-    it('grava a posição dos autores no cadastro seguindo a ordem recebida', async () => {
+    it('exibe os autores em ordem canônica de crédito no cadastro', async () => {
         prisma.work.findUniqueOrThrow.mockResolvedValue(persistedWork([
             { position: 0, author: { id: 11, label: 'Osamu Tezuka' }, roles: [{ role: 'Ilustrador' }] },
             { position: 1, author: { id: 4, label: 'Masashi Kishimoto' }, roles: [{ role: 'História e Arte' }] }
@@ -135,7 +135,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             }
         });
         expect(res.status).toHaveBeenCalledWith(201);
-        expect(res.json.mock.calls[0][0].work.authors.map((item) => item.author.id)).toEqual([11, 4]);
+        expect(res.json.mock.calls[0][0].work.authors.map((item) => item.author.id)).toEqual([4, 11]);
     });
 
     it('normaliza posições manipuladas e duplicadas do payload em vez de recusar', async () => {
@@ -181,7 +181,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             })
             .mockResolvedValueOnce(persistedWork([
                 { position: 0, author: { id: 11, label: 'Osamu Tezuka' }, roles: [{ role: 'Criador Original' }, { role: 'Ilustrador' }] },
-                { position: 1, author: { id: 4, label: 'Masashi Kishimoto' }, roles: [{ role: 'História' }, { role: 'Arte' }] }
+                { position: 1, author: { id: 4, label: 'Masashi Kishimoto' }, roles: [{ role: 'História e Arte' }] }
             ]));
         const res = makeRes();
 
@@ -190,7 +190,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             body: {
                 authors: [
                     { authorId: 11, roles: ['Criador Original', 'Ilustrador'] },
-                    { authorId: 4, roles: ['História', 'Arte'] }
+                    { authorId: 4, roles: ['História e Arte'] }
                 ]
             }
         }), res, jest.fn());
@@ -205,14 +205,13 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             data: [
                 { workId: 1, authorId: 11, role: 'Criador Original' },
                 { workId: 1, authorId: 11, role: 'Ilustrador' },
-                { workId: 1, authorId: 4, role: 'História' },
-                { workId: 1, authorId: 4, role: 'Arte' }
+                { workId: 1, authorId: 4, role: 'História e Arte' }
             ]
         });
         expect(res.status).toHaveBeenCalledWith(200);
         expect(res.json.mock.calls[0][0].work.authors).toEqual([
             { author: { id: 11, label: 'Osamu Tezuka' }, roles: ['Criador Original', 'Ilustrador'] },
-            { author: { id: 4, label: 'Masashi Kishimoto' }, roles: ['História', 'Arte'] }
+            { author: { id: 4, label: 'Masashi Kishimoto' }, roles: ['História e Arte'] }
         ]);
     });
 
