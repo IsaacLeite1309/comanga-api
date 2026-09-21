@@ -78,7 +78,9 @@ describe('POST /api/auth/login e middleware de sessao', () => {
             user: {
                 id: String(insertedUser.id),
                 username: user.username,
-                role: user.nivelAcesso
+                role: user.nivelAcesso,
+                profiles: ['Usuário Padrão'],
+                active_profile: 'Usuário Padrão'
             }
         });
 

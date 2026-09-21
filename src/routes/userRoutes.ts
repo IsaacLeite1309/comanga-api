@@ -6,8 +6,14 @@ const router = express.Router();
 
 router.get('/me', authModule.authMiddleware, usersModule.getOwnUserProfile);
 router.patch('/me/adult-content', authModule.authMiddleware, usersModule.updateAdultContent);
+router.patch('/me/active-profile', authModule.authMiddleware, usersModule.updateActiveProfile);
+router.patch('/me/username', authModule.authMiddleware, usersModule.updateOwnUsername);
+router.patch(
+    '/me/password',
+    authModule.authMiddleware,
+    authModule.passwordChangeRateLimiter,
+    usersModule.updateOwnPassword
+);
 router.delete('/me', authModule.authMiddleware, usersModule.deleteOwnAccount);
-router.get('/:id', authModule.authMiddleware, usersModule.getUserById);
-router.put('/:id', authModule.authMiddleware, usersModule.updateUserById);
 
 export = router;

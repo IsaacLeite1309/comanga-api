@@ -2,59 +2,27 @@ import bcrypt from 'bcrypt';
 import type { NextFunction, Request, Response } from 'express';
 import prisma from '../../prisma';
 import authModule from '../auth';
-
-const ACCESS_DENIED_MESSAGE = 'Acesso negado: Você não tem permissão para acessar ou modificar os dados deste perfil.';
+import { getAuthenticatedUser, loadOwnProfileView } from './ownProfileView';
 
 interface PrismaKnownError { code?: string }
-interface UserResponseInput {
-    id: string;
-    username: string;
-    email: string;
-    conteudoAdulto: boolean;
-    nivelAcesso: string;
-}
-
-function getAuthenticatedUser(req: Request) {
-    if (!req.user) throw new Error('Usuario autenticado nao encontrado na requisicao.');
-    return req.user;
-}
-
-function toUserResponse(user: UserResponseInput) {
-    return {
-        id: String(user.id),
-        username: user.username,
-        email: user.email,
-        conteudo_adulto: user.conteudoAdulto,
-        role: user.nivelAcesso
-    };
-}
 
 async function getUserProfile(req: Request, res: Response, next: NextFunction) {
     try {
+        const authenticatedUser = getAuthenticatedUser(req);
         const user = await prisma.user.findUnique({
-            where: { id: getAuthenticatedUser(req).userId },
-            select: { id: true, username: true, email: true, conteudoAdulto: true, nivelAcesso: true }
-        });
-        if (!user) return res.status(404).json({ error: 'Perfil não encontrado.' });
-        return res.status(200).json({ user: toUserResponse(user) });
-    } catch (error) {
-        return next(error);
-    }
-}
-
-async function getOwnUserProfile(req: Request, res: Response, next: NextFunction) {
-    try {
-        const user = await prisma.user.findUnique({
-            where: { id: getAuthenticatedUser(req).userId },
-            select: { username: true, email: true, conteudoAdulto: true, birthDate: true }
+            where: { id: authenticatedUser.userId },
+            select: { id: true, username: true, email: true, conteudoAdulto: true }
         });
         if (!user) return res.status(404).json({ error: 'Perfil não encontrado.' });
         return res.status(200).json({
             user: {
+                id: String(user.id),
                 username: user.username,
                 email: user.email,
-                conteudo_adulto: user.conteudoAdulto && authModule.isAdult(user.birthDate),
-                can_enable_adult_content: authModule.isAdult(user.birthDate)
+                conteudo_adulto: user.conteudoAdulto,
+                role: authenticatedUser.activeProfile,
+                profiles: authenticatedUser.profiles,
+                active_profile: authenticatedUser.activeProfile
             }
         });
     } catch (error) {
@@ -62,25 +30,12 @@ async function getOwnUserProfile(req: Request, res: Response, next: NextFunction
     }
 }
 
-async function getUserById(req: Request, res: Response, next: NextFunction) {
+async function getOwnUserProfile(req: Request, res: Response, next: NextFunction) {
     try {
         const authenticatedUser = getAuthenticatedUser(req);
-        const targetId = String(req.params.id);
-        if (authenticatedUser.role === 'Usuário Padrão' && targetId !== authenticatedUser.userId) {
-            return res.status(403).json({ error: ACCESS_DENIED_MESSAGE });
-        }
-        const user = await prisma.user.findUnique({
-            where: { id: targetId },
-            select: { username: true, email: true, conteudoAdulto: true, status: true, nivelAcesso: true }
-        });
-        if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
-        return res.status(200).json({
-            username: user.username,
-            email: user.email,
-            conteudo_adulto: user.conteudoAdulto,
-            status: user.status,
-            nivel_acesso: user.nivelAcesso
-        });
+        const view = await loadOwnProfileView(authenticatedUser.userId, authenticatedUser.activeProfile);
+        if (!view) return res.status(404).json({ error: 'Perfil não encontrado.' });
+        return res.status(200).json({ user: view });
     } catch (error) {
         return next(error);
     }
@@ -122,17 +77,19 @@ async function updateAdultContent(req: Request, res: Response, next: NextFunctio
     }
 }
 
-async function updateUserById(req: Request, res: Response, next: NextFunction) {
-    try {
-        const authenticatedUser = getAuthenticatedUser(req);
-        const targetId = String(req.params.id);
-        if (authenticatedUser.role === 'Usuário Padrão' && targetId !== authenticatedUser.userId) {
-            return res.status(403).json({ error: ACCESS_DENIED_MESSAGE });
+// O sistema não pode ficar sem administrador efetivo por exclusão da própria conta.
+async function deleteAccountProtectingLastAdmin(userId: string): Promise<{ error?: string }> {
+    return prisma.$transaction(async tx => {
+        await authModule.lockAdminAssignments(tx);
+        await authModule.lockUserRow(tx, userId);
+        const profiles = await authModule.listProfileNamesByUser(tx, userId);
+        const isEffectiveAdmin = profiles.includes(authModule.ADMIN_PROFILE_NAME);
+        if (isEffectiveAdmin && !await authModule.anotherEffectiveAdminRemains(tx, userId)) {
+            return { error: authModule.LAST_ADMIN_MESSAGE };
         }
-        return res.status(200).json({ message: 'Permissão concedida. Rota de atualização genérica em construção.' });
-    } catch (error) {
-        return next(error);
-    }
+        await tx.user.delete({ where: { id: userId } });
+        return {};
+    });
 }
 
 async function deleteOwnAccount(req: Request, res: Response, next: NextFunction) {
@@ -153,7 +110,8 @@ async function deleteOwnAccount(req: Request, res: Response, next: NextFunction)
         if (!await bcrypt.compare(currentPassword, user.passwordHash)) {
             return res.status(401).json({ error: 'Senha atual incorreta!' });
         }
-        await prisma.user.delete({ where: { id: authenticatedUser.userId } });
+        const deletion = await deleteAccountProtectingLastAdmin(authenticatedUser.userId);
+        if (deletion.error) return res.status(409).json({ error: deletion.error });
         authModule.clearSessionCookie(req, res);
         return res.status(200).json({ message: 'Conta excluida permanentemente.' });
     } catch (error) {
@@ -168,8 +126,6 @@ async function deleteOwnAccount(req: Request, res: Response, next: NextFunction)
 export {
     deleteOwnAccount,
     getOwnUserProfile,
-    getUserById,
     getUserProfile,
-    updateAdultContent,
-    updateUserById
+    updateAdultContent
 };

@@ -9,6 +9,9 @@ declare global {
                 username: string;
                 email: string;
                 role: string;
+                profiles: string[];
+                activeProfile: string;
+                hasAdminAssignment: boolean;
             };
             session?: {
                 id: Session['id'];
@@ -17,6 +20,7 @@ declare global {
             publicCatalogViewer?: {
                 userId?: string;
                 canViewAdultContent: boolean;
+                hasAdminAssignment: boolean;
             };
         }
     }

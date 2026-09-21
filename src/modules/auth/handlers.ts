@@ -4,7 +4,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../../prisma';
 import structuredLogger from '../../infrastructure/logging/structuredLogger';
-import { birthDateSchema, parseBirthDate, passwordSchema } from './accountRules';
+import { birthDateSchema, parseBirthDate, passwordSchema, usernameSchema } from './accountRules';
+import { listProfileNamesByUser, resolveActiveProfileName, resolveLoginProfileId } from './profiles';
 import { hashSessionToken, setSessionCookie, clearSessionCookie } from './session';
 
 interface AuthNotifications {
@@ -40,8 +41,7 @@ function sendRegistrationConflict(res: Response, field: 'email' | 'username') {
 }
 
 const registerSchema = z.object({
-    username: z.string()
-        .regex(/^[a-zA-Z0-9_]{3,20}$/, 'Utilize entre 3 e 20 caracteres, sem espaços, acentos ou caracteres especiais.'),
+    username: usernameSchema,
     email: z.string().email('E-mail com formato inválido.'),
     birthDate: birthDateSchema,
     password: passwordSchema,
@@ -180,13 +180,39 @@ function createResendActivationHandler(notifications: AuthNotifications) {
     };
 }
 
+interface LoginSessionContext { profiles: string[]; activeProfile: string }
+
+// A sessão nasce com o perfil ativo herdado da preferência salva na conta.
+async function createLoginSession(
+    userId: string,
+    passwordHash: string,
+    sessionTokenHash: string
+): Promise<LoginSessionContext | null> {
+    return prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+        const current = await tx.user.findUnique({
+            where: { id: userId },
+            select: { passwordHash: true, status: true }
+        });
+        if (!current || current.passwordHash !== passwordHash || current.status !== 'Ativada') return null;
+        const activeProfileId = await resolveLoginProfileId(tx, userId);
+        await tx.session.create({ data: { userId, sessionTokenHash, activeProfileId } });
+        const profiles = await listProfileNamesByUser(tx, userId);
+        const activeProfile = await tx.profile.findUnique({
+            where: { id: activeProfileId },
+            select: { name: true }
+        });
+        return { profiles, activeProfile: resolveActiveProfileName(profiles, activeProfile?.name) };
+    });
+}
+
 async function loginUser(req: Request, res: Response, next: NextFunction) {
     const { email, password } = req.body as { email?: string; password?: string };
     if (!email || !password) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
     try {
         const user = await prisma.user.findUnique({
             where: { email },
-            select: { id: true, username: true, passwordHash: true, status: true, nivelAcesso: true }
+            select: { id: true, username: true, passwordHash: true, status: true }
         });
         if (!user || !await bcrypt.compare(password, user.passwordHash)) {
             return res.status(401).json({ error: 'Credenciais inválidas!' });
@@ -202,22 +228,19 @@ async function loginUser(req: Request, res: Response, next: NextFunction) {
 
         const sessionToken = crypto.randomBytes(48).toString('hex');
         const sessionTokenHash = hashSessionToken(sessionToken);
-        const created = await prisma.$transaction(async tx => {
-            await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id}::uuid FOR UPDATE`;
-            const current = await tx.user.findUnique({
-                where: { id: user.id },
-                select: { passwordHash: true, status: true }
-            });
-            if (!current || current.passwordHash !== user.passwordHash || current.status !== 'Ativada') return false;
-            await tx.session.create({ data: { userId: user.id, sessionTokenHash } });
-            return true;
-        });
-        if (!created) return res.status(401).json({ error: 'Credenciais inválidas!' });
+        const sessionContext = await createLoginSession(user.id, user.passwordHash, sessionTokenHash);
+        if (!sessionContext) return res.status(401).json({ error: 'Credenciais inválidas!' });
 
         setSessionCookie(req, res, sessionToken);
         return res.status(200).json({
             message: 'Login realizado com sucesso!',
-            user: { id: String(user.id), username: user.username, role: user.nivelAcesso }
+            user: {
+                id: String(user.id),
+                username: user.username,
+                role: sessionContext.activeProfile,
+                profiles: sessionContext.profiles,
+                active_profile: sessionContext.activeProfile
+            }
         });
     } catch (error) {
         return next(error);
