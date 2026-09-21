@@ -1588,15 +1588,41 @@ describe('módulos administrativos', () => {
     });
 
     describe('edições administrativas', () => {
+        const previousMediaUrl = process.env.MEDIA_PUBLIC_BASE_URL;
+
+        beforeAll(() => {
+            process.env.MEDIA_PUBLIC_BASE_URL = 'https://media.comanga.test';
+        });
+
+        afterAll(() => {
+            if (previousMediaUrl === undefined) delete process.env.MEDIA_PUBLIC_BASE_URL;
+            else process.env.MEDIA_PUBLIC_BASE_URL = previousMediaUrl;
+        });
+
+        const coverSourceAsset = {
+            id: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+            objectKey: 'covers/volume-1/master.webp',
+            variants: [{ kind: 'COVER_LARGE', objectKey: 'covers/volume-1/large.webp' }]
+        };
         const edition = {
             id: 20,
             workId: 1,
             chronologicalNumber: 1,
             visibility: 'Privado',
+            // Somente o Volume 1 chega no include; é dele que a capa é derivada.
+            volumes: [{ coverAsset: coverSourceAsset }],
             brazilianPublisher: { id: 2, label: 'Panini' },
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
+            brazilPublicationStatus: 'Completa'
+        };
+        const editionBodyWithoutCover = {
+            brazilianPublisherId: 2,
+            editionTypeId: 3,
+            coverTypeId: 4,
+            formatId: 5,
+            chronologicalNumber: 1,
             brazilPublicationStatus: 'Completa'
         };
 
@@ -1612,15 +1638,7 @@ describe('módulos administrativos', () => {
             prisma.edition.create.mockResolvedValue(edition);
             const req = makeReq({
                 params: { workId: '1' },
-                body: {
-                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
-                    brazilianPublisherId: 2,
-                    editionTypeId: 3,
-                    coverTypeId: 4,
-                    formatId: 5,
-                    chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completa',
-                }
+                body: { ...editionBodyWithoutCover }
             });
             const res = makeRes();
 
@@ -1633,6 +1651,7 @@ describe('módulos administrativos', () => {
                     visibility: 'Privado'
                 })
             }));
+            expect(prisma.edition.create.mock.calls[0][0].data).not.toHaveProperty('coverAssetId');
             expect(res.status).toHaveBeenCalledWith(201);
             expect(res.json).toHaveBeenCalledWith({
                 edition: expect.objectContaining({
@@ -1644,21 +1663,60 @@ describe('módulos administrativos', () => {
             });
         });
 
+        it.each([
+            ['createEdition', { params: { workId: '1' } }],
+            ['updateEdition', { params: { id: '20' } }]
+        ])('recusa capa própria enviada para %s', async (handlerName, request) => {
+            prisma.work.findUnique.mockResolvedValue({ id: 1 });
+            prisma.edition.findUnique.mockResolvedValue({ id: 20 });
+            mockValidEditionReferences();
+            const res = makeRes();
+
+            await catalog[handlerName](makeReq({
+                ...request,
+                body: { ...editionBodyWithoutCover, coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e' }
+            }), res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(prisma.edition.create).not.toHaveBeenCalled();
+            expect(prisma.edition.update).not.toHaveBeenCalled();
+        });
+
+        it('deriva a capa da Edição do Volume 1, sem usar o Volume 0 nem outra Edição', async () => {
+            prisma.edition.findUnique.mockResolvedValue(edition);
+            const res = makeRes();
+
+            await catalog.getEditionById(makeReq({ params: { id: '20' } }), res);
+
+            const include = prisma.edition.findUnique.mock.calls[0][0].include;
+            expect(include.volumes).toEqual(expect.objectContaining({ where: { number: 1 }, take: 1 }));
+            expect(include).not.toHaveProperty('coverAsset');
+            expect(res.json).toHaveBeenCalledWith({
+                edition: expect.objectContaining({
+                    coverAssetId: coverSourceAsset.id,
+                    coverUrl: expect.stringContaining('covers/volume-1/large.webp')
+                })
+            });
+        });
+
+        it('representa capa ausente quando a Edição não possui Volume 1', async () => {
+            prisma.edition.findUnique.mockResolvedValue({ ...edition, volumes: [] });
+            const res = makeRes();
+
+            await catalog.getEditionById(makeReq({ params: { id: '20' } }), res);
+
+            expect(res.json).toHaveBeenCalledWith({
+                edition: expect.objectContaining({ coverAssetId: null, coverUrl: null })
+            });
+        });
+
         it('bloqueia número cronologico duplicado dentro da mesma obra', async () => {
             prisma.work.findUnique.mockResolvedValue({ id: 1 });
             mockValidEditionReferences();
             prisma.edition.create.mockRejectedValue({ code: 'P2002' });
             const req = makeReq({
                 params: { workId: '1' },
-                body: {
-                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
-                    brazilianPublisherId: 2,
-                    editionTypeId: 3,
-                    coverTypeId: 4,
-                    formatId: 5,
-                    chronologicalNumber: 1,
-                    brazilPublicationStatus: 'Completa'
-                }
+                body: { ...editionBodyWithoutCover }
             });
             const res = makeRes();
 
@@ -1721,19 +1779,17 @@ describe('módulos administrativos', () => {
             expect(prisma.$transaction).not.toHaveBeenCalled();
         });
 
-        it('propaga visibilidade pública da edição para seus volumes na mesma transacao', async () => {
-            const updatedEdition = {
-                ...edition,
-                visibility: 'Público',
-                work: { visibility: 'Público' }
-            };
+        it('propaga visibilidade pública aos volumes e valida a capa derivada na mesma transacao', async () => {
             prisma.edition.findUnique.mockResolvedValue({
                 id: 20,
                 work: { visibility: 'Público' }
             });
-            prisma.edition.update.mockReturnValue('updateEditionQuery');
-            prisma.volume.updateMany.mockReturnValue('updateVolumesQuery');
-            prisma.$transaction.mockResolvedValue([updatedEdition, { count: 3 }]);
+            prisma.edition.update.mockResolvedValue({ ...edition, visibility: 'Público' });
+            prisma.volume.updateMany.mockResolvedValue({ count: 3 });
+            prisma.volume.findFirst.mockResolvedValue({
+                coverAssetId: coverSourceAsset.id,
+                visibility: 'Público'
+            });
             const req = makeReq({
                 params: { id: '20' },
                 body: { visibility: 'Público' }
@@ -1750,16 +1806,66 @@ describe('módulos administrativos', () => {
                 where: { editionId: 20 },
                 data: { visibility: 'Público' }
             });
-            expect(prisma.$transaction).toHaveBeenCalledWith([
-                'updateEditionQuery',
-                'updateVolumesQuery'
-            ]);
+            // Estado final validado depois da propagação: Volume 1 público e com capa.
+            expect(prisma.volume.findFirst).toHaveBeenCalledWith({
+                where: { editionId: 20, number: 1 },
+                select: { coverAssetId: true, visibility: true }
+            });
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
                 edition: expect.objectContaining({
                     id: 20,
-                    visibility: 'Público'
+                    visibility: 'Público',
+                    coverAssetId: coverSourceAsset.id
                 })
+            });
+        });
+
+        it.each([
+            ['sem Volume 1 cadastrado', null],
+            ['com Volume 1 sem capa', { coverAssetId: null, visibility: 'Público' }],
+            ['com Volume 1 ainda privado', { coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e', visibility: 'Privado' }]
+        ])('recusa publicar a Edição %s', async (_scenario, coverSourceVolume) => {
+            prisma.edition.findUnique.mockResolvedValue({
+                id: 20,
+                work: { visibility: 'Público' }
+            });
+            prisma.edition.update.mockResolvedValue({ ...edition, visibility: 'Público' });
+            prisma.volume.updateMany.mockResolvedValue({ count: 0 });
+            prisma.volume.findFirst.mockResolvedValue(coverSourceVolume);
+            const res = makeRes();
+            const next = jest.fn();
+
+            await catalog.updateEditionVisibility(makeReq({
+                params: { id: '20' },
+                body: { visibility: 'Público' }
+            }), res, next);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Essa Edição não possui o Volume 1 com capa interna válida, não pode ser publicada!'
+            });
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('não exige capa derivada ao tornar a Edição privada', async () => {
+            prisma.edition.findUnique.mockResolvedValue({
+                id: 20,
+                work: { visibility: 'Público' }
+            });
+            prisma.edition.update.mockResolvedValue({ ...edition, volumes: [] });
+            prisma.volume.updateMany.mockResolvedValue({ count: 1 });
+            const res = makeRes();
+
+            await catalog.updateEditionVisibility(makeReq({
+                params: { id: '20' },
+                body: { visibility: 'Privado' }
+            }), res);
+
+            expect(prisma.volume.findFirst).not.toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith({
+                edition: expect.objectContaining({ coverAssetId: null, coverUrl: null })
             });
         });
 
@@ -1854,6 +1960,75 @@ describe('módulos administrativos', () => {
             });
         });
 
+        it('recusa cadastro de Volume sem capa interna antes de consultar a Edição', async () => {
+            const res = makeRes();
+
+            await catalog.createVolume(makeReq({
+                params: { editionId: '20' },
+                body: { number: 1, releaseDatePrecision: 'Ano', releaseYear: 2026 }
+            }), res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Preencha os campos obrigatórios do Volume.' });
+            expect(prisma.edition.findUnique).not.toHaveBeenCalled();
+            expect(prisma.volume.create).not.toHaveBeenCalled();
+        });
+
+        it('recusa renumerar o Volume 1 de uma Edição pública, que perderia a origem da capa', async () => {
+            prisma.volume.findUnique.mockResolvedValue({
+                id: 30,
+                number: 1,
+                coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                edition: { visibility: 'Público' }
+            });
+            const res = makeRes();
+
+            await catalog.updateVolume(makeReq({ params: { id: '30' }, body: { number: 2 } }), res);
+
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({
+                error: 'Esse é o Volume 1 de uma Edição pública: renumerá-lo deixaria a Edição sem capa!'
+            });
+            expect(prisma.volume.update).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['em Edição privada o Volume 1 pode ser renumerado', 'Privado', 1, 2],
+            ['em Edição pública outro Volume pode virar o Volume 1', 'Público', 2, 1],
+            ['em Edição pública o Volume 1 pode ser alterado sem mudar de número', 'Público', 1, 1]
+        ])('permite alteração quando %s', async (_scenario, editionVisibility, currentNumber, nextNumber) => {
+            prisma.volume.findUnique.mockResolvedValue({
+                id: 30,
+                number: currentNumber,
+                coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                edition: { visibility: editionVisibility }
+            });
+            prisma.volume.update.mockResolvedValue({ ...volume, number: nextNumber });
+            const res = makeRes();
+
+            await catalog.updateVolume(makeReq({ params: { id: '30' }, body: { number: nextNumber } }), res);
+
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(prisma.volume.update).toHaveBeenCalled();
+        });
+
+        it('preserva a capa atual do Volume quando a alteração não envia capa nova', async () => {
+            prisma.volume.findUnique.mockResolvedValue({
+                id: 30,
+                number: 1,
+                coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                edition: { visibility: 'Privado' }
+            });
+            prisma.volume.update.mockResolvedValue(volume);
+            const res = makeRes();
+
+            await catalog.updateVolume(makeReq({ params: { id: '30' }, body: { pages: 250 } }), res);
+
+            expect(prisma.volume.update.mock.calls[0][0].data.coverAssetId).toBeUndefined();
+            expect(prisma.mediaAsset.update).not.toHaveBeenCalled();
+            expect(res.status).toHaveBeenCalledWith(200);
+        });
+
         it('bloqueia volume duplicado dentro da mesma edição', async () => {
             prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado' });
             prisma.volume.create.mockRejectedValue({ code: 'P2002' });
@@ -1940,7 +2115,6 @@ describe('módulos administrativos', () => {
 
     describe('caminhos alternativos do catalogo administrativo', () => {
         const editionBody = {
-            coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
             brazilianPublisherId: 2,
             editionTypeId: 3,
             coverTypeId: 4,
@@ -1953,6 +2127,7 @@ describe('módulos administrativos', () => {
             workId: 1,
             chronologicalNumber: 1,
             visibility: 'Privado',
+            volumes: [],
             brazilianPublisher: { id: 2, label: 'Panini' },
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
@@ -2134,9 +2309,8 @@ describe('módulos administrativos', () => {
 
         it('rebaixa edicao privada e propaga a visibilidade aos volumes', async () => {
             prisma.edition.findUnique.mockResolvedValue({ id: 20, work: { visibility: 'Público' } });
-            prisma.edition.update.mockReturnValue('updateEditionQuery');
-            prisma.volume.updateMany.mockReturnValue('updateVolumesQuery');
-            prisma.$transaction.mockResolvedValue([edition, { count: 2 }]);
+            prisma.edition.update.mockResolvedValue(edition);
+            prisma.volume.updateMany.mockResolvedValue({ count: 2 });
             const res = makeRes();
 
             await catalog.updateEditionVisibility(makeReq({

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
+import type { PublicCoverAssetInput } from './types';
 import {
     PUBLIC_AUTHOR_CATEGORY,
     PUBLIC_CATALOG_OPTION_CATEGORIES,
@@ -19,6 +20,7 @@ import {
     mapPublicWorkDetails
 } from './mappers';
 import {
+    buildPublicEditionCoverSourceWhere,
     buildPublicEditionDetailWhere,
     buildPublicEditionOrderBy,
     buildPublicEditionWhere,
@@ -26,6 +28,7 @@ import {
     buildPublicVolumeDetailWhere,
     buildPublicWorkOrderBy,
     buildPublicWorkWhere,
+    publicEditionCoverSourceVolumeSelect,
     publicEditionSelect,
     publicEditionDetailSelect,
     publicEditionVolumeSelect,
@@ -181,6 +184,20 @@ async function listPublicAuthorWorks(req: Request, res: Response, next: NextFunc
     }
 }
 
+// A capa de cada Edição vem do Volume 1 público da própria Edição, nunca de outra.
+async function findEditionCoverAssets(editionIds: number[]) {
+    if (editionIds.length === 0) return new Map<number, PublicCoverAssetInput | null>();
+
+    const coverSourceVolumes = await prisma.volume.findMany({
+        where: buildPublicEditionCoverSourceWhere(editionIds),
+        select: publicEditionCoverSourceVolumeSelect
+    });
+
+    return new Map<number, PublicCoverAssetInput | null>(
+        coverSourceVolumes.map((volume) => [volume.editionId, volume.coverAsset])
+    );
+}
+
 async function getPublicWorkDetails(req: Request, res: Response, next: NextFunction) {
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
     const where = {
@@ -200,7 +217,9 @@ async function getPublicWorkDetails(req: Request, res: Response, next: NextFunct
             return res.status(404).json({ error: 'Obra não encontrada.' });
         }
 
-        return res.status(200).json({ work: mapPublicWorkDetails(work) });
+        const editionCoverAssets = await findEditionCoverAssets(work.editions.map((edition) => edition.id));
+
+        return res.status(200).json({ work: mapPublicWorkDetails(work, editionCoverAssets) });
     } catch (error) {
         return next(error);
     }

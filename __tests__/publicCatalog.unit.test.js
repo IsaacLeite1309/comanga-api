@@ -165,7 +165,7 @@ describe('contratos unitários do catálogo público', () => {
         const edition = mapPublicEdition({
             id: 4,
             chronologicalNumber: 1,
-            coverAsset: null,
+            volumes: [],
             work: {
                 id: 1,
                 slug: 'monster',
@@ -184,5 +184,7 @@ describe('contratos unitários do catálogo público', () => {
         expect(work).not.toHaveProperty('adultContent');
         expect(edition).not.toHaveProperty('manualVolumeCount');
         expect(edition.volumesCount).toBe(18);
+        // Sem Volume 1 público não há capa derivada nem recurso alternativo.
+        expect(edition.coverUrl).toBeNull();
     });
 });

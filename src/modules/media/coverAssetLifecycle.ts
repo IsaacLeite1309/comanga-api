@@ -4,21 +4,24 @@ import prisma from '../../prisma';
 import { getMediaStorage } from '../../infrastructure/container';
 import structuredLogger from '../../infrastructure/logging/structuredLogger';
 
-async function isCoverAssetAttachable(assetId: string, currentAssetId?: string | null): Promise<boolean> {
-    const asset = await prisma.mediaAsset.findUnique({
+async function isCoverAssetAttachable(
+    assetId: string,
+    currentAssetId?: string | null,
+    client: Prisma.TransactionClient = prisma
+): Promise<boolean> {
+    const asset = await client.mediaAsset.findUnique({
         where: { id: assetId },
         select: {
             id: true,
             status: true,
             work: { select: { id: true } },
-            edition: { select: { id: true } },
             volume: { select: { id: true } }
         }
     });
 
     if (!asset || !['Pendente', 'Ativo'].includes(asset.status)) return false;
     if (asset.id === currentAssetId) return true;
-    return !asset.work && !asset.edition && !asset.volume;
+    return !asset.work && !asset.volume;
 }
 
 function activateCoverAsset(tx: Prisma.TransactionClient, assetId: string) {

@@ -1,5 +1,5 @@
 
-import { WORK_SORT_FIELDS } from './constants';
+import { EDITION_COVER_SOURCE_VOLUME_NUMBER, WORK_SORT_FIELDS } from './constants';
 import { normalizeWorkSummary } from './mappers';
 
 function getWorkSummaryInclude() {
@@ -41,12 +41,19 @@ function getWorkSummaryInclude() {
 
 function getEditionInclude() {
     return {
-        coverAsset: {
+        // Origem única da capa derivada: o Volume de número 1 desta mesma Edição.
+        volumes: {
+            where: { number: EDITION_COVER_SOURCE_VOLUME_NUMBER },
+            take: 1,
             select: {
-                id: true,
-                objectKey: true,
-                variants: {
-                    select: { kind: true, objectKey: true }
+                coverAsset: {
+                    select: {
+                        id: true,
+                        objectKey: true,
+                        variants: {
+                            select: { kind: true, objectKey: true }
+                        }
+                    }
                 }
             }
         },

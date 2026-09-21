@@ -102,13 +102,20 @@ function normalizeWorkDetail(work: WorkDetailInput) {
     };
 }
 
+// Capa ausente (sem Volume 1) é representada por coverAssetId/coverUrl nulos.
+function getEditionCoverAsset(edition: EditionInput) {
+    return edition.volumes?.[0]?.coverAsset ?? null;
+}
+
 function normalizeEdition(edition: EditionInput) {
+    const coverAsset = getEditionCoverAsset(edition);
+
     return {
         id: edition.id,
         workId: edition.workId,
         chronologicalNumber: edition.chronologicalNumber,
-        coverAssetId: edition.coverAssetId,
-        coverUrl: normalizeCoverUrl(edition.coverAsset),
+        coverAssetId: coverAsset?.id ?? null,
+        coverUrl: normalizeCoverUrl(coverAsset),
         visibility: edition.visibility,
         brazilianPublisher: normalizeOptionSummary(edition.brazilianPublisher),
         editionType: normalizeOptionSummary(edition.editionType),
@@ -185,6 +192,7 @@ export {
     normalizeVisibility,
     normalizeWorkSummary,
     normalizeWorkDetail,
+    getEditionCoverAsset,
     normalizeEdition,
     normalizeVolume,
     normalizeOrderedIds,

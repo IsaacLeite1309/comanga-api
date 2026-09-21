@@ -171,7 +171,6 @@ async function createEdition({
 }) {
     const result = await db.query(
         `INSERT INTO editions (
-            cover_asset_id,
             work_id,
             brazilian_publisher_id,
             edition_type_id,
@@ -181,7 +180,7 @@ async function createEdition({
             brazil_publication_status,
             visibility,
             atualizado_em
-         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          RETURNING id`,
         [
             workId,

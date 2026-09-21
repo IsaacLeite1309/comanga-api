@@ -24,12 +24,43 @@ describe('modelagem de capas internas', () => {
         expect(schema).toMatch(/@@unique\(\[mediaAssetId, kind\]/);
     });
 
-    it.each(['Work', 'Edition', 'Volume'])('%s referencia uma capa interna obrigatória', (modelName) => {
-        const model = schema.match(new RegExp(`model ${modelName} \\{([\\s\\S]*?)\\n\\}`))?.[1] || '';
+    function modelOf(modelName) {
+        return schema.match(new RegExp(`model ${modelName} \\{([\\s\\S]*?)\\n\\}`))?.[1] || '';
+    }
+
+    it.each(['Work', 'Volume'])('%s referencia uma capa interna obrigatória', (modelName) => {
+        const model = modelOf(modelName);
 
         expect(model).toMatch(/coverAssetId\s+String\s+@unique\s+@map\("cover_asset_id"\)\s+@db\.Uuid/);
         expect(model).toMatch(/coverAsset\s+MediaAsset/);
         expect(model).not.toMatch(/coverUrl\s+String/);
+    });
+
+    it('Edition não possui capa própria: a capa é derivada do Volume 1 da mesma Edição', () => {
+        const model = modelOf('Edition');
+
+        expect(model).not.toMatch(/coverAssetId/);
+        expect(model).not.toMatch(/coverAsset\s+MediaAsset/);
+        expect(model).toMatch(/volumes\s+Volume\[\]/);
+        expect(modelOf('MediaAsset')).not.toMatch(/EditionCover/);
+    });
+
+    it('versiona a remoção da capa própria da Edição sem apagar ativos ainda usados', () => {
+        const migration = fs.readFileSync(path.join(
+            __dirname, '..', 'prisma', 'migrations',
+            '20260920122000_derive_edition_cover_from_first_volume', 'migration.sql'
+        ), 'utf8');
+
+        expect(migration).toContain('ALTER TABLE editions DROP COLUMN IF EXISTS cover_asset_id');
+        expect(migration).toContain('DROP INDEX IF EXISTS editions_cover_asset_id_key');
+        expect(migration).toContain('editions_cover_asset_id_fkey');
+        expect(migration).toMatch(/RAISE EXCEPTION 'Edições públicas sem Volume 1 com capa interna/);
+        // Órfãos entram no ciclo controlado de descarte; nada é apagado aqui.
+        expect(migration).toMatch(/UPDATE media_assets\s*\n\s*SET status = 'Descartando'/);
+        expect(migration).toMatch(/NOT EXISTS \(SELECT 1 FROM works WHERE cover_asset_id = media_assets\.id\)/);
+        expect(migration).toMatch(/NOT EXISTS \(SELECT 1 FROM volumes WHERE cover_asset_id = media_assets\.id\)/);
+        expect(migration).not.toMatch(/DELETE FROM media_assets/);
+        expect(migration).not.toMatch(/DROP TABLE media_assets/);
     });
 
     it('versiona a criação das tabelas, relacionamentos e remoção das URLs externas', () => {

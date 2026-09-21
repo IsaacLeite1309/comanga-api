@@ -30,6 +30,15 @@ async function work(id, suffix) {
     return db.query(`INSERT INTO works (title, romanized_title, synopsis, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
         VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
 }
+// A Edição não tem capa própria: a concorrência de capas agora é entre Obra e Volume.
+async function edition(workId) {
+    return db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, edition_type_id, cover_type_id, format_id, chronological_number, brazil_publication_status, atualizado_em)
+        VALUES ($1,$2,$2,$2,$2,1,'Completa',NOW()) RETURNING id`, [workId, typeId]);
+}
+async function volume(editionId, coverId, number) {
+    return db.query(`INSERT INTO volumes (edition_id, number, cover_asset_id, release_date_precision, release_year, release_month, release_day, atualizado_em)
+        VALUES ($1,$2,$3,'Completa',2026,1,10,NOW()) RETURNING id`, [editionId, number, coverId]);
+}
 describe('integração de autenticação e capas', () => {
 beforeAll(async () => {
     const hash = await bcrypt.hash(pass, 10);
@@ -39,6 +48,8 @@ beforeAll(async () => {
     typeId = (await db.query('INSERT INTO domain_option_values (category_id,label) VALUES ($1,$2) RETURNING id', [cat.rows[0].id, prefix])).rows[0].id;
 });
 afterAll(async () => {
+    await db.query('DELETE FROM volumes WHERE edition_id IN (SELECT id FROM editions WHERE work_id IN (SELECT id FROM works WHERE title LIKE $1))', [`${prefix}%`]);
+    await db.query('DELETE FROM editions WHERE work_id IN (SELECT id FROM works WHERE title LIKE $1)', [`${prefix}%`]);
     await db.query('DELETE FROM works WHERE title LIKE $1', [`${prefix}%`]);
     await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`${prefix}/%`]);
     await db.query('DELETE FROM domain_option_values WHERE id=$1', [typeId]);
@@ -127,17 +138,33 @@ describe('capas com concorrência e restrições reais', () => {
         expect(results.filter(result => result.status==='fulfilled')).toHaveLength(1);
         expect(results.filter(result => result.status==='rejected')).toHaveLength(1);
     });
-    it('não compartilha uma capa entre Obra e Edição em requisições concorrentes', async () => {
+    it('não compartilha uma capa entre Obra e Volume em requisições concorrentes', async () => {
         const parent = await work(await cover(), 'parent-cross');
+        const parentEdition = await edition(parent.rows[0].id);
         const shared = await cover();
         const outcomes = await Promise.allSettled([
             work(shared, 'cross-work'),
-            db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, edition_type_id, cover_type_id, format_id, chronological_number, brazil_publication_status, cover_asset_id, atualizado_em)
-                VALUES ($1,$2,$2,$2,$2,1,'Completa',$3,NOW()) RETURNING id`, [parent.rows[0].id, typeId, shared])
+            volume(parentEdition.rows[0].id, shared, 1)
         ]);
         expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
         expect(outcomes.filter(result => result.status === 'rejected')).toHaveLength(1);
+        await db.query('DELETE FROM volumes WHERE edition_id=$1', [parentEdition.rows[0].id]);
         await db.query('DELETE FROM editions WHERE work_id=$1', [parent.rows[0].id]);
+    });
+
+    it('não permite descartar uma capa ainda associada a um Volume', async () => {
+        const parent = await work(await cover(), 'parent-volume-cover');
+        const parentEdition = await edition(parent.rows[0].id);
+        const attached = await cover();
+        const created = await volume(parentEdition.rows[0].id, attached, 1);
+
+        await expect(db.query("UPDATE media_assets SET status='Descartando' WHERE id=$1", [attached]))
+            .rejects.toMatchObject({ code: '23514' });
+        await expect(db.query('DELETE FROM media_assets WHERE id=$1', [attached]))
+            .rejects.toMatchObject({ code: '23503' });
+
+        await db.query('DELETE FROM volumes WHERE id=$1', [created.rows[0].id]);
+        await db.query('DELETE FROM editions WHERE id=$1', [parentEdition.rows[0].id]);
     });
     it('marca capas intermediárias como descarte em duas substituições simultâneas', async () => {
         const [a,b,c]=await Promise.all([cover(),cover(),cover()]);
