@@ -112,6 +112,7 @@ function normalizeEdition(edition: EditionInput) {
     return {
         id: edition.id,
         workId: edition.workId,
+        work: edition.work,
         chronologicalNumber: edition.chronologicalNumber,
         coverAssetId: coverAsset?.id ?? null,
         coverUrl: normalizeCoverUrl(coverAsset),

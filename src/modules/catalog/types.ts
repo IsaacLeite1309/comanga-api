@@ -75,6 +75,11 @@ interface EditionInput {
     id: number;
     workId: number;
     chronologicalNumber: number;
+    work: {
+        id: number;
+        slug: string;
+        title: string;
+    };
     // Somente o Volume de número 1 desta Edição, carregado como origem da capa derivada.
     volumes?: Array<{
         coverAsset: CoverAssetInput | null;

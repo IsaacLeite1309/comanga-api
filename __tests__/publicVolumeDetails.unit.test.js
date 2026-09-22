@@ -48,6 +48,12 @@ function volumeFixture(overrides = {}) {
             id: 20,
             chronologicalNumber: 2,
             brazilianPublisher: { id: 4, label: 'Panini' },
+            paper: { id: 7, label: 'Offset' },
+            volumes: [
+                { id: 29, number: 0, singleVolume: false },
+                { id: 30, number: 1, singleVolume: false },
+                { id: 31, number: 2, singleVolume: false }
+            ],
             work: {
                 id: 8,
                 slug: 'monster',
@@ -113,10 +119,13 @@ describe('detalhes públicos do Volume', () => {
                 isbn13: '9781234567890',
                 affiliateLink: 'https://shop.example/volume-1',
                 synopsis: 'Uma sinopse pública.',
+                previousVolume: { id: 29, number: 0, singleVolume: false },
+                nextVolume: { id: 31, number: 2, singleVolume: false },
                 edition: {
                     id: 20,
                     chronologicalNumber: 2,
                     brazilianPublisher: { id: 4, label: 'Panini' },
+                    paper: { id: 7, label: 'Offset' },
                     work: {
                         id: 8,
                         slug: 'monster',
@@ -180,7 +189,12 @@ describe('detalhes públicos do Volume', () => {
             isbn10: null,
             isbn13: null,
             affiliateLink: null,
-            synopsis: null
+            synopsis: null,
+            edition: {
+                ...volumeFixture().edition,
+                paper: null,
+                volumes: [{ id: 30, number: 1, singleVolume: false }]
+            }
         }));
         const res = response();
 
@@ -193,7 +207,10 @@ describe('detalhes públicos do Volume', () => {
             releaseYear: null,
             isbn10: null,
             affiliateLink: null,
-            synopsis: null
+            synopsis: null,
+            previousVolume: null,
+            nextVolume: null,
+            edition: expect.objectContaining({ paper: null })
         }));
     });
 
@@ -216,6 +233,14 @@ describe('detalhes públicos do Volume', () => {
             synopsis: true,
             edition: expect.any(Object)
         });
+        expect(publicVolumeDetailSelect.edition.select).toEqual(expect.objectContaining({
+            paper: { select: { id: true, label: true } },
+            volumes: expect.objectContaining({
+                where: { visibility: 'Público' },
+                orderBy: [{ number: 'asc' }, { id: 'asc' }],
+                select: { id: true, number: true, singleVolume: true }
+            })
+        }));
     });
 
     it('encaminha falha inesperada ao middleware de erro', async () => {

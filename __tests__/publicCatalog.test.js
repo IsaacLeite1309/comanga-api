@@ -224,6 +224,13 @@ async function createSessionCookie({
     revoked = false,
     suffix
 }) {
+    await db.query(`
+        INSERT INTO profiles (code, name, is_system)
+        VALUES ('USUARIO_PADRAO', 'Usuário Padrão', TRUE),
+               ('ADMINISTRADOR', 'Administrador', TRUE)
+        ON CONFLICT (code) DO NOTHING
+    `);
+
     const userResult = await db.query(
         `INSERT INTO users (
             username,
@@ -246,11 +253,18 @@ async function createSessionCookie({
     const userId = userResult.rows[0].id;
     fixture.userIds.push(userId);
 
+    const activeProfileCode = role === 'Administrador' ? 'ADMINISTRADOR' : 'USUARIO_PADRAO';
+    const activeProfile = await db.query(
+        'SELECT id FROM profiles WHERE code = $1',
+        [activeProfileCode]
+    );
+
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     await db.query(
-        'INSERT INTO sessions (user_id, session_token_hash, revoked_at) VALUES ($1, $2, $3)',
-        [userId, tokenHash, revoked ? new Date() : null]
+        `INSERT INTO sessions (user_id, session_token_hash, revoked_at, active_profile_id)
+         VALUES ($1, $2, $3, $4)`,
+        [userId, tokenHash, revoked ? new Date() : null, activeProfile.rows[0].id]
     );
 
     return `comanga_session=${token}`;
@@ -1016,10 +1030,13 @@ describe('catálogo público', () => {
             isbn13: '9781234567890',
             affiliateLink: 'https://shop.example/volume-1',
             synopsis: 'Uma sinopse pública.',
+            previousVolume: null,
+            nextVolume: null,
             edition: {
                 id: fixture.editions.complete.id,
                 chronologicalNumber: 1,
                 brazilianPublisher: fixture.options.publisherOne,
+                paper: fixture.options.paper,
                 work: {
                     id: fixture.works.complete.id,
                     slug: fixture.works.complete.slug,
@@ -1030,6 +1047,24 @@ describe('catálogo público', () => {
         });
         expect(response.body.volume).not.toHaveProperty('visibility');
         expect(response.body.volume.edition).not.toHaveProperty('visibility');
+    });
+
+    it('informa somente os Volumes públicos anterior e seguinte da mesma Edição', async () => {
+        const response = await request(app)
+            .get(`/api/public/volumes/${fixture.volumes.partialMiddle.id}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.volume.previousVolume).toEqual({
+            id: fixture.volumes.partialFirst.id,
+            number: 1,
+            singleVolume: false
+        });
+        expect(response.body.volume.nextVolume).toEqual({
+            id: fixture.volumes.partialLast.id,
+            number: 3,
+            singleVolume: false
+        });
+        expect(response.body.volume.nextVolume.id).not.toBe(fixture.volumes.partialPrivate.id);
     });
 
     it('não distingue Volume, Edição ou Obra privados, conteúdo adulto indisponível e ID inexistente', async () => {
@@ -1093,16 +1128,15 @@ describe('catálogo público', () => {
 
     it('expoe a rela\u00e7\u00e3o tipo\u2192pa\u00eds e a ordem oficial dos g\u00eaneros', async () => {
         const response = await request(app).get('/api/public/catalog-options');
-        const officialGenres = response.body.options.genres.filter((genre) => genre.label !== undefined
-            && !genre.label.startsWith(fixturePrefix));
+        const expectedGenreOrder = ['Aventura', 'A\u00e7\u00e3o', 'Boys\u2019 Love'];
+        const officialGenres = response.body.options.genres
+            .filter((genre) => expectedGenreOrder.includes(genre.label));
         const manhua = response.body.options.workTypes.find((type) => type.label === 'Manhua');
 
         expect(response.status).toBe(200);
         expect(manhua.countries).toEqual(['China', 'Taiwan']);
         expect(manhua.countryIds).toHaveLength(2);
-        expect(officialGenres.slice(0, 3).map((genre) => genre.label)).toEqual([
-            'Aventura', 'A\u00e7\u00e3o', 'Boys\u2019 Love'
-        ]);
+        expect(officialGenres.map((genre) => genre.label)).toEqual(expectedGenreOrder);
     });
     });
 

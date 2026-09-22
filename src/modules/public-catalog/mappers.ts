@@ -165,6 +165,17 @@ function mapPublicEditionVolume(volume: PublicEditionVolumeInput) {
 }
 
 function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
+    const currentIndex = volume.edition.volumes.findIndex(({ id }) => id === volume.id);
+    const mapNavigationVolume = (navigationVolume: PublicVolumeDetailInput['edition']['volumes'][number] | undefined) => (
+        navigationVolume
+            ? {
+                id: navigationVolume.id,
+                number: navigationVolume.number,
+                singleVolume: navigationVolume.singleVolume
+            }
+            : null
+    );
+
     return {
         id: volume.id,
         number: volume.number,
@@ -181,10 +192,17 @@ function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
         isbn13: volume.isbn13,
         affiliateLink: volume.affiliateLink,
         synopsis: volume.synopsis,
+        previousVolume: mapNavigationVolume(
+            currentIndex > 0 ? volume.edition.volumes[currentIndex - 1] : undefined
+        ),
+        nextVolume: mapNavigationVolume(
+            currentIndex >= 0 ? volume.edition.volumes[currentIndex + 1] : undefined
+        ),
         edition: {
             id: volume.edition.id,
             chronologicalNumber: volume.edition.chronologicalNumber,
             brazilianPublisher: mapOption(volume.edition.brazilianPublisher),
+            paper: mapOption(volume.edition.paper),
             work: {
                 id: volume.edition.work.id,
                 slug: volume.edition.work.slug,

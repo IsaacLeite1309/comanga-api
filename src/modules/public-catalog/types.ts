@@ -113,6 +113,12 @@ interface PublicVolumeDetailInput {
         id: number;
         chronologicalNumber: number;
         brazilianPublisher: PublicOptionInput;
+        paper: PublicOptionInput | null;
+        volumes: Array<{
+            id: number;
+            number: number;
+            singleVolume: boolean;
+        }>;
         work: {
             id: number;
             slug: string;
