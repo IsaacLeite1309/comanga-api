@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../../../prisma';
 import { withCatalogWriteLock } from '../writeLock';
+import { prepareVolumeReleaseUpdate } from './releaseDate';
 import {
     activateCoverAsset,
     deleteOrphanedCoverAsset,
@@ -58,8 +59,8 @@ function buildVolumeData(data: VolumePayload, mode: 'create' | 'update' = 'creat
         number: data.number,
         coverAssetId: data.coverAssetId,
         singleVolume: withCreateDefault(data.singleVolume, false, mode),
-        pages: data.pages ?? null,
-        price: data.price ?? null,
+        pages: withCreateDefault(data.pages, null, mode),
+        price: withCreateDefault(data.price, null, mode),
         priceCurrency: withCreateDefault(data.priceCurrency, 'R$', mode),
         isbn10: normalizeOptionalNullable(data.isbn10),
         isbn13: normalizeOptionalNullable(data.isbn13),
@@ -240,6 +241,10 @@ async function persistVolumeUpdate(volumeId: number, data: VolumePayload) {
                 id: true,
                 number: true,
                 coverAssetId: true,
+                releaseDatePrecision: true,
+                releaseYear: true,
+                releaseMonth: true,
+                releaseDay: true,
                 edition: { select: { visibility: true } }
             }
         });
@@ -259,9 +264,12 @@ async function persistVolumeUpdate(volumeId: number, data: VolumePayload) {
             return { status: 400, error: 'A capa interna informada é inválida ou já está em uso.' } as const;
         }
 
+        const release = prepareVolumeReleaseUpdate(existingVolume, data);
+        if (!release.success) return { status: 400, error: 'Informe uma data de lançamento válida para o Volume.' } as const;
+
         const volume = await tx.volume.update({
                 where: { id: volumeId },
-                data: buildVolumeData(data, 'update'),
+                data: buildVolumeData({ ...data, ...release.data }, 'update'),
                 include: {
                     coverAsset: {
                         select: {
