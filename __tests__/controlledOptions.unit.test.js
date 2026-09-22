@@ -86,7 +86,7 @@ describe('política de leitura de conteúdo adulto', () => {
     it('esconde por flag adulta e por associação ao gênero de identidade estável', () => {
         expect(buildAdultWorkRestriction(false)).toEqual({
             adultContent: false,
-            genres: { none: { genre: { code: HENTAI_GENRE_CODE, category: { slug: 'generos' } } } }
+            genres: { none: { genre: { OR: [{ code: HENTAI_GENRE_CODE }, { adultOnly: true }], category: { slug: 'generos' } } } }
         });
         expect(buildAdultWorkRestriction(true)).toEqual({});
     });

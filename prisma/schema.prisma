@@ -101,6 +101,7 @@ model DomainOptionValue {
   label                        String                        @db.VarChar(120)
   code                         String?                       @db.VarChar(80)
   systemManaged                Boolean                       @default(false) @map("system_managed")
+  adultOnly                    Boolean                       @default(false) @map("adult_only")
   position                     Int                           @default(0)
   active                       Boolean                       @default(true)
   criadoEm                     DateTime                      @default(now()) @map("criado_em") @db.Timestamptz

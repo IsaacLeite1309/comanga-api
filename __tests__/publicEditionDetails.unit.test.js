@@ -71,7 +71,7 @@ function volumeFixture() {
     };
 }
 
-const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+const HENTAI_RESTRICTION = { genres: { none: { genre: { OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' } } } } };
 
 describe('detalhes públicos da Edição', () => {
     const previousMediaUrl = process.env.MEDIA_PUBLIC_BASE_URL;

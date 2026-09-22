@@ -13,7 +13,7 @@ const {
     mapPublicWork
 } = require('../src/modules/public-catalog/mappers');
 
-const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+const HENTAI_RESTRICTION = { genres: { none: { genre: { OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' } } } } };
 
 describe('contratos unitários do catálogo público', () => {
     it('normaliza filtros combináveis repetidos e separados por vírgula', () => {

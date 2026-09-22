@@ -41,7 +41,7 @@ function workFixture() {
     };
 }
 
-const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+const HENTAI_RESTRICTION = { genres: { none: { genre: { OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' } } } } };
 
 describe('Obras públicas por Autor', () => {
     beforeEach(() => jest.clearAllMocks());

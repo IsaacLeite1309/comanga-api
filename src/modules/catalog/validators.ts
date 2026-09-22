@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
-import { HENTAI_GENRE_CODE, isSystemManagedOptionCategory } from '../../utils/domainOptionCodes';
+import { HENTAI_GENRE_FILTER, isSystemManagedOptionCategory } from '../../utils/domainOptionCodes';
 import {
     COUNTRY_CATEGORY_SLUG,
     COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS,
@@ -163,8 +163,7 @@ async function containsHentaiGenre(genreIds: number[], client: Prisma.Transactio
     const hentaiCount = await client.domainOptionValue.count({
         where: {
             id: { in: uniqueIds },
-            code: HENTAI_GENRE_CODE,
-            category: { slug: WORK_DOMAIN_CATEGORIES.genreIds }
+            ...HENTAI_GENRE_FILTER
         }
     });
 
@@ -175,10 +174,7 @@ async function workHasHentaiGenre(workId: number, client: Prisma.TransactionClie
     const genre = await client.workGenre.findFirst({
         where: {
             workId,
-            genre: {
-                code: HENTAI_GENRE_CODE,
-                category: { slug: WORK_DOMAIN_CATEGORIES.genreIds }
-            }
+            genre: HENTAI_GENRE_FILTER
         },
         select: { genreId: true }
     });

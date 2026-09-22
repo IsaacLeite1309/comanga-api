@@ -368,6 +368,7 @@ const publicCatalogOptionSelect = {
     id: true,
     label: true,
     code: true,
+    adultOnly: true,
     category: { select: { slug: true } },
     dependencies: {
         where: { dependsOnValue: { category: { slug: PUBLIC_COUNTRY_CATEGORY } } },
