@@ -76,6 +76,7 @@ async function validateEditionDomainReferences(data: {
     editionTypeId?: number;
     coverTypeId?: number;
     formatId?: number;
+    paperId?: number;
 }) {
     const validations: Array<Promise<boolean>> = [];
 
@@ -93,6 +94,10 @@ async function validateEditionDomainReferences(data: {
 
     if (data.formatId) {
         validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.formats, [data.formatId]));
+    }
+
+    if (data.paperId) {
+        validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.papers, [data.paperId]));
     }
 
     const results = await Promise.all(validations);

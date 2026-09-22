@@ -103,6 +103,7 @@ const editionPayloadSchema = z.object({
     editionTypeId: z.coerce.number().int().positive(),
     coverTypeId: z.coerce.number().int().positive(),
     formatId: z.coerce.number().int().positive(),
+    paperId: z.coerce.number().int().positive(),
     chronologicalNumber: z.coerce.number().int().positive(),
     brazilPublicationStatus: z.enum(EDITION_PUBLICATION_STATUS_VALUES)
 }).strict();

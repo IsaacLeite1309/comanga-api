@@ -230,3 +230,7 @@ A migration `20260920121000_work_metadata_and_author_positions` adiciona `romani
 A migration `20260920122000_derive_edition_cover_from_first_volume` remove `editions.cover_asset_id`. A entrada de Edição não aceita mais coverAssetId; a saída preserva coverAssetId/coverUrl derivados exclusivamente do Volume de número 1 da mesma Edição, ou null. Publicar exige Volume 1 com capa e propaga a visibilidade aos Volumes; renumerar sua origem numa Edição pública é recusado sob bloqueio transacional.
 
 Aplicar com inventário e backup, coordenando API, Web e schema. Ativos órfãos entram em Descartando; não executar limpeza antes da decisão de rollback. O SQL documenta a restauração operacional. `npm run check:covers` inspeciona a consistência sem remover objetos.
+
+## Miolo da Edição
+
+A migration `20260922000000_add_edition_paper` cria a categoria administrativa `miolos`, cadastra o valor inicial `Papel` e o atribui às Edições existentes. Novas Edições exigem `paperId` pertencente a essa categoria; consultas administrativas devolvem o valor em `paper`, e as opções do formulário incluem `papers`.

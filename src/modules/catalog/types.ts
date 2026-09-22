@@ -85,6 +85,7 @@ interface EditionInput {
     editionType: OptionSummary;
     coverType: OptionSummary;
     format: OptionSummary;
+    paper: OptionSummary;
     brazilPublicationStatus: string;
     _count?: {
         volumes?: number;

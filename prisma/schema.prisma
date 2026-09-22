@@ -113,6 +113,7 @@ model DomainOptionValue {
   editionsAsType Edition[] @relation("EditionType")
   editionsAsCoverType Edition[] @relation("EditionCoverType")
   editionsAsFormat Edition[] @relation("EditionFormat")
+  editionsAsPaper Edition[] @relation("EditionPaper")
 
   @@index([categoryId, label], map: "idx_domain_option_values_category_label")
   @@index([categoryId, active, label], map: "idx_domain_option_values_category_active_label")
@@ -180,6 +181,7 @@ model Edition {
   editionTypeId Int @map("edition_type_id")
   coverTypeId Int @map("cover_type_id")
   formatId Int @map("format_id")
+  paperId Int @map("paper_id")
   chronologicalNumber Int @map("chronological_number")
   brazilPublicationStatus String @map("brazil_publication_status") @db.VarChar(30)
   visibility String @default("Privado") @db.VarChar(20)
@@ -190,6 +192,7 @@ model Edition {
   editionType DomainOptionValue @relation("EditionType", fields: [editionTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   coverType DomainOptionValue @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   format DomainOptionValue @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  paper DomainOptionValue @relation("EditionPaper", fields: [paperId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   volumes Volume[]
 
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
@@ -198,6 +201,7 @@ model Edition {
   @@index([visibility, brazilianPublisherId, id], map: "idx_editions_visibility_publisher")
   @@index([visibility, formatId, id], map: "idx_editions_visibility_format")
   @@index([visibility, coverTypeId, id], map: "idx_editions_visibility_cover_type")
+  @@index([visibility, paperId, id], map: "idx_editions_visibility_paper")
   @@index([visibility, chronologicalNumber, id], map: "idx_editions_visibility_chronological")
   @@index([visibility, brazilPublicationStatus, id], map: "idx_editions_visibility_publication_status")
   @@map("editions")

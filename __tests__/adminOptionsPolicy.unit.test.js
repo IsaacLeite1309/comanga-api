@@ -25,7 +25,8 @@ describe('politica de categorias administrativas', () => {
         'editoras-brasileiras',
         'tipos-edicao',
         'tipos-capa',
-        'formatos-fisicos'
+        'formatos-fisicos',
+        'miolos'
     ])('permite a categoria gerenciavel %s', (slug) => {
         expect(isManageableOptionCategory(slug)).toBe(true);
         expect(isListableOptionCategory(slug)).toBe(true);
@@ -54,8 +55,7 @@ describe('politica de categorias administrativas', () => {
         'paises-origem',
         'papeis-autor',
         'demografias',
-        'status-publicacao-original',
-        'miolos'
+        'status-publicacao-original'
     ])('recusa a categoria interna ou nao utilizada %s antes de consultar o banco', async (slug) => {
         expect(isManageableOptionCategory(slug)).toBe(false);
         await expect(findCategoryBySlug(slug)).resolves.toBeNull();

@@ -64,6 +64,7 @@ async function createEdition(chronologicalNumber) {
             editionTypeId: editionOptionIds.editionTypes,
             coverTypeId: editionOptionIds.coverTypes,
             formatId: editionOptionIds.formats,
+            paperId: editionOptionIds.papers,
             chronologicalNumber,
             brazilPublicationStatus: 'Completa'
         });
@@ -98,7 +99,8 @@ beforeAll(async () => {
         brazilianPublishers: 'editoras-brasileiras',
         editionTypes: 'tipos-edicao',
         coverTypes: 'tipos-capa',
-        formats: 'formatos-fisicos'
+        formats: 'formatos-fisicos',
+        papers: 'miolos'
     })) {
         editionOptionIds[key] = await createOption(slug);
     }

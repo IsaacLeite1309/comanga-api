@@ -64,6 +64,7 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
             editionTypeId: data.editionTypeId,
             coverTypeId: data.coverTypeId,
             formatId: data.formatId,
+            paperId: data.paperId,
             chronologicalNumber: data.chronologicalNumber,
             brazilPublicationStatus: data.brazilPublicationStatus,
             visibility: 'Privado'
@@ -200,6 +201,7 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
                 ...(data.editionTypeId !== undefined ? { editionTypeId: data.editionTypeId } : {}),
                 ...(data.coverTypeId !== undefined ? { coverTypeId: data.coverTypeId } : {}),
                 ...(data.formatId !== undefined ? { formatId: data.formatId } : {}),
+                ...(data.paperId !== undefined ? { paperId: data.paperId } : {}),
                 ...(data.chronologicalNumber !== undefined ? { chronologicalNumber: data.chronologicalNumber } : {}),
                 ...(data.brazilPublicationStatus !== undefined ? { brazilPublicationStatus: data.brazilPublicationStatus } : {})
             },

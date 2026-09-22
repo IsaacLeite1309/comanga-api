@@ -565,6 +565,38 @@ describe('módulos administrativos', () => {
             }));
         });
 
+        it('inclui os miolos nas opcoes do formulario de edicao', async () => {
+            const paper = {
+                id: 6,
+                label: 'Papel',
+                category: { slug: 'miolos', name: 'Miolo' }
+            };
+            prisma.domainOptionValue.findMany
+                .mockReturnValueOnce('publishersQuery')
+                .mockReturnValueOnce('editionTypesQuery')
+                .mockReturnValueOnce('coverTypesQuery')
+                .mockReturnValueOnce('formatsQuery')
+                .mockReturnValueOnce('papersQuery');
+            prisma.$transaction.mockResolvedValue([[], [], [], [], [paper]]);
+            const res = makeRes();
+
+            await adminOptions.getEditionFormOptions(makeReq(), res);
+
+            expect(prisma.$transaction).toHaveBeenCalledWith([
+                'publishersQuery',
+                'editionTypesQuery',
+                'coverTypesQuery',
+                'formatsQuery',
+                'papersQuery'
+            ]);
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                options: expect.objectContaining({
+                    papers: [expect.objectContaining({ id: 6, label: 'Papel' })]
+                })
+            }));
+        });
+
         it('cadastra novo valor quando nao existe duplicidade', async () => {
             prisma.domainOptionCategory.findUnique.mockResolvedValue(category);
             prisma.domainOptionValue.findMany.mockResolvedValue([]);
@@ -947,7 +979,7 @@ describe('módulos administrativos', () => {
                 query: {}
             }), listRes);
             await adminOptions.createOption(makeReq({
-                body: { category: 'miolos', label: 'Offset' }
+                body: { category: 'demografias', label: 'Seinen' }
             }), createRes);
 
             expect(listRes.status).toHaveBeenCalledWith(200);
@@ -1615,6 +1647,7 @@ describe('módulos administrativos', () => {
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
+            paper: { id: 6, label: 'Papel' },
             brazilPublicationStatus: 'Completa'
         };
         const editionBodyWithoutCover = {
@@ -1622,6 +1655,7 @@ describe('módulos administrativos', () => {
             editionTypeId: 3,
             coverTypeId: 4,
             formatId: 5,
+            paperId: 6,
             chronologicalNumber: 1,
             brazilPublicationStatus: 'Completa'
         };
@@ -2119,6 +2153,7 @@ describe('módulos administrativos', () => {
             editionTypeId: 3,
             coverTypeId: 4,
             formatId: 5,
+            paperId: 6,
             chronologicalNumber: 1,
             brazilPublicationStatus: 'Completa',
         };
@@ -2132,6 +2167,7 @@ describe('módulos administrativos', () => {
             editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
+            paper: { id: 6, label: 'Papel' },
             brazilPublicationStatus: 'Completa',
             _count: { volumes: 0 }
         };
