@@ -8,19 +8,19 @@ datasource db {
 }
 
 model User {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username            String    @unique @db.VarChar(50)
-  email               String    @unique @db.VarChar(255)
-  passwordHash        String    @map("password_hash") @db.VarChar(255)
-  status              String    @default("Pendente") @db.VarChar(20)
-  nivelAcesso         String    @default("Usuário Padrão") @map("nivel_acesso") @db.VarChar(50)
-  activationToken     String?   @map("activation_token") @db.VarChar(255)
-  activationExpiresAt DateTime? @map("activation_expires_at") @db.Timestamptz
-  conteudoAdulto      Boolean   @default(false) @map("conteudo_adulto")
-  criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz
-  birthDate           DateTime? @map("birth_date") @db.Date
-  preferredProfileId  Int?      @map("preferred_profile_id")
-  preferredProfile    Profile?  @relation("UserPreferredProfile", fields: [preferredProfileId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username            String               @unique @db.VarChar(50)
+  email               String               @unique @db.VarChar(255)
+  passwordHash        String               @map("password_hash") @db.VarChar(255)
+  status              String               @default("Pendente") @db.VarChar(20)
+  nivelAcesso         String               @default("Usuário Padrão") @map("nivel_acesso") @db.VarChar(50)
+  activationToken     String?              @map("activation_token") @db.VarChar(255)
+  activationExpiresAt DateTime?            @map("activation_expires_at") @db.Timestamptz
+  conteudoAdulto      Boolean              @default(false) @map("conteudo_adulto")
+  criadoEm            DateTime             @default(now()) @map("criado_em") @db.Timestamptz
+  birthDate           DateTime?            @map("birth_date") @db.Date
+  preferredProfileId  Int?                 @map("preferred_profile_id")
+  preferredProfile    Profile?             @relation("UserPreferredProfile", fields: [preferredProfileId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   userProfiles        UserProfile[]
   passwordResetTokens PasswordResetToken[]
   sessions            Session[]
@@ -33,13 +33,13 @@ model User {
 }
 
 model PasswordResetToken {
-  id        String @id @default(uuid()) @db.Uuid
-  userId    String @map("user_id") @db.Uuid
-  tokenHash String @unique @map("token_hash") @db.VarChar(64)
-  expiresAt DateTime @map("expires_at") @db.Timestamptz
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
   usedAt    DateTime? @map("used_at") @db.Timestamptz
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([userId])
   @@map("password_reset_tokens")
@@ -86,33 +86,34 @@ model UserProfile {
 }
 
 model DomainOptionCategory {
-  id        Int                 @id @default(autoincrement())
-  slug      String              @unique @db.VarChar(80)
-  name      String              @db.VarChar(120)
-  criadoEm  DateTime            @default(now()) @map("criado_em") @db.Timestamptz
-  values    DomainOptionValue[]
+  id       Int                 @id @default(autoincrement())
+  slug     String              @unique @db.VarChar(80)
+  name     String              @db.VarChar(120)
+  criadoEm DateTime            @default(now()) @map("criado_em") @db.Timestamptz
+  values   DomainOptionValue[]
 
   @@map("domain_option_categories")
 }
 
 model DomainOptionValue {
-  id          Int                  @id @default(autoincrement())
-  categoryId  Int                  @map("category_id")
-  label       String               @db.VarChar(120)
-  active      Boolean              @default(true)
-  criadoEm    DateTime             @default(now()) @map("criado_em") @db.Timestamptz
-  category    DomainOptionCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  dependencies DomainOptionValueDependency[] @relation("DependentOption")
-  dependents   DomainOptionValueDependency[] @relation("DependencyOption")
-  worksAsType Work[] @relation("WorkType")
-  workOriginalPublishers WorkOriginalPublisher[] @relation("WorkOriginalPublisherOption")
-  workAuthors WorkAuthor[] @relation("WorkAuthorAuthor")
-  workGenres WorkGenre[] @relation("WorkGenreOption")
-  workSerializationMagazines WorkSerializationMagazine[] @relation("WorkSerializationMagazineOption")
-  editionsAsBrazilianPublisher Edition[] @relation("EditionBrazilianPublisher")
-  editionsAsType Edition[] @relation("EditionType")
-  editionsAsCoverType Edition[] @relation("EditionCoverType")
-  editionsAsFormat Edition[] @relation("EditionFormat")
+  id                           Int                           @id @default(autoincrement())
+  categoryId                   Int                           @map("category_id")
+  label                        String                        @db.VarChar(120)
+  active                       Boolean                       @default(true)
+  criadoEm                     DateTime                      @default(now()) @map("criado_em") @db.Timestamptz
+  category                     DomainOptionCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  dependencies                 DomainOptionValueDependency[] @relation("DependentOption")
+  dependents                   DomainOptionValueDependency[] @relation("DependencyOption")
+  worksAsType                  Work[]                        @relation("WorkType")
+  workOriginalPublishers       WorkOriginalPublisher[]       @relation("WorkOriginalPublisherOption")
+  workAuthors                  WorkAuthor[]                  @relation("WorkAuthorAuthor")
+  workGenres                   WorkGenre[]                   @relation("WorkGenreOption")
+  workSerializationMagazines   WorkSerializationMagazine[]   @relation("WorkSerializationMagazineOption")
+  editionsAsBrazilianPublisher Edition[]                     @relation("EditionBrazilianPublisher")
+  editionsAsType               Edition[]                     @relation("EditionType")
+  editionsAsCoverType          Edition[]                     @relation("EditionCoverType")
+  editionsAsFormat             Edition[]                     @relation("EditionFormat")
+  editionsAsPaper              Edition[]                     @relation("EditionPaper")
 
   @@index([categoryId, label], map: "idx_domain_option_values_category_label")
   @@index([categoryId, active, label], map: "idx_domain_option_values_category_active_label")
@@ -132,32 +133,32 @@ model DomainOptionValueDependency {
 }
 
 model Work {
-  id Int @id @default(autoincrement())
-  slug String @unique @db.VarChar(255)
-  title String @db.VarChar(255)
-  originalTitle String? @map("original_title") @db.VarChar(255)
-  romanizedTitle String @map("romanized_title") @db.VarChar(255)
-  synopsis String @db.Text
-  originalPublicationStartYear Int? @map("original_publication_start_year")
-  originalPublicationEndYear Int? @map("original_publication_end_year")
-  originalVolumeCount Int? @map("original_volume_count")
-  directRelease Boolean @default(false) @map("direct_release")
-  typeId Int @map("type_id")
-  country String @db.VarChar(40)
-  originalPublicationStatus String @map("original_publication_status") @db.VarChar(40)
-  coverAssetId String @unique @map("cover_asset_id") @db.Uuid
-  visibility String @default("Privado") @db.VarChar(20)
-  adultContent Boolean @default(false) @map("adult_content")
-  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
-  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
-  type DomainOptionValue @relation("WorkType", fields: [typeId], references: [id], onDelete: Restrict)
-  authors WorkAuthor[]
-  genres WorkGenre[]
-  demographics WorkDemography[]
-  serializationMagazines WorkSerializationMagazine[]
-  originalPublishers WorkOriginalPublisher[]
-  editions Edition[]
-  coverAsset MediaAsset @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id                           Int                         @id @default(autoincrement())
+  slug                         String                      @unique @db.VarChar(255)
+  title                        String                      @db.VarChar(255)
+  originalTitle                String?                     @map("original_title") @db.VarChar(255)
+  romanizedTitle               String                      @map("romanized_title") @db.VarChar(255)
+  synopsis                     String                      @db.Text
+  originalPublicationStartYear Int?                        @map("original_publication_start_year")
+  originalPublicationEndYear   Int?                        @map("original_publication_end_year")
+  originalVolumeCount          Int?                        @map("original_volume_count")
+  directRelease                Boolean                     @default(false) @map("direct_release")
+  typeId                       Int                         @map("type_id")
+  country                      String                      @db.VarChar(40)
+  originalPublicationStatus    String                      @map("original_publication_status") @db.VarChar(40)
+  coverAssetId                 String                      @unique @map("cover_asset_id") @db.Uuid
+  visibility                   String                      @default("Privado") @db.VarChar(20)
+  adultContent                 Boolean                     @default(false) @map("adult_content")
+  criadoEm                     DateTime                    @default(now()) @map("criado_em") @db.Timestamptz
+  atualizadoEm                 DateTime                    @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
+  type                         DomainOptionValue           @relation("WorkType", fields: [typeId], references: [id], onDelete: Restrict)
+  authors                      WorkAuthor[]
+  genres                       WorkGenre[]
+  demographics                 WorkDemography[]
+  serializationMagazines       WorkSerializationMagazine[]
+  originalPublishers           WorkOriginalPublisher[]
+  editions                     Edition[]
+  coverAsset                   MediaAsset                  @relation("WorkCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([title], map: "idx_works_title")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_title_trgm")
@@ -174,23 +175,25 @@ model Work {
 }
 
 model Edition {
-  id Int @id @default(autoincrement())
-  workId Int @map("work_id")
-  brazilianPublisherId Int @map("brazilian_publisher_id")
-  editionTypeId Int @map("edition_type_id")
-  coverTypeId Int @map("cover_type_id")
-  formatId Int @map("format_id")
-  chronologicalNumber Int @map("chronological_number")
-  brazilPublicationStatus String @map("brazil_publication_status") @db.VarChar(30)
-  visibility String @default("Privado") @db.VarChar(20)
-  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
-  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
-  work Work @relation(fields: [workId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  brazilianPublisher DomainOptionValue @relation("EditionBrazilianPublisher", fields: [brazilianPublisherId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  editionType DomainOptionValue @relation("EditionType", fields: [editionTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  coverType DomainOptionValue @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  format DomainOptionValue @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  volumes Volume[]
+  id                      Int                @id @default(autoincrement())
+  workId                  Int                @map("work_id")
+  brazilianPublisherId    Int                @map("brazilian_publisher_id")
+  editionTypeId           Int?               @map("edition_type_id")
+  coverTypeId             Int?               @map("cover_type_id")
+  formatId                Int?               @map("format_id")
+  paperId                 Int?               @map("paper_id")
+  chronologicalNumber     Int                @map("chronological_number")
+  brazilPublicationStatus String             @map("brazil_publication_status") @db.VarChar(30)
+  visibility              String             @default("Privado") @db.VarChar(20)
+  criadoEm                DateTime           @default(now()) @map("criado_em") @db.Timestamptz
+  atualizadoEm            DateTime           @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
+  work                    Work               @relation(fields: [workId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  brazilianPublisher      DomainOptionValue  @relation("EditionBrazilianPublisher", fields: [brazilianPublisherId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  editionType             DomainOptionValue? @relation("EditionType", fields: [editionTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  coverType               DomainOptionValue? @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  format                  DomainOptionValue? @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  paper                   DomainOptionValue? @relation("EditionPaper", fields: [paperId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  volumes                 Volume[]
 
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
   @@index([workId, chronologicalNumber], map: "idx_editions_work_chronological")
@@ -198,33 +201,34 @@ model Edition {
   @@index([visibility, brazilianPublisherId, id], map: "idx_editions_visibility_publisher")
   @@index([visibility, formatId, id], map: "idx_editions_visibility_format")
   @@index([visibility, coverTypeId, id], map: "idx_editions_visibility_cover_type")
+  @@index([visibility, paperId, id], map: "idx_editions_visibility_paper")
   @@index([visibility, chronologicalNumber, id], map: "idx_editions_visibility_chronological")
   @@index([visibility, brazilPublicationStatus, id], map: "idx_editions_visibility_publication_status")
   @@map("editions")
 }
 
 model Volume {
-  id Int @id @default(autoincrement())
-  editionId Int @map("edition_id")
-  number Int
-  coverAssetId String @unique @map("cover_asset_id") @db.Uuid
-  singleVolume Boolean @default(false) @map("single_volume")
-  pages Int?
-  price Decimal? @db.Decimal(10, 2)
-  priceCurrency String @default("R$") @map("price_currency") @db.VarChar(10)
-  releaseDatePrecision String @default("Completa") @map("release_date_precision") @db.VarChar(20)
-  releaseYear Int? @map("release_year")
-  releaseMonth Int? @map("release_month")
-  releaseDay Int? @map("release_day")
-  isbn10 String? @map("isbn_10") @db.VarChar(20)
-  isbn13 String? @map("isbn_13") @db.VarChar(20)
-  affiliateLink String? @map("affiliate_link") @db.VarChar(2048)
-  synopsis String? @db.Text
-  visibility String @default("Privado") @db.VarChar(20)
-  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz
-  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
-  edition Edition @relation(fields: [editionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  coverAsset MediaAsset @relation("VolumeCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id                   Int        @id @default(autoincrement())
+  editionId            Int        @map("edition_id")
+  number               Int
+  coverAssetId         String     @unique @map("cover_asset_id") @db.Uuid
+  singleVolume         Boolean    @default(false) @map("single_volume")
+  pages                Int?
+  price                Decimal?   @db.Decimal(10, 2)
+  priceCurrency        String     @default("R$") @map("price_currency") @db.VarChar(10)
+  releaseDatePrecision String     @default("Completa") @map("release_date_precision") @db.VarChar(20)
+  releaseYear          Int?       @map("release_year")
+  releaseMonth         Int?       @map("release_month")
+  releaseDay           Int?       @map("release_day")
+  isbn10               String?    @map("isbn_10") @db.VarChar(20)
+  isbn13               String?    @map("isbn_13") @db.VarChar(20)
+  affiliateLink        String?    @map("affiliate_link") @db.VarChar(2048)
+  synopsis             String?    @db.Text
+  visibility           String     @default("Privado") @db.VarChar(20)
+  criadoEm             DateTime   @default(now()) @map("criado_em") @db.Timestamptz
+  atualizadoEm         DateTime   @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
+  edition              Edition    @relation(fields: [editionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  coverAsset           MediaAsset @relation("VolumeCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")
@@ -276,11 +280,11 @@ model MediaVariant {
 }
 
 model WorkOriginalPublisher {
-  workId Int @map("work_id")
-  publisherId Int @map("publisher_id")
-  position Int @default(0)
-  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
-  publisher DomainOptionValue @relation("WorkOriginalPublisherOption", fields: [publisherId], references: [id], onDelete: Restrict)
+  workId      Int               @map("work_id")
+  publisherId Int               @map("publisher_id")
+  position    Int               @default(0)
+  work        Work              @relation(fields: [workId], references: [id], onDelete: Cascade)
+  publisher   DomainOptionValue @relation("WorkOriginalPublisherOption", fields: [publisherId], references: [id], onDelete: Restrict)
 
   @@id([workId, publisherId])
   @@index([workId, position], map: "idx_work_original_publishers_position")
@@ -289,12 +293,12 @@ model WorkOriginalPublisher {
 }
 
 model WorkAuthor {
-  workId Int @map("work_id")
-  authorId Int @map("author_id")
-  position Int @default(0)
-  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
-  author DomainOptionValue @relation("WorkAuthorAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  roles WorkAuthorRole[]
+  workId   Int               @map("work_id")
+  authorId Int               @map("author_id")
+  position Int               @default(0)
+  work     Work              @relation(fields: [workId], references: [id], onDelete: Cascade)
+  author   DomainOptionValue @relation("WorkAuthorAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  roles    WorkAuthorRole[]
 
   @@id([workId, authorId])
   @@unique([workId, authorId], map: "work_authors_work_author_unique")
@@ -305,20 +309,20 @@ model WorkAuthor {
 }
 
 model WorkAuthorRole {
-  workId Int @map("work_id")
-  authorId Int @map("author_id")
-  role String @db.VarChar(40)
-  author WorkAuthor @relation(fields: [workId, authorId], references: [workId, authorId], onDelete: Cascade, map: "work_author_roles_work_author_fkey")
+  workId   Int        @map("work_id")
+  authorId Int        @map("author_id")
+  role     String     @db.VarChar(40)
+  author   WorkAuthor @relation(fields: [workId, authorId], references: [workId, authorId], onDelete: Cascade, map: "work_author_roles_work_author_fkey")
 
   @@id([workId, authorId, role])
   @@map("work_author_roles")
 }
 
 model WorkGenre {
-  workId Int @map("work_id")
-  genreId Int @map("genre_id")
-  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
-  genre DomainOptionValue @relation("WorkGenreOption", fields: [genreId], references: [id], onDelete: Restrict)
+  workId  Int               @map("work_id")
+  genreId Int               @map("genre_id")
+  work    Work              @relation(fields: [workId], references: [id], onDelete: Cascade)
+  genre   DomainOptionValue @relation("WorkGenreOption", fields: [genreId], references: [id], onDelete: Restrict)
 
   @@id([workId, genreId])
   @@index([genreId], map: "idx_work_genres_genre")
@@ -327,9 +331,9 @@ model WorkGenre {
 }
 
 model WorkDemography {
-  workId Int @map("work_id")
+  workId     Int    @map("work_id")
   demography String @db.VarChar(40)
-  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+  work       Work   @relation(fields: [workId], references: [id], onDelete: Cascade)
 
   @@id([workId, demography])
   @@index([demography], map: "idx_work_demographies_demography")
@@ -338,11 +342,11 @@ model WorkDemography {
 }
 
 model WorkSerializationMagazine {
-  workId Int @map("work_id")
-  magazineId Int @map("magazine_id")
-  position Int @default(0)
-  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
-  magazine DomainOptionValue @relation("WorkSerializationMagazineOption", fields: [magazineId], references: [id], onDelete: Restrict)
+  workId     Int               @map("work_id")
+  magazineId Int               @map("magazine_id")
+  position   Int               @default(0)
+  work       Work              @relation(fields: [workId], references: [id], onDelete: Cascade)
+  magazine   DomainOptionValue @relation("WorkSerializationMagazineOption", fields: [magazineId], references: [id], onDelete: Restrict)
 
   @@id([workId, magazineId])
   @@index([workId, position], map: "idx_work_serialization_magazines_position")

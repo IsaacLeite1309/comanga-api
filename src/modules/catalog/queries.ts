@@ -73,6 +73,9 @@ function getEditionInclude() {
         },
         format: {
             select: { id: true, label: true }
+        },
+        paper: {
+            select: { id: true, label: true }
         }
     };
 }

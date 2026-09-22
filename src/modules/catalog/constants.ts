@@ -28,7 +28,8 @@ const EDITION_FORM_OPTION_CATEGORIES = {
     brazilianPublishers: 'editoras-brasileiras',
     editionTypes: 'tipos-edicao',
     coverTypes: 'tipos-capa',
-    formats: 'formatos-fisicos'
+    formats: 'formatos-fisicos',
+    papers: 'miolos'
 } as const;
 const EDITION_VISIBILITY_VALUES = ['Privado', 'Público'] as const;
 const EDITION_PUBLICATION_STATUS_VALUES = ['Completa', 'Em andamento', 'Em hiato', 'Cancelada'] as const;

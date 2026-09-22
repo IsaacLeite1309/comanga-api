@@ -10,7 +10,8 @@ const MANAGEABLE_OPTION_CATEGORY_SLUGS = new Set([
     'editoras-brasileiras',
     'tipos-edicao',
     'tipos-capa',
-    'formatos-fisicos'
+    'formatos-fisicos',
+    'miolos'
 ]);
 const LISTABLE_OPTION_CATEGORY_SLUGS = new Set([
     ...MANAGEABLE_OPTION_CATEGORY_SLUGS,

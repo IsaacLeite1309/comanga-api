@@ -167,6 +167,7 @@ async function createEdition({
     editionTypeId = fixture.options.editionType.id,
     formatId = fixture.options.formatOne.id,
     coverTypeId = fixture.options.coverOne.id,
+    paperId = fixture.options.paper.id,
     brazilPublicationStatus = 'Completa'
 }) {
     const result = await db.query(
@@ -176,11 +177,12 @@ async function createEdition({
             edition_type_id,
             cover_type_id,
             format_id,
+            paper_id,
             chronological_number,
             brazil_publication_status,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
          RETURNING id`,
         [
             workId,
@@ -188,6 +190,7 @@ async function createEdition({
             editionTypeId,
             coverTypeId,
             formatId,
+            paperId,
             chronologicalNumber,
             brazilPublicationStatus,
             visibility
@@ -290,6 +293,7 @@ describe('catálogo público', () => {
         fixture.options.coverTwo = await createOption('tipos-capa', 'cover-two');
         fixture.options.formatOne = await createOption('formatos-fisicos', 'format-one');
         fixture.options.formatTwo = await createOption('formatos-fisicos', 'format-two');
+        fixture.options.paper = await createOption('miolos', 'paper');
 
         fixture.works.complete = await createWork({
             suffix: 'alpha',
