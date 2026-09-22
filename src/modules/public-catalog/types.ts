@@ -56,8 +56,8 @@ interface PublicEditionInput extends PublicEditionCoverSourceInput {
     chronologicalNumber: number;
     work: Pick<PublicWorkInput, 'id' | 'slug' | 'title' | 'originalTitle' | 'authors'>;
     brazilianPublisher: PublicOptionInput;
-    format: PublicOptionInput;
-    coverType: PublicOptionInput;
+    format: PublicOptionInput | null;
+    coverType: PublicOptionInput | null;
     _count: {
         volumes: number;
     };
@@ -68,9 +68,10 @@ interface PublicEditionDetailInput {
     chronologicalNumber: number;
     brazilPublicationStatus: string;
     brazilianPublisher: PublicOptionInput;
-    editionType: PublicOptionInput;
-    format: PublicOptionInput;
-    coverType: PublicOptionInput;
+    editionType: PublicOptionInput | null;
+    format: PublicOptionInput | null;
+    coverType: PublicOptionInput | null;
+    paper: PublicOptionInput | null;
     volumes: PublicVolumePreviewInput[];
     _count: { volumes: number };
 }
@@ -80,9 +81,10 @@ interface PublicEditionPageInput extends PublicEditionCoverSourceInput {
     chronologicalNumber: number;
     brazilPublicationStatus: string;
     brazilianPublisher: PublicOptionInput;
-    editionType: PublicOptionInput;
-    format: PublicOptionInput;
-    coverType: PublicOptionInput;
+    editionType: PublicOptionInput | null;
+    format: PublicOptionInput | null;
+    coverType: PublicOptionInput | null;
+    paper: PublicOptionInput | null;
     work: {
         id: number;
         slug: string;

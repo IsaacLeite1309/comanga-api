@@ -82,10 +82,10 @@ interface EditionInput {
     }>;
     visibility: string;
     brazilianPublisher: OptionSummary;
-    editionType: OptionSummary;
-    coverType: OptionSummary;
-    format: OptionSummary;
-    paper: OptionSummary;
+    editionType: OptionSummary | null;
+    coverType: OptionSummary | null;
+    format: OptionSummary | null;
+    paper: OptionSummary | null;
     brazilPublicationStatus: string;
     _count?: {
         volumes?: number;

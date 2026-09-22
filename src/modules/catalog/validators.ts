@@ -73,10 +73,10 @@ async function validateOptionIdsByCategory(categorySlug: string, ids: number[]) 
 
 async function validateEditionDomainReferences(data: {
     brazilianPublisherId?: number;
-    editionTypeId?: number;
-    coverTypeId?: number;
-    formatId?: number;
-    paperId?: number;
+    editionTypeId?: number | null;
+    coverTypeId?: number | null;
+    formatId?: number | null;
+    paperId?: number | null;
 }) {
     const validations: Array<Promise<boolean>> = [];
 

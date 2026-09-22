@@ -100,10 +100,10 @@ const listWorksQuerySchema = z.object({
 // A Edição não possui capa própria: a capa é derivada do Volume 1 da mesma Edição.
 const editionPayloadSchema = z.object({
     brazilianPublisherId: z.coerce.number().int().positive(),
-    editionTypeId: z.coerce.number().int().positive(),
-    coverTypeId: z.coerce.number().int().positive(),
-    formatId: z.coerce.number().int().positive(),
-    paperId: z.coerce.number().int().positive(),
+    editionTypeId: z.coerce.number().int().positive().nullable(),
+    coverTypeId: z.coerce.number().int().positive().nullable(),
+    formatId: z.coerce.number().int().positive().nullable(),
+    paperId: z.coerce.number().int().positive().nullable(),
     chronologicalNumber: z.coerce.number().int().positive(),
     brazilPublicationStatus: z.enum(EDITION_PUBLICATION_STATUS_VALUES)
 }).strict();

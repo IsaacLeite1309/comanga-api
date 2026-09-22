@@ -68,6 +68,7 @@ function mapPublicWorkDetails(
             editionType: mapOption(edition.editionType),
             format: mapOption(edition.format),
             coverType: mapOption(edition.coverType),
+            paper: mapOption(edition.paper),
             brazilPublicationStatus: edition.brazilPublicationStatus,
             volumesCount: edition._count.volumes,
             volumes: edition.volumes.map((volume) => ({
@@ -84,7 +85,9 @@ function mapPublicWorkDetails(
     };
 }
 
-function mapOption(option: PublicOptionInput) {
+function mapOption(option: PublicOptionInput | null) {
+    if (!option) return null;
+
     return {
         id: option.id,
         label: option.label
@@ -137,6 +140,7 @@ function mapPublicEditionDetails(edition: PublicEditionPageInput) {
         editionType: mapOption(edition.editionType),
         format: mapOption(edition.format),
         coverType: mapOption(edition.coverType),
+        paper: mapOption(edition.paper),
         brazilPublicationStatus: edition.brazilPublicationStatus,
         volumesCount: edition._count.volumes,
         work: {
