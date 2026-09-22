@@ -133,7 +133,6 @@ function buildCreateWorkData(
         synopsis: data.synopsis,
         originalPublicationStartYear: data.originalPublicationStartYear || null,
         originalPublicationEndYear: data.originalPublicationEndYear || null,
-        originalVolumeCount: data.originalVolumeCount || null,
         directRelease: data.directRelease,
         typeId: data.typeId,
         country: data.country,
@@ -460,7 +459,6 @@ function assignPublicationUpdateData(updateData: Record<string, unknown>, data: 
     if (data.synopsis !== undefined) updateData.synopsis = data.synopsis;
     if (data.originalPublicationStartYear !== undefined) updateData.originalPublicationStartYear = data.originalPublicationStartYear || null;
     if (data.originalPublicationEndYear !== undefined) updateData.originalPublicationEndYear = data.originalPublicationEndYear || null;
-    if (data.originalVolumeCount !== undefined) updateData.originalVolumeCount = data.originalVolumeCount || null;
 }
 
 function buildWorkUpdateData(data: UpdateWorkData) {

@@ -61,7 +61,6 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
         const createData = {
             workId,
             brazilianPublisherId: data.brazilianPublisherId,
-            editionTypeId: data.editionTypeId,
             coverTypeId: data.coverTypeId,
             formatId: data.formatId,
             paperId: data.paperId,
@@ -198,7 +197,6 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
             where: { id: editionId },
             data: {
                 ...(data.brazilianPublisherId !== undefined ? { brazilianPublisherId: data.brazilianPublisherId } : {}),
-                ...(data.editionTypeId !== undefined ? { editionTypeId: data.editionTypeId } : {}),
                 ...(data.coverTypeId !== undefined ? { coverTypeId: data.coverTypeId } : {}),
                 ...(data.formatId !== undefined ? { formatId: data.formatId } : {}),
                 ...(data.paperId !== undefined ? { paperId: data.paperId } : {}),

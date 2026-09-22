@@ -110,7 +110,6 @@ model DomainOptionValue {
   workGenres                   WorkGenre[]                   @relation("WorkGenreOption")
   workSerializationMagazines   WorkSerializationMagazine[]   @relation("WorkSerializationMagazineOption")
   editionsAsBrazilianPublisher Edition[]                     @relation("EditionBrazilianPublisher")
-  editionsAsType               Edition[]                     @relation("EditionType")
   editionsAsCoverType          Edition[]                     @relation("EditionCoverType")
   editionsAsFormat             Edition[]                     @relation("EditionFormat")
   editionsAsPaper              Edition[]                     @relation("EditionPaper")
@@ -141,7 +140,6 @@ model Work {
   synopsis                     String                      @db.Text
   originalPublicationStartYear Int?                        @map("original_publication_start_year")
   originalPublicationEndYear   Int?                        @map("original_publication_end_year")
-  originalVolumeCount          Int?                        @map("original_volume_count")
   directRelease                Boolean                     @default(false) @map("direct_release")
   typeId                       Int                         @map("type_id")
   country                      String                      @db.VarChar(40)
@@ -178,7 +176,6 @@ model Edition {
   id                      Int                @id @default(autoincrement())
   workId                  Int                @map("work_id")
   brazilianPublisherId    Int                @map("brazilian_publisher_id")
-  editionTypeId           Int?               @map("edition_type_id")
   coverTypeId             Int?               @map("cover_type_id")
   formatId                Int?               @map("format_id")
   paperId                 Int?               @map("paper_id")
@@ -189,7 +186,6 @@ model Edition {
   atualizadoEm            DateTime           @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
   work                    Work               @relation(fields: [workId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   brazilianPublisher      DomainOptionValue  @relation("EditionBrazilianPublisher", fields: [brazilianPublisherId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  editionType             DomainOptionValue? @relation("EditionType", fields: [editionTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   coverType               DomainOptionValue? @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   format                  DomainOptionValue? @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   paper                   DomainOptionValue? @relation("EditionPaper", fields: [paperId], references: [id], onDelete: Restrict, onUpdate: NoAction)

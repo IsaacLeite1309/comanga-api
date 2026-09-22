@@ -107,7 +107,6 @@ describe('contratos unitários do catálogo público', () => {
         const query = publicEditionsQuerySchema.parse({
             term: 'Monster',
             brazilianPublisherId: 21,
-            editionTypeId: 24,
             formatId: 22,
             coverTypeId: 23,
             chronologicalNumber: 2,
@@ -124,7 +123,6 @@ describe('contratos unitários do catálogo público', () => {
         expect(where).toEqual(expect.objectContaining({
             visibility: 'Público',
             brazilianPublisherId: 21,
-            editionTypeId: 24,
             formatId: 22,
             coverTypeId: 23,
             chronologicalNumber: 2,

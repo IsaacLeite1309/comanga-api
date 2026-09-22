@@ -402,7 +402,6 @@ async function getPublicCatalogOptions(_req: Request, res: Response, next: NextF
                 originalPublicationStatuses: [...PUBLIC_PUBLICATION_STATUSES],
                 brazilianPublishers: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.brazilianPublishers),
                 brazilPublicationStatuses: [...PUBLIC_PUBLICATION_STATUSES],
-                editionTypes: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.editionTypes),
                 formats: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.formats),
                 coverTypes: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.coverTypes)
             }

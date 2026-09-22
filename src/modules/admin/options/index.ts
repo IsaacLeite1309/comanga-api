@@ -76,13 +76,11 @@ async function getEditionFormOptions(_req: Request, res: Response, next: NextFun
     try {
         const [
             brazilianPublishers,
-            editionTypes,
             coverTypes,
             formats,
             papers
         ] = await prisma.$transaction([
             buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.brazilianPublishers),
-            buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.editionTypes),
             buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.coverTypes),
             buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.formats),
             buildFormOptionQuery(EDITION_FORM_OPTION_CATEGORIES.papers)
@@ -91,9 +89,6 @@ async function getEditionFormOptions(_req: Request, res: Response, next: NextFun
         return res.status(200).json({
             options: {
                 brazilianPublishers: brazilianPublishers.map((value) => normalizeOptionValue(
-                    value as unknown as Parameters<typeof normalizeOptionValue>[0]
-                )),
-                editionTypes: editionTypes.map((value) => normalizeOptionValue(
                     value as unknown as Parameters<typeof normalizeOptionValue>[0]
                 )),
                 coverTypes: coverTypes.map((value) => normalizeOptionValue(

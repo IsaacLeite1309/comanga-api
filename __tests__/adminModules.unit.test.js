@@ -573,18 +573,16 @@ describe('módulos administrativos', () => {
             };
             prisma.domainOptionValue.findMany
                 .mockReturnValueOnce('publishersQuery')
-                .mockReturnValueOnce('editionTypesQuery')
                 .mockReturnValueOnce('coverTypesQuery')
                 .mockReturnValueOnce('formatsQuery')
                 .mockReturnValueOnce('papersQuery');
-            prisma.$transaction.mockResolvedValue([[], [], [], [], [paper]]);
+            prisma.$transaction.mockResolvedValue([[], [], [], [paper]]);
             const res = makeRes();
 
             await adminOptions.getEditionFormOptions(makeReq(), res);
 
             expect(prisma.$transaction).toHaveBeenCalledWith([
                 'publishersQuery',
-                'editionTypesQuery',
                 'coverTypesQuery',
                 'formatsQuery',
                 'papersQuery'
@@ -1023,7 +1021,6 @@ describe('módulos administrativos', () => {
             synopsis: 'Um ninja busca reconhecimento na própria vila.',
             originalPublicationStartYear: 1999,
             originalPublicationEndYear: 2014,
-            originalVolumeCount: 72,
             directRelease: false,
             visibility: 'Privado',
             adultContent: false,
@@ -1098,7 +1095,6 @@ describe('módulos administrativos', () => {
                     synopsis: 'Um ninja busca reconhecimento na própria vila.',
                     originalPublicationStartYear: 1999,
                     originalPublicationEndYear: 2014,
-                    originalVolumeCount: 72,
                     directRelease: false,
                     typeId: 1,
                     country: 'Japão',
@@ -1644,7 +1640,6 @@ describe('módulos administrativos', () => {
             // Somente o Volume 1 chega no include; é dele que a capa é derivada.
             volumes: [{ coverAsset: coverSourceAsset }],
             brazilianPublisher: { id: 2, label: 'Panini' },
-            editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
             paper: { id: 6, label: 'Papel' },
@@ -1652,7 +1647,6 @@ describe('módulos administrativos', () => {
         };
         const editionBodyWithoutCover = {
             brazilianPublisherId: 2,
-            editionTypeId: 3,
             coverTypeId: 4,
             formatId: 5,
             paperId: 6,
@@ -2150,7 +2144,6 @@ describe('módulos administrativos', () => {
     describe('caminhos alternativos do catalogo administrativo', () => {
         const editionBody = {
             brazilianPublisherId: 2,
-            editionTypeId: 3,
             coverTypeId: 4,
             formatId: 5,
             paperId: 6,
@@ -2164,7 +2157,6 @@ describe('módulos administrativos', () => {
             visibility: 'Privado',
             volumes: [],
             brazilianPublisher: { id: 2, label: 'Panini' },
-            editionType: { id: 3, label: 'Tankobon' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
             paper: { id: 6, label: 'Papel' },
@@ -2452,7 +2444,6 @@ describe('módulos administrativos', () => {
                 originalTitle: null,
                 originalPublicationStartYear: null,
                 originalPublicationEndYear: null,
-                originalVolumeCount: null,
                 directRelease: true,
                 visibility: 'Privado',
                 adultContent: false,
@@ -2677,7 +2668,6 @@ describe('módulos administrativos', () => {
                 originalTitle: null,
                 originalPublicationStartYear: null,
                 originalPublicationEndYear: null,
-                originalVolumeCount: null,
                 directRelease: false,
                 visibility,
                 adultContent: false,
