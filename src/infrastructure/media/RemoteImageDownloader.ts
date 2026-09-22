@@ -225,7 +225,7 @@ async function downloadRemoteImage(sourceUrl: string, options: DownloadOptions =
                 method: 'GET',
                 redirect: 'manual',
                 signal: AbortSignal.timeout(timeoutMs),
-                headers: { Accept: 'image/avif,image/webp,image/png,image/jpeg' }
+                headers: { Accept: 'image/jpeg,image/png;q=0.9,image/webp;q=0.8' }
             };
             response = fetchImpl
                 ? await fetchImpl(currentUrl, requestInit)
