@@ -70,7 +70,7 @@ const updateWorkSchema = z.object({
     directRelease: z.boolean().optional(),
     typeId: z.coerce.number().int().positive().optional(),
     country: z.enum(WORK_COUNTRY_VALUES).optional(),
-    authors: z.array(workAuthorSchema).optional(),
+    authors: z.array(workAuthorSchema).min(1).optional(),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES).optional().nullable(),
     coverAssetId: coverAssetIdSchema.optional(),
     adultContent: z.boolean().optional(),
@@ -154,9 +154,9 @@ const isbn13Schema = z.string().trim().max(20).refine(isValidIsbn13, {
 const volumePayloadBaseSchema = z.object({
     number: z.coerce.number().int().min(0),
     coverAssetId: coverAssetIdSchema,
-    singleVolume: z.boolean().optional().default(false),
+    singleVolume: z.boolean().optional(),
     pages: z.coerce.number().int().positive().optional().nullable(),
-    priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).optional().default('R$'),
+    priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).optional(),
     price: z.coerce.number().min(0).optional().nullable(),
     releaseDatePrecision: z.enum(VOLUME_RELEASE_PRECISION_VALUES).optional(),
     releaseYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
@@ -214,13 +214,20 @@ function validateVolumeReleaseDate(
     }
 }
 
+const volumeReleaseDateSchema = volumePayloadBaseSchema.pick({
+    releaseDatePrecision: true, releaseYear: true, releaseMonth: true, releaseDay: true
+}).extend({ releaseDatePrecision: z.enum(VOLUME_RELEASE_PRECISION_VALUES) })
+    .superRefine(validateVolumeReleaseDate);
+
 const volumePayloadSchema = volumePayloadBaseSchema.extend({
+    singleVolume: z.boolean().default(false),
+    priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).default('R$'),
     releaseDatePrecision: z.enum(VOLUME_RELEASE_PRECISION_VALUES).default('Completa')
 }).superRefine(validateVolumeReleaseDate);
 
 const updateVolumeSchema = volumePayloadBaseSchema.partial().refine((value) => Object.keys(value).length > 0, {
     message: 'Informe ao menos um campo para alterar.'
-}).superRefine(validateVolumeReleaseDate);
+});
 
 const listVolumesQuerySchema = z.object({
     page: z.coerce.number().int().min(1).default(1),
@@ -240,6 +247,7 @@ export {
     listEditionsQuerySchema,
     updateEditionVisibilitySchema,
     volumePayloadBaseSchema,
+    volumeReleaseDateSchema,
     validateVolumeReleaseDate,
     volumePayloadSchema,
     updateVolumeSchema,

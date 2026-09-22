@@ -18,6 +18,13 @@ function getDefaultCode(statusCode: number) {
     return 'INTERNAL_SERVER_ERROR';
 }
 
+// Códigos internos do ORM (P####) não fazem parte do contrato e não saem em respostas 5xx.
+function resolveResponseCode(code: string | undefined, statusCode: number) {
+    const isOrmCode = /^P\d{4}$/.test(code || '');
+    if (!code || (statusCode >= 500 && isOrmCode)) return getDefaultCode(statusCode);
+    return code;
+}
+
 const errorHandler: ErrorRequestHandler = (error: HttpError, req, res, _next) => {
     if (['P2003', 'P2004'].includes(error.code || '')) {
         return res.status(409).json({ error: 'A alteração conflita com um registro associado ou uma regra do catálogo.', code: 'DATA_INTEGRITY_CONFLICT' });
@@ -25,7 +32,7 @@ const errorHandler: ErrorRequestHandler = (error: HttpError, req, res, _next) =>
     const statusCode = error.statusCode || error.status || 500;
     const safeStatusCode = statusCode >= 400 && statusCode < 600 ? statusCode : 500;
     const isServerError = safeStatusCode >= 500;
-    const code = error.code || getDefaultCode(safeStatusCode);
+    const code = resolveResponseCode(error.code, safeStatusCode);
 
     if (isServerError) {
         const isAuthenticationRoute = ['/activate/:token', '/register', '/resend-activation', '/forgot-password', '/reset-password', '/login'].includes(req.route?.path);

@@ -282,6 +282,14 @@ async function assertPublishedEditionHasCoverSource(tx: Prisma.TransactionClient
 
 async function applyEditionVisibility(editionId: number, visibility: string) {
     return withCatalogWriteLock(async (tx) => {
+        const edition = await tx.edition.findUnique({
+            where: { id: editionId }, select: { id: true, work: { select: { visibility: true } } }
+        });
+        if (!edition) return { status: 404, error: 'Edição não encontrada.' } as const;
+        if (isPublicVisibility(visibility) && !isPublicVisibility(edition.work.visibility)) {
+            return { status: 409, error: PRIVATE_WORK_PUBLIC_EDITION_MESSAGE } as const;
+        }
+        if (visibility === 'Privado') await assertEditionCanBecomePrivate(editionId);
         const updatedEdition = await tx.edition.update({
             where: { id: editionId },
             data: { visibility },
@@ -296,7 +304,7 @@ async function applyEditionVisibility(editionId: number, visibility: string) {
             await assertPublishedEditionHasCoverSource(tx, editionId);
         }
 
-        return updatedEdition;
+        return { edition: updatedEdition } as const;
     });
 }
 
@@ -316,34 +324,10 @@ async function updateEditionVisibility(req: Request, res: Response, next: NextFu
     const visibility = normalizeVisibility(validation.data.visibility);
 
     try {
-        const edition = await prisma.edition.findUnique({
-            where: { id: editionId },
-            select: {
-                id: true,
-                work: {
-                    select: {
-                        visibility: true
-                    }
-                }
-            }
-        });
-
-        if (!edition) {
-            return res.status(404).json({ error: 'Edição não encontrada.' });
-        }
-
-        if (isPublicVisibility(visibility) && !isPublicVisibility(edition.work.visibility)) {
-            return res.status(409).json({ error: PRIVATE_WORK_PUBLIC_EDITION_MESSAGE });
-        }
-
-        if (visibility === 'Privado') {
-            await assertEditionCanBecomePrivate(editionId);
-        }
-
-        const updatedEdition = await applyEditionVisibility(editionId, visibility);
-
+        const result = await applyEditionVisibility(editionId, visibility);
+        if (result.status !== undefined) return res.status(result.status).json({ error: result.error });
         return res.status(200).json({
-            edition: normalizeEdition(updatedEdition as unknown as EditionInput)
+            edition: normalizeEdition(result.edition as unknown as EditionInput)
         });
 
     } catch (error) {

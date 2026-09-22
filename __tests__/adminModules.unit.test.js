@@ -1809,7 +1809,7 @@ describe('módulos administrativos', () => {
             });
             expect(prisma.edition.update).not.toHaveBeenCalled();
             expect(prisma.volume.updateMany).not.toHaveBeenCalled();
-            expect(prisma.$transaction).not.toHaveBeenCalled();
+            expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         });
 
         it('propaga visibilidade pública aos volumes e valida a capa derivada na mesma transacao', async () => {
@@ -2696,7 +2696,13 @@ describe('módulos administrativos', () => {
         });
 
         it('atualiza campos isolados de data do volume', async () => {
-            prisma.volume.findUnique.mockResolvedValue({ id: 30 });
+            prisma.volume.findUnique.mockResolvedValue({
+                id: 30,
+                releaseDatePrecision: 'Completa',
+                releaseYear: 2023,
+                releaseMonth: 1,
+                releaseDay: 10
+            });
             prisma.volume.update.mockResolvedValue(volume);
             const res = makeRes();
 
