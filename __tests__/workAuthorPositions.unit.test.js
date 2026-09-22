@@ -23,6 +23,7 @@ const prisma = {
         update: jest.fn()
     },
     mediaAsset: { findUnique: jest.fn(), update: jest.fn() },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn()
 };
 
@@ -268,11 +269,12 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             body: { authors: [{ authorId: 4, roles: ['História'] }] }
         }), makeRes(), jest.fn());
 
-        const operations = prisma.$transaction.mock.calls[0][0];
-        expect(Array.isArray(operations)).toBe(true);
-        expect(operations).toEqual(expect.arrayContaining([
-            'createAuthorsOperation',
-            'createRolesOperation'
-        ]));
+        expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function));
+        expect(prisma.workAuthor.createMany).toHaveBeenCalledWith({
+            data: [{ workId: 1, authorId: 4, position: 0 }]
+        });
+        expect(prisma.workAuthorRole.createMany).toHaveBeenCalledWith({
+            data: [{ workId: 1, authorId: 4, role: 'História' }]
+        });
     });
 });

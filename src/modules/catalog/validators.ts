@@ -1,6 +1,9 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
+import { HENTAI_GENRE_FILTER, isSystemManagedOptionCategory } from '../../utils/domainOptionCodes';
 import {
     COUNTRY_CATEGORY_SLUG,
+    COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS,
     COUNTRY_DEPENDENT_CATEGORY_SLUGS,
     EDITION_FORM_OPTION_CATEGORIES,
     WORK_DOMAIN_CATEGORIES
@@ -8,7 +11,8 @@ import {
 
 async function validateSelectedOptionsByCountry(
     selections: Array<{ categorySlug: string; ids: number[] }>,
-    country: string
+    country: string,
+    client: Prisma.TransactionClient = prisma
 ) {
     const countryDependentSelections = selections
         .filter((selection) => COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(selection.categorySlug))
@@ -21,8 +25,9 @@ async function validateSelectedOptionsByCountry(
     if (countryDependentSelections.length === 0) return true;
 
     const optionIds = countryDependentSelections.flatMap((selection) => selection.ids);
-    const values = await prisma.domainOptionValue.findMany({
-        where: { id: { in: optionIds }, active: true },
+    const values = await client.domainOptionValue.findMany({
+        // Vínculos inativos preservados também precisam respeitar o país.
+        where: { id: { in: optionIds } },
         select: {
             id: true,
             dependencies: {
@@ -39,29 +44,41 @@ async function validateSelectedOptionsByCountry(
     });
     const valuesById = new Map(values.map((value) => [value.id, value]));
 
-    return countryDependentSelections.every((selection) => selection.ids.every((id) => {
-        const value = valuesById.get(id);
-        if (!value) return true;
-        const countryDependencies = value.dependencies.filter((dependency) => (
-            dependency.dependsOnValue.category.slug === COUNTRY_CATEGORY_SLUG
-        ));
-        return countryDependencies.length === 0 || countryDependencies.some((dependency) => (
-            dependency.dependsOnValue.label === country
-        ));
-    }));
+    return countryDependentSelections.every((selection) => {
+        const dependencyIsMandatory = COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS.has(selection.categorySlug);
+
+        return selection.ids.every((id) => {
+            const value = valuesById.get(id);
+            if (!value) return true;
+            const countryDependencies = value.dependencies.filter((dependency) => (
+                dependency.dependsOnValue.category.slug === COUNTRY_CATEGORY_SLUG
+            ));
+
+            if (countryDependencies.some((dependency) => dependency.dependsOnValue.label === country)) {
+                return true;
+            }
+
+            // Sem dependência declarada, só as categorias não obrigatórias passam.
+            return !dependencyIsMandatory && countryDependencies.length === 0;
+        });
+    });
 }
 
-async function validateOptionIdsByCategory(categorySlug: string, ids: number[]) {
+async function validateOptionIdsByCategory(
+    categorySlug: string, ids: number[], existingIds: number[] = [], client: Prisma.TransactionClient = prisma
+) {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
 
     if (uniqueIds.length === 0) {
         return true;
     }
 
-    const count = await prisma.domainOptionValue.count({
+    const count = await client.domainOptionValue.count({
         where: {
             id: { in: uniqueIds },
-            active: true,
+            ...(isSystemManagedOptionCategory(categorySlug)
+                ? { OR: [{ systemManaged: true, active: true }, { id: { in: existingIds } }] }
+                : { active: true }),
             category: {
                 slug: categorySlug
             }
@@ -137,7 +154,37 @@ function parsePositiveId(value: string | string[] | undefined) {
     return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+// Identidade estável do gênero Hentai: nenhuma consulta compara o rótulo textual.
+async function containsHentaiGenre(genreIds: number[], client: Prisma.TransactionClient = prisma) {
+    const uniqueIds = [...new Set(genreIds.filter(Boolean))];
+
+    if (uniqueIds.length === 0) return false;
+
+    const hentaiCount = await client.domainOptionValue.count({
+        where: {
+            id: { in: uniqueIds },
+            ...HENTAI_GENRE_FILTER
+        }
+    });
+
+    return hentaiCount > 0;
+}
+
+async function workHasHentaiGenre(workId: number, client: Prisma.TransactionClient = prisma) {
+    const genre = await client.workGenre.findFirst({
+        where: {
+            workId,
+            genre: HENTAI_GENRE_FILTER
+        },
+        select: { genreId: true }
+    });
+
+    return Boolean(genre);
+}
+
 export {
+    containsHentaiGenre,
+    workHasHentaiGenre,
     validateSelectedOptionsByCountry,
     validateOptionIdsByCategory,
     validateEditionDomainReferences,

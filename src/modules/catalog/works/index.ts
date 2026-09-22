@@ -1,7 +1,9 @@
+import type { Prisma } from '@prisma/client';
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import prisma from '../../../prisma';
 import { createUniqueWorkSlug } from './workSlug';
+import { withCatalogWriteLock } from '../writeLock';
 import {
     activateCoverAsset,
     deleteOrphanedCoverAsset,
@@ -25,6 +27,8 @@ import {
     normalizeOrderedAuthors,
     getOrderedIds,
     findDuplicatedNumbers,
+    containsHentaiGenre,
+    workHasHentaiGenre,
     validateOptionIdsByCategory,
     validateWorkDomainReferences,
     createWorkSchema,
@@ -181,6 +185,22 @@ async function persistCreatedWork(
     });
 }
 
+// Obra com Hentai nunca fica como não adulta: a flag é normalizada no backend,
+// independentemente do que o formulário enviar (seção 14 do guia).
+async function normalizeAdultContentOnCreate(data: CreateWorkData) {
+    if (data.adultContent) return true;
+    return containsHentaiGenre(data.genreIds);
+}
+
+async function normalizeAdultContentOnUpdate(workId: number, data: UpdateWorkData, client: Prisma.TransactionClient) {
+    const hasHentai = data.genreIds
+        ? await containsHentaiGenre(data.genreIds, client)
+        : await workHasHentaiGenre(workId, client);
+
+    if (hasHentai) return true;
+    return data.adultContent;
+}
+
 async function createWork(req: Request, res: Response, next: NextFunction) {
     const validation = createWorkSchema.safeParse(req.body);
     if (!validation.success) return res.status(400).json({ error: REQUIRED_WORK_FIELDS_MESSAGE });
@@ -193,7 +213,8 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
         const dependencyError = await getCreateWorkDependencyError(data, relations);
         if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
         const slug = await createUniqueWorkSlug(data.title, prisma.work);
-        const workId = await persistCreatedWork(data, relations, slug);
+        const adultContent = await normalizeAdultContentOnCreate(data);
+        const workId = await persistCreatedWork({ ...data, adultContent }, relations, slug);
         const work = await prisma.work.findUniqueOrThrow({
             where: { id: workId },
             include: getWorkDetailInclude()
@@ -309,41 +330,50 @@ async function getWorkBySlug(req: Request, res: Response, next: NextFunction) {
     }
 }
 
+interface CurrentWorkDomainReferences {
+    country: string;
+    typeId: number;
+    type?: { systemManaged: boolean };
+    genres?: Array<{ genreId: number }>;
+    authors: Array<{ authorId: number }>;
+    originalPublishers: Array<{ publisherId: number }>;
+    serializationMagazines: Array<{ magazineId: number }>;
+}
+
 async function validatePartialWorkDomainReferences(
     data: z.infer<typeof updateWorkSchema>,
-    currentWork?: {
-        country: string;
-        typeId: number;
-        authors: Array<{ authorId: number }>;
-        originalPublishers: Array<{ publisherId: number }>;
-        serializationMagazines: Array<{ magazineId: number }>;
-    }
+    currentWork: CurrentWorkDomainReferences | undefined,
+    client: Prisma.TransactionClient
 ) {
     const validations: Array<Promise<boolean>> = [];
 
     if (data.typeId) {
-        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.typeId, [data.typeId]));
+        validations.push(validateOptionIdsByCategory(
+            WORK_DOMAIN_CATEGORIES.typeId, [data.typeId], currentWork ? [currentWork.typeId] : [], client
+        ));
     }
 
     if (data.originalPublisherIds && data.originalPublisherIds.length > 0) {
         const originalPublisherIds = getOrderedIds(normalizeOrderedIds(data.originalPublisherIds));
-        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.originalPublishers, originalPublisherIds));
+        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.originalPublishers, originalPublisherIds, [], client));
     }
 
     if (data.authors) {
         validations.push(validateOptionIdsByCategory(
             WORK_DOMAIN_CATEGORIES.authorId,
-            data.authors.map((author) => author.authorId)
+            data.authors.map((author) => author.authorId), [], client
         ));
     }
 
     if (data.genreIds) {
-        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.genreIds, data.genreIds));
+        validations.push(validateOptionIdsByCategory(
+            WORK_DOMAIN_CATEGORIES.genreIds, data.genreIds, currentWork?.genres?.map(link => link.genreId), client
+        ));
     }
 
     if (data.magazineIds) {
         const magazineIds = getOrderedIds(normalizeOrderedIds(data.magazineIds));
-        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.magazineIds, magazineIds));
+        validations.push(validateOptionIdsByCategory(WORK_DOMAIN_CATEGORIES.magazineIds, magazineIds, [], client));
     }
 
     const results = await Promise.all(validations);
@@ -355,8 +385,16 @@ async function validatePartialWorkDomainReferences(
         return true;
     }
 
+    return validateWorkCountryReferences(data, currentWork, client);
+}
+
+async function validateWorkCountryReferences(
+    data: z.infer<typeof updateWorkSchema>, currentWork: CurrentWorkDomainReferences, client: Prisma.TransactionClient
+) {
     const country = data.country || currentWork.country;
-    const typeIds = data.typeId ? [data.typeId] : [currentWork.typeId];
+    const preservingLegacyType = currentWork.type?.systemManaged === false
+        && (!data.typeId || data.typeId === currentWork.typeId) && country === currentWork.country;
+    const typeIds = preservingLegacyType ? [] : [data.typeId || currentWork.typeId];
     const authorIds = data.authors
         ? data.authors.map((author) => author.authorId)
         : currentWork.authors.map((author) => author.authorId);
@@ -372,7 +410,7 @@ async function validatePartialWorkDomainReferences(
         { categorySlug: WORK_DOMAIN_CATEGORIES.authorId, ids: authorIds },
         { categorySlug: WORK_DOMAIN_CATEGORIES.originalPublishers, ids: originalPublisherIds },
         { categorySlug: WORK_DOMAIN_CATEGORIES.magazineIds, ids: magazineIds }
-    ], country);
+    ], country, client);
 }
 
 type UpdateWorkData = z.infer<typeof updateWorkSchema>;
@@ -413,14 +451,16 @@ function getUpdateWorkValidationError(
     return undefined;
 }
 
-async function findWorkForUpdate(workId: number) {
-    return prisma.work.findUnique({
+async function findWorkForUpdate(workId: number, client: Prisma.TransactionClient) {
+    return client.work.findUnique({
         where: { id: workId },
         select: {
             id: true,
             coverAssetId: true,
             country: true,
             typeId: true,
+            type: { select: { systemManaged: true } },
+            genres: { select: { genreId: true } },
             authors: { select: { authorId: true } },
             originalPublishers: { select: { publisherId: true } },
             serializationMagazines: { select: { magazineId: true } }
@@ -432,13 +472,14 @@ async function getUpdateWorkDependencyError(
     workId: number,
     data: UpdateWorkData,
     relations: ReturnType<typeof prepareUpdateWorkRelations>,
-    existingWork: NonNullable<Awaited<ReturnType<typeof findWorkForUpdate>>>
+    existingWork: NonNullable<Awaited<ReturnType<typeof findWorkForUpdate>>>,
+    client: Prisma.TransactionClient
 ) {
-    if (data.coverAssetId && !await isCoverAssetAttachable(data.coverAssetId, existingWork.coverAssetId)) {
+    if (data.coverAssetId && !await isCoverAssetAttachable(data.coverAssetId, existingWork.coverAssetId, client)) {
         return { status: 400, error: 'A capa interna informada é inválida ou já está em uso.' };
     }
     if (data.title) {
-        const duplicatedWork = await prisma.work.findFirst({
+        const duplicatedWork = await client.work.findFirst({
             where: { id: { not: workId }, title: { equals: data.title, mode: 'insensitive' } },
             select: { id: true }
         });
@@ -448,7 +489,7 @@ async function getUpdateWorkDependencyError(
         ...data,
         originalPublisherIds: relations.originalPublisherIds,
         magazineIds: relations.magazineIds
-    }, existingWork);
+    }, existingWork, client);
     if (!referencesAreValid) return { status: 400, error: INVALID_DOMAIN_REFERENCE_MESSAGE };
     return undefined;
 }
@@ -474,16 +515,16 @@ function buildWorkUpdateData(data: UpdateWorkData) {
     return updateData;
 }
 
-function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['authors']) {
+function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['authors'], client: Prisma.TransactionClient) {
     if (!authors) return [];
     const orderedAuthors = normalizeOrderedAuthors(authors);
     return [
-        prisma.workAuthorRole.deleteMany({ where: { workId } }),
-        prisma.workAuthor.deleteMany({ where: { workId } }),
-        prisma.workAuthor.createMany({
+        client.workAuthorRole.deleteMany({ where: { workId } }),
+        client.workAuthor.deleteMany({ where: { workId } }),
+        client.workAuthor.createMany({
             data: orderedAuthors.map(({ authorId, position }) => ({ workId, authorId, position }))
         }),
-        prisma.workAuthorRole.createMany({
+        client.workAuthorRole.createMany({
             data: orderedAuthors.flatMap((author) => author.roles.map((role) => ({
                 workId,
                 authorId: author.authorId,
@@ -493,30 +534,31 @@ function getAuthorUpdateOperations(workId: number, authors: UpdateWorkData['auth
     ];
 }
 
-function getGenreUpdateOperations(workId: number, genreIds: UpdateWorkData['genreIds']) {
+function getGenreUpdateOperations(workId: number, genreIds: UpdateWorkData['genreIds'], client: Prisma.TransactionClient) {
     if (!genreIds) return [];
     return [
-        prisma.workGenre.deleteMany({ where: { workId } }),
-        prisma.workGenre.createMany({ data: genreIds.map((genreId) => ({ workId, genreId })) })
+        client.workGenre.deleteMany({ where: { workId } }),
+        client.workGenre.createMany({ data: genreIds.map((genreId) => ({ workId, genreId })) })
     ];
 }
 
-function getDemographyUpdateOperations(workId: number, demographies: UpdateWorkData['demographies']) {
+function getDemographyUpdateOperations(workId: number, demographies: UpdateWorkData['demographies'], client: Prisma.TransactionClient) {
     if (!demographies) return [];
     return [
-        prisma.workDemography.deleteMany({ where: { workId } }),
-        prisma.workDemography.createMany({ data: demographies.map((demography) => ({ workId, demography })) })
+        client.workDemography.deleteMany({ where: { workId } }),
+        client.workDemography.createMany({ data: demographies.map((demography) => ({ workId, demography })) })
     ];
 }
 
 function getMagazineUpdateOperations(
     workId: number,
-    magazines: ReturnType<typeof prepareUpdateWorkRelations>['orderedMagazines']
+    magazines: ReturnType<typeof prepareUpdateWorkRelations>['orderedMagazines'],
+    client: Prisma.TransactionClient
 ) {
     if (magazines === undefined) return [];
     return [
-        prisma.workSerializationMagazine.deleteMany({ where: { workId } }),
-        prisma.workSerializationMagazine.createMany({
+        client.workSerializationMagazine.deleteMany({ where: { workId } }),
+        client.workSerializationMagazine.createMany({
             data: magazines.map(({ id, position }) => ({ workId, magazineId: id, position }))
         })
     ];
@@ -524,12 +566,13 @@ function getMagazineUpdateOperations(
 
 function getPublisherUpdateOperations(
     workId: number,
-    publishers: ReturnType<typeof prepareUpdateWorkRelations>['orderedOriginalPublishers']
+    publishers: ReturnType<typeof prepareUpdateWorkRelations>['orderedOriginalPublishers'],
+    client: Prisma.TransactionClient
 ) {
     if (publishers === undefined) return [];
     return [
-        prisma.workOriginalPublisher.deleteMany({ where: { workId } }),
-        prisma.workOriginalPublisher.createMany({
+        client.workOriginalPublisher.deleteMany({ where: { workId } }),
+        client.workOriginalPublisher.createMany({
             data: publishers.map(({ id, position }) => ({ workId, publisherId: id, position }))
         })
     ];
@@ -539,19 +582,42 @@ function buildWorkUpdateOperations(
     workId: number,
     data: UpdateWorkData,
     relations: ReturnType<typeof prepareUpdateWorkRelations>,
-    currentCoverAssetId: string | null
+    currentCoverAssetId: string | null,
+    client: Prisma.TransactionClient
 ) {
     return [
-        prisma.work.update({ where: { id: workId }, data: buildWorkUpdateData(data) }),
-        ...getAuthorUpdateOperations(workId, data.authors),
-        ...getGenreUpdateOperations(workId, data.genreIds),
-        ...getDemographyUpdateOperations(workId, relations.demographies),
-        ...getMagazineUpdateOperations(workId, relations.orderedMagazines),
-        ...getPublisherUpdateOperations(workId, relations.orderedOriginalPublishers),
+        client.work.update({ where: { id: workId }, data: buildWorkUpdateData(data) }),
+        ...getAuthorUpdateOperations(workId, data.authors, client),
+        ...getGenreUpdateOperations(workId, data.genreIds, client),
+        ...getDemographyUpdateOperations(workId, relations.demographies, client),
+        ...getMagazineUpdateOperations(workId, relations.orderedMagazines, client),
+        ...getPublisherUpdateOperations(workId, relations.orderedOriginalPublishers, client),
         ...(data.coverAssetId && data.coverAssetId !== currentCoverAssetId
-            ? [activateCoverAsset(prisma, data.coverAssetId)]
+            ? [activateCoverAsset(client, data.coverAssetId)]
             : [])
     ];
+}
+
+// Releitura sob o lock evita combinar tipo/país validados contra versões diferentes.
+async function persistWorkUpdate(
+    workId: number, data: UpdateWorkData, relations: ReturnType<typeof prepareUpdateWorkRelations>
+) {
+    return withCatalogWriteLock(async tx => {
+        const existingWork = await findWorkForUpdate(workId, tx);
+        if (!existingWork) return { ok: false as const, error: { status: 404, error: 'Obra não encontrada.' } };
+        const dependencyError = await getUpdateWorkDependencyError(workId, data, relations, existingWork, tx);
+        if (dependencyError) return { ok: false as const, error: dependencyError };
+        const adultContent = await normalizeAdultContentOnUpdate(workId, data, tx);
+        const operations = buildWorkUpdateOperations(
+            workId,
+            { ...data, ...(adultContent === undefined ? {} : { adultContent }) },
+            relations,
+            existingWork.coverAssetId,
+            tx
+        );
+        for (const operation of operations) await operation;
+        return { ok: true as const, previousCoverAssetId: existingWork.coverAssetId };
+    });
 }
 
 async function updateWork(req: Request, res: Response, next: NextFunction) {
@@ -566,13 +632,10 @@ async function updateWork(req: Request, res: Response, next: NextFunction) {
     if (validationError) return res.status(400).json({ error: validationError });
 
     try {
-        const existingWork = await findWorkForUpdate(workId);
-        if (!existingWork) return res.status(404).json({ error: 'Obra não encontrada.' });
-        const dependencyError = await getUpdateWorkDependencyError(workId, data, relations, existingWork);
-        if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
-        await prisma.$transaction(buildWorkUpdateOperations(workId, data, relations, existingWork.coverAssetId));
-        if (data.coverAssetId !== undefined && existingWork.coverAssetId !== data.coverAssetId) {
-            await deleteOrphanedCoverAsset(existingWork.coverAssetId);
+        const result = await persistWorkUpdate(workId, data, relations);
+        if (!result.ok) return res.status(result.error.status).json({ error: result.error.error });
+        if (data.coverAssetId !== undefined && result.previousCoverAssetId !== data.coverAssetId) {
+            await deleteOrphanedCoverAsset(result.previousCoverAssetId);
         }
         const work = await prisma.work.findUnique({
             where: { id: workId },
