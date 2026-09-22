@@ -60,7 +60,6 @@ function persistedWork(authors) {
         synopsis: 'Sinopse própria da Obra.',
         originalPublicationStartYear: null,
         originalPublicationEndYear: null,
-        originalVolumeCount: null,
         directRelease: true,
         visibility: 'Privado',
         adultContent: false,

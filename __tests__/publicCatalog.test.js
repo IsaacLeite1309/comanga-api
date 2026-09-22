@@ -164,7 +164,6 @@ async function createEdition({
     chronologicalNumber,
     visibility = PUBLIC_VISIBILITY,
     brazilianPublisherId = fixture.options.publisherOne.id,
-    editionTypeId = fixture.options.editionType.id,
     formatId = fixture.options.formatOne.id,
     coverTypeId = fixture.options.coverOne.id,
     paperId = fixture.options.paper.id,
@@ -174,7 +173,6 @@ async function createEdition({
         `INSERT INTO editions (
             work_id,
             brazilian_publisher_id,
-            edition_type_id,
             cover_type_id,
             format_id,
             paper_id,
@@ -182,12 +180,11 @@ async function createEdition({
             brazil_publication_status,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          RETURNING id`,
         [
             workId,
             brazilianPublisherId,
-            editionTypeId,
             coverTypeId,
             formatId,
             paperId,
@@ -287,8 +284,6 @@ describe('catálogo público', () => {
         fixture.options.magazineTwo = await createOption('revistas-serializacao', 'magazine-two');
         fixture.options.publisherOne = await createOption('editoras-brasileiras', 'publisher-one');
         fixture.options.publisherTwo = await createOption('editoras-brasileiras', 'publisher-two');
-        fixture.options.editionType = await createOption('tipos-edicao', 'edition-type');
-        fixture.options.editionTypeTwo = await createOption('tipos-edicao', 'edition-type-two');
         fixture.options.coverOne = await createOption('tipos-capa', 'cover-one');
         fixture.options.coverTwo = await createOption('tipos-capa', 'cover-two');
         fixture.options.formatOne = await createOption('formatos-fisicos', 'format-one');
@@ -348,7 +343,6 @@ describe('catálogo público', () => {
             workId: fixture.works.partial.id,
             chronologicalNumber: 1,
             brazilianPublisherId: fixture.options.publisherTwo.id,
-            editionTypeId: fixture.options.editionTypeTwo.id,
             formatId: fixture.options.formatTwo.id,
             coverTypeId: fixture.options.coverTwo.id
         });
@@ -699,7 +693,6 @@ describe('catálogo público', () => {
             .query({
                 term: fixture.options.authorOne.label,
                 brazilianPublisherId: fixture.options.publisherOne.id,
-                editionTypeId: fixture.options.editionType.id,
                 formatId: fixture.options.formatOne.id,
                 coverTypeId: fixture.options.coverOne.id,
                 chronologicalNumber: 1,
@@ -765,7 +758,6 @@ describe('catálogo público', () => {
             chronologicalNumber: 1,
             coverUrl: expect.any(String),
             brazilianPublisher: fixture.options.publisherOne,
-            editionType: fixture.options.editionType,
             format: fixture.options.formatOne,
             coverType: fixture.options.coverOne,
             volumesCount: 1,
@@ -985,7 +977,6 @@ describe('catálogo público', () => {
         expect(response.body.options.originalPublicationStatuses).toEqual(['Completa', 'Em andamento', 'Em hiato', 'Cancelada']);
         expect(response.body.options.brazilianPublishers).toEqual(expect.arrayContaining([fixture.options.publisherOne]));
         expect(response.body.options.brazilPublicationStatuses).toEqual(['Completa', 'Em andamento', 'Em hiato', 'Cancelada']);
-        expect(response.body.options.editionTypes).toEqual(expect.arrayContaining([fixture.options.editionType]));
         expect(response.body.options.formats).toEqual(expect.arrayContaining([fixture.options.formatOne]));
         expect(response.body.options.coverTypes).toEqual(expect.arrayContaining([fixture.options.coverOne]));
         expect(response.body.options.countries).toEqual(['Jap\u00e3o', 'Coreia do Sul', 'China', 'Taiwan']);

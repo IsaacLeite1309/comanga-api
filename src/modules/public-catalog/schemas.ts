@@ -57,7 +57,6 @@ const publicWorksQuerySchema = z.object({
 const publicEditionsQuerySchema = z.object({
     term: z.string().trim().max(255).optional(),
     brazilianPublisherId: z.coerce.number().int().positive().optional(),
-    editionTypeId: z.coerce.number().int().positive().optional(),
     formatId: z.coerce.number().int().positive().optional(),
     coverTypeId: z.coerce.number().int().positive().optional(),
     chronologicalNumber: z.coerce.number().int().positive().optional(),

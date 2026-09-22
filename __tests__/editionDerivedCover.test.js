@@ -61,7 +61,6 @@ async function createEdition(chronologicalNumber) {
         .set('Cookie', adminCookie)
         .send({
             brazilianPublisherId: editionOptionIds.brazilianPublishers,
-            editionTypeId: editionOptionIds.editionTypes,
             coverTypeId: editionOptionIds.coverTypes,
             formatId: editionOptionIds.formats,
             paperId: editionOptionIds.papers,
@@ -97,7 +96,6 @@ beforeAll(async () => {
     optionId = await createOption();
     for (const [key, slug] of Object.entries({
         brazilianPublishers: 'editoras-brasileiras',
-        editionTypes: 'tipos-edicao',
         coverTypes: 'tipos-capa',
         formats: 'formatos-fisicos',
         papers: 'miolos'
@@ -117,6 +115,40 @@ afterAll(async () => {
 });
 
 describe('capa da Edição derivada do Volume 1', () => {
+    it.each(Array.from({ length: 8 }, (_, bits) => bits))('persiste e limpa metadados opcionais da combinação %s', async (bits) => {
+        const fields = {
+            coverTypeId: bits & 1 ? editionOptionIds.coverTypes : null,
+            formatId: bits & 2 ? editionOptionIds.formats : null,
+            paperId: bits & 4 ? editionOptionIds.papers : null
+        };
+        const created = await request(app).post(`/api/admin/works/${workId}/editions`)
+            .set('Cookie', adminCookie).send({
+                brazilianPublisherId: editionOptionIds.brazilianPublishers,
+                chronologicalNumber: 200 + bits, brazilPublicationStatus: 'Completa', ...fields
+            });
+        expect(created.status).toBe(201);
+        expect(created.body.edition).not.toHaveProperty('editionType');
+        const stored = await prisma.edition.findUniqueOrThrow({ where: { id: created.body.edition.id } });
+        expect(stored).toEqual(expect.objectContaining(fields));
+        const updated = await request(app).patch(`/api/admin/editions/${stored.id}`)
+            .set('Cookie', adminCookie).send({ coverTypeId: null, formatId: null, paperId: null });
+        expect(updated.status).toBe(200);
+        expect(updated.body.edition).toEqual(expect.objectContaining({ coverType: null, format: null, paper: null }));
+    });
+
+    it('remove colunas e categoria descartadas sem apagar o miolo', async () => {
+        const columns = await db.query(`SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND ((table_name = 'works' AND column_name = 'original_volume_count')
+                OR (table_name = 'editions' AND column_name = 'edition_type_id'))`);
+        expect(columns.rows).toHaveLength(0);
+        expect(await prisma.domainOptionCategory.findUnique({ where: { slug: 'tipos-edicao' } })).toBeNull();
+        expect(await prisma.domainOptionCategory.findUnique({ where: { slug: 'miolos' } })).not.toBeNull();
+        const response = await request(app).get('/api/admin/editions/form-options').set('Cookie', adminCookie);
+        expect(response.status).toBe(200);
+        expect(response.body.options).not.toHaveProperty('editionTypes');
+        expect(response.body.options.papers).toEqual(expect.any(Array));
+    });
+
     it('não persiste mais capa própria na Edição nem aceita o campo no contrato', async () => {
         const columns = await db.query(`
             SELECT column_name FROM information_schema.columns

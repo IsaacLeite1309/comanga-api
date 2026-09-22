@@ -47,7 +47,6 @@ const createWorkSchema = z.object({
     synopsis: z.string().trim().min(1),
     originalPublicationStartYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
-    originalVolumeCount: z.coerce.number().int().min(1).max(10000).optional().nullable(),
     directRelease: z.boolean().optional().default(false),
     typeId: z.coerce.number().int().positive(),
     country: z.enum(WORK_COUNTRY_VALUES),
@@ -68,7 +67,6 @@ const updateWorkSchema = z.object({
     synopsis: z.string().trim().min(1).optional(),
     originalPublicationStartYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
-    originalVolumeCount: z.coerce.number().int().min(1).max(10000).optional().nullable(),
     directRelease: z.boolean().optional(),
     typeId: z.coerce.number().int().positive().optional(),
     country: z.enum(WORK_COUNTRY_VALUES).optional(),
@@ -100,7 +98,6 @@ const listWorksQuerySchema = z.object({
 // A Edição não possui capa própria: a capa é derivada do Volume 1 da mesma Edição.
 const editionPayloadSchema = z.object({
     brazilianPublisherId: z.coerce.number().int().positive(),
-    editionTypeId: z.coerce.number().int().positive().nullable(),
     coverTypeId: z.coerce.number().int().positive().nullable(),
     formatId: z.coerce.number().int().positive().nullable(),
     paperId: z.coerce.number().int().positive().nullable(),

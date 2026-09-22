@@ -32,8 +32,8 @@ async function work(id, suffix) {
 }
 // A Edição não tem capa própria: a concorrência de capas agora é entre Obra e Volume.
 async function edition(workId) {
-    return db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, edition_type_id, cover_type_id, format_id, chronological_number, brazil_publication_status, atualizado_em)
-        VALUES ($1,$2,$2,$2,$2,1,'Completa',NOW()) RETURNING id`, [workId, typeId]);
+    return db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, cover_type_id, format_id, chronological_number, brazil_publication_status, atualizado_em)
+        VALUES ($1,$2,$2,$2,1,'Completa',NOW()) RETURNING id`, [workId, typeId]);
 }
 async function volume(editionId, coverId, number) {
     return db.query(`INSERT INTO volumes (edition_id, number, cover_asset_id, release_date_precision, release_year, release_month, release_day, atualizado_em)

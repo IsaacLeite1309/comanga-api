@@ -46,7 +46,6 @@ interface WorkDetailInput extends WorkSummaryInput {
     synopsis: string;
     originalPublicationStartYear: number | null;
     originalPublicationEndYear: number | null;
-    originalVolumeCount: number | null;
     directRelease: boolean;
     originalPublishers?: Array<{
         position: number;
@@ -82,7 +81,6 @@ interface EditionInput {
     }>;
     visibility: string;
     brazilianPublisher: OptionSummary;
-    editionType: OptionSummary | null;
     coverType: OptionSummary | null;
     format: OptionSummary | null;
     paper: OptionSummary | null;

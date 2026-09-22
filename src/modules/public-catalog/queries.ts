@@ -88,7 +88,6 @@ function buildPublicEditionWhere(
         ...(query.brazilianPublisherId
             ? { brazilianPublisherId: query.brazilianPublisherId }
             : {}),
-        ...(query.editionTypeId ? { editionTypeId: query.editionTypeId } : {}),
         ...(query.formatId ? { formatId: query.formatId } : {}),
         ...(query.coverTypeId ? { coverTypeId: query.coverTypeId } : {}),
         ...(query.chronologicalNumber
@@ -289,7 +288,6 @@ const publicWorkDetailSelect = {
     synopsis: true,
     originalPublicationStartYear: true,
     originalPublicationEndYear: true,
-    originalVolumeCount: true,
     directRelease: true,
     country: true,
     originalPublicationStatus: true,
@@ -326,7 +324,6 @@ const publicWorkDetailSelect = {
             chronologicalNumber: true,
             brazilPublicationStatus: true,
             brazilianPublisher: { select: { id: true, label: true } },
-            editionType: { select: { id: true, label: true } },
             format: { select: { id: true, label: true } },
             coverType: { select: { id: true, label: true } },
             paper: { select: { id: true, label: true } },
@@ -361,7 +358,6 @@ const publicEditionDetailSelect = {
     // Capa derivada: somente o Volume 1 público desta Edição.
     volumes: publicEditionCoverSourceSelect,
     brazilianPublisher: { select: { id: true, label: true } },
-    editionType: { select: { id: true, label: true } },
     format: { select: { id: true, label: true } },
     coverType: { select: { id: true, label: true } },
     paper: { select: { id: true, label: true } },

@@ -73,7 +73,6 @@ async function validateOptionIdsByCategory(categorySlug: string, ids: number[]) 
 
 async function validateEditionDomainReferences(data: {
     brazilianPublisherId?: number;
-    editionTypeId?: number | null;
     coverTypeId?: number | null;
     formatId?: number | null;
     paperId?: number | null;
@@ -84,9 +83,6 @@ async function validateEditionDomainReferences(data: {
         validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.brazilianPublishers, [data.brazilianPublisherId]));
     }
 
-    if (data.editionTypeId) {
-        validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.editionTypes, [data.editionTypeId]));
-    }
 
     if (data.coverTypeId) {
         validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.coverTypes, [data.coverTypeId]));

@@ -133,7 +133,6 @@ describe('contrato dos metadados próprios da Obra', () => {
             synopsis: 'A sinopse própria da Obra.',
             originalPublicationStartYear: null,
             originalPublicationEndYear: null,
-            originalVolumeCount: null,
             directRelease: false,
             originalPublicationStatus: 'Completa'
         });
@@ -201,7 +200,6 @@ describe('sinopse própria na página pública da Obra', () => {
             country: 'Japão',
             originalPublicationStartYear: 1970,
             originalPublicationEndYear: 1976,
-            originalVolumeCount: 28,
             directRelease: false,
             originalPublicationStatus: 'Completa',
             authors: [{ position: 0, author: { id: 2, label: 'Kazuo Koike' }, roles: [{ role: 'História' }] }],
@@ -215,7 +213,6 @@ describe('sinopse própria na página pública da Obra', () => {
                 brazilPublicationStatus: 'Completa',
                 coverAsset: null,
                 brazilianPublisher: { id: 6, label: 'Panini' },
-                editionType: { id: 7, label: 'Regular' },
                 format: { id: 8, label: 'Tankobon' },
                 coverType: { id: 9, label: 'Brochura' },
                 _count: { volumes: 1 },
@@ -322,7 +319,6 @@ describe('ordem editorial dos Autores', () => {
             country: 'Japão',
             originalPublicationStartYear: null,
             originalPublicationEndYear: null,
-            originalVolumeCount: null,
             directRelease: false,
             originalPublicationStatus: 'Completa',
             authors

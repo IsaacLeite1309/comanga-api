@@ -32,7 +32,6 @@ const PUBLIC_CATALOG_OPTION_CATEGORIES = {
     originalPublishers: 'editoras-originais',
     serializationMagazines: 'revistas-serializacao',
     brazilianPublishers: 'editoras-brasileiras',
-    editionTypes: 'tipos-edicao',
     formats: 'formatos-fisicos',
     coverTypes: 'tipos-capa'
 } as const;

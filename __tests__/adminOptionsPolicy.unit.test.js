@@ -23,7 +23,6 @@ describe('politica de categorias administrativas', () => {
         'editoras-originais',
         'revistas-serializacao',
         'editoras-brasileiras',
-        'tipos-edicao',
         'tipos-capa',
         'formatos-fisicos',
         'miolos'

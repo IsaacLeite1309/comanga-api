@@ -43,7 +43,6 @@ function editionFixture() {
         // Origem única da capa: o Volume 1 público desta Edição.
         volumes: [{ coverAsset: cover('volume-1') }],
         brazilianPublisher: { id: 1, label: 'Panini' },
-        editionType: { id: 2, label: 'Deluxe' },
         format: { id: 3, label: 'Kanzenban' },
         coverType: { id: 4, label: 'Capa dura' },
         work: {

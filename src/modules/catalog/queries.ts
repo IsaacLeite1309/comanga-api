@@ -65,9 +65,6 @@ function getEditionInclude() {
         brazilianPublisher: {
             select: { id: true, label: true }
         },
-        editionType: {
-            select: { id: true, label: true }
-        },
         coverType: {
             select: { id: true, label: true }
         },

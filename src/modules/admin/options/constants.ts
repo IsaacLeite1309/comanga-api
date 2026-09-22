@@ -8,7 +8,6 @@ const MANAGEABLE_OPTION_CATEGORY_SLUGS = new Set([
     'editoras-originais',
     'revistas-serializacao',
     'editoras-brasileiras',
-    'tipos-edicao',
     'tipos-capa',
     'formatos-fisicos',
     'miolos'

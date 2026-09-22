@@ -68,7 +68,6 @@ interface PublicEditionDetailInput {
     chronologicalNumber: number;
     brazilPublicationStatus: string;
     brazilianPublisher: PublicOptionInput;
-    editionType: PublicOptionInput | null;
     format: PublicOptionInput | null;
     coverType: PublicOptionInput | null;
     paper: PublicOptionInput | null;
@@ -81,7 +80,6 @@ interface PublicEditionPageInput extends PublicEditionCoverSourceInput {
     chronologicalNumber: number;
     brazilPublicationStatus: string;
     brazilianPublisher: PublicOptionInput;
-    editionType: PublicOptionInput | null;
     format: PublicOptionInput | null;
     coverType: PublicOptionInput | null;
     paper: PublicOptionInput | null;
@@ -128,7 +126,6 @@ interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
     synopsis: string;
     originalPublicationStartYear: number | null;
     originalPublicationEndYear: number | null;
-    originalVolumeCount: number | null;
     directRelease: boolean;
     originalPublicationStatus: string;
     authors: PublicAuthorDetailRelationInput[];
