@@ -6,6 +6,8 @@ const categoryParamSchema = z.object({
 
 const listOptionsQuerySchema = z.object({
     term: z.string().trim().optional(),
+    includeInactive: z.enum(['true', 'false']).default('false')
+        .transform((value) => value === 'true'),
     dependsOn: z.coerce.number().int().positive().optional(),
     order: z.enum(['ASC', 'DESC']).default('ASC'),
     page: z.coerce.number().int().min(1).default(1),
@@ -19,8 +21,9 @@ const createOptionSchema = z.object({
 });
 
 const updateOptionSchema = z.object({
-    label: z.string().trim().min(1),
-    dependsOnValueIds: z.array(z.coerce.number().int().positive()).optional()
+    label: z.string().trim().min(1).optional(),
+    dependsOnValueIds: z.array(z.coerce.number().int().positive()).optional(),
+    active: z.boolean().optional()
 });
 
 export {

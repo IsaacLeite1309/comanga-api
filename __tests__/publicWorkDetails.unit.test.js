@@ -78,6 +78,8 @@ function workFixture() {
     };
 }
 
+const HENTAI_RESTRICTION = { genres: { none: { genre: { code: 'hentai', category: { slug: 'generos' } } } } };
+
 describe('detalhes públicos da Obra', () => {
     const previousMediaUrl = process.env.MEDIA_PUBLIC_BASE_URL;
 
@@ -109,7 +111,8 @@ describe('detalhes públicos da Obra', () => {
             where: {
                 slug: 'lobo-solitario',
                 visibility: 'Público',
-                adultContent: false
+                adultContent: false,
+                ...HENTAI_RESTRICTION
             },
             select: publicWorkDetailSelect
         });

@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import type { z } from 'zod';
 import { EDITION_COVER_SOURCE_VOLUME_NUMBER, PUBLIC_VISIBILITY } from './constants';
+import { buildAdultWorkRestriction } from './adultContentPolicy';
 import {
     publicAuthorWorksQuerySchema,
     publicEditionsQuerySchema,
@@ -50,7 +51,7 @@ function buildPublicWorkWhere(
 
     return {
         visibility: PUBLIC_VISIBILITY,
-        ...(!canViewAdultContent ? { adultContent: false } : {}),
+        ...buildAdultWorkRestriction(canViewAdultContent),
         ...(query.typeId ? { typeId: query.typeId } : {}),
         ...(query.country ? { country: query.country } : {}),
         ...(query.originalPublisherId
@@ -78,7 +79,7 @@ function buildPublicEditionWhere(
 ): Prisma.EditionWhereInput {
     const workFilters: Prisma.WorkWhereInput = {
         visibility: PUBLIC_VISIBILITY,
-        ...(!canViewAdultContent ? { adultContent: false } : {}),
+        ...buildAdultWorkRestriction(canViewAdultContent),
         ...(query.term ? buildIdentitySearch(query.term) : {})
     };
 
@@ -108,7 +109,7 @@ function buildPublicEditionDetailWhere(
         visibility: PUBLIC_VISIBILITY,
         work: {
             visibility: PUBLIC_VISIBILITY,
-            ...(!canViewAdultContent ? { adultContent: false } : {})
+            ...buildAdultWorkRestriction(canViewAdultContent)
         }
     };
 }
@@ -119,7 +120,7 @@ function buildPublicAuthorWorksWhere(
 ): Prisma.WorkWhereInput {
     return {
         visibility: PUBLIC_VISIBILITY,
-        ...(!canViewAdultContent ? { adultContent: false } : {}),
+        ...buildAdultWorkRestriction(canViewAdultContent),
         authors: { some: { authorId } }
     };
 }
@@ -135,7 +136,7 @@ function buildPublicVolumeDetailWhere(
             visibility: PUBLIC_VISIBILITY,
             work: {
                 visibility: PUBLIC_VISIBILITY,
-                ...(!canViewAdultContent ? { adultContent: false } : {})
+                ...buildAdultWorkRestriction(canViewAdultContent)
             }
         }
     };
@@ -302,7 +303,7 @@ const publicWorkDetailSelect = {
     },
     genres: {
         select: { genre: { select: { id: true, label: true } } },
-        orderBy: { genre: { label: 'asc' } }
+        orderBy: [{ genre: { position: 'asc' } }, { genre: { label: 'asc' } }]
     },
     demographics: {
         select: { demography: true },
