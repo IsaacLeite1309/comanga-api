@@ -7,7 +7,7 @@ function withCatalogWriteLock<T>(operation: (tx: Prisma.TransactionClient) => Pr
     return prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(9142026)::text`;
         return operation(tx);
-    });
+    }, { maxWait: 10_000, timeout: 15_000 });
 }
 
 export { withCatalogWriteLock };
