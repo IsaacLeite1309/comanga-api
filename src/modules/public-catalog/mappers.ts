@@ -1,5 +1,6 @@
 import type {
     PublicCoverAssetInput,
+    PublicEditionCoverSourceInput,
     PublicEditionInput,
     PublicEditionPageInput,
     PublicEditionVolumeInput,
@@ -10,32 +11,49 @@ import type {
 } from './types';
 import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
 
+const AUTHOR_ROLE_PRIORITY = ['Criador Original', 'História Original', 'História e Arte', 'História', 'Arte', 'Ilustrador', 'Design de Personagens'];
+
+function authorPriority(roles: Array<{ role: string }>) {
+    return Math.min(...roles.map(({ role }) => {
+        const index = AUTHOR_ROLE_PRIORITY.indexOf(role);
+        return index === -1 ? AUTHOR_ROLE_PRIORITY.length : index;
+    }));
+}
+
 function mapCoverUrl(asset: PublicCoverAssetInput | null) {
     if (!asset) return null;
     return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
 }
 
-function mapPublicWorkDetails(work: PublicWorkDetailInput) {
-    const firstEdition = work.editions[0];
-    const synopsis = firstEdition?.volumes.find((volume) => volume.number === 1)?.synopsis ?? null;
+// Sem Volume 1 público na Edição, a capa derivada é ausente: não há recurso alternativo.
+function mapDerivedEditionCoverUrl(edition: PublicEditionCoverSourceInput) {
+    return mapCoverUrl(edition.volumes[0]?.coverAsset ?? null);
+}
 
+function mapPublicWorkDetails(
+    work: PublicWorkDetailInput,
+    editionCoverAssets: ReadonlyMap<number, PublicCoverAssetInput | null> = new Map()
+) {
     return {
         id: work.id,
         slug: work.slug,
         title: work.title,
         originalTitle: work.originalTitle,
+        romanizedTitle: work.romanizedTitle,
         coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
         country: work.country,
         originalPublicationStartYear: work.originalPublicationStartYear,
         originalPublicationEndYear: work.originalPublicationEndYear,
-        originalVolumeCount: work.originalVolumeCount,
         directRelease: work.directRelease,
         originalPublicationStatus: work.originalPublicationStatus,
-        synopsis,
-        authors: work.authors.map(({ author, roles }) => ({
+        synopsis: work.synopsis,
+        authors: [...work.authors].sort((first, second) => (
+            authorPriority(first.roles) - authorPriority(second.roles)
+            || first.author.label.localeCompare(second.author.label, 'pt-BR', { sensitivity: 'base' })
+        )).map(({ author, roles }) => ({
             ...mapOption(author),
-            roles: roles.map(({ role }) => role)
+            roles: [...roles].sort((first, second) => authorPriority([first]) - authorPriority([second])).map(({ role }) => role)
         })),
         genres: work.genres.map(({ genre }) => mapOption(genre)),
         demographics: work.demographics.map(({ demography }) => demography),
@@ -44,11 +62,11 @@ function mapPublicWorkDetails(work: PublicWorkDetailInput) {
         editions: work.editions.map((edition) => ({
             id: edition.id,
             chronologicalNumber: edition.chronologicalNumber,
-            coverUrl: mapCoverUrl(edition.coverAsset),
+            coverUrl: mapCoverUrl(editionCoverAssets.get(edition.id) ?? null),
             brazilianPublisher: mapOption(edition.brazilianPublisher),
-            editionType: mapOption(edition.editionType),
             format: mapOption(edition.format),
             coverType: mapOption(edition.coverType),
+            paper: mapOption(edition.paper),
             brazilPublicationStatus: edition.brazilPublicationStatus,
             volumesCount: edition._count.volumes,
             volumes: edition.volumes.map((volume) => ({
@@ -65,7 +83,9 @@ function mapPublicWorkDetails(work: PublicWorkDetailInput) {
     };
 }
 
-function mapOption(option: PublicOptionInput) {
+function mapOption(option: PublicOptionInput | null) {
+    if (!option) return null;
+
     return {
         id: option.id,
         label: option.label
@@ -82,6 +102,7 @@ function mapPublicWork(work: PublicWorkInput) {
         slug: work.slug,
         title: work.title,
         originalTitle: work.originalTitle,
+        romanizedTitle: work.romanizedTitle,
         coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
         country: work.country,
@@ -93,7 +114,7 @@ function mapPublicEdition(edition: PublicEditionInput) {
     return {
         id: edition.id,
         chronologicalNumber: edition.chronologicalNumber,
-        coverUrl: mapCoverUrl(edition.coverAsset),
+        coverUrl: mapDerivedEditionCoverUrl(edition),
         work: {
             id: edition.work.id,
             slug: edition.work.slug,
@@ -112,11 +133,11 @@ function mapPublicEditionDetails(edition: PublicEditionPageInput) {
     return {
         id: edition.id,
         chronologicalNumber: edition.chronologicalNumber,
-        coverUrl: mapCoverUrl(edition.coverAsset),
+        coverUrl: mapDerivedEditionCoverUrl(edition),
         brazilianPublisher: mapOption(edition.brazilianPublisher),
-        editionType: mapOption(edition.editionType),
         format: mapOption(edition.format),
         coverType: mapOption(edition.coverType),
+        paper: mapOption(edition.paper),
         brazilPublicationStatus: edition.brazilPublicationStatus,
         volumesCount: edition._count.volumes,
         work: {
@@ -176,6 +197,7 @@ function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
 
 export {
     mapOption,
+    mapDerivedEditionCoverUrl,
     mapPublicWork,
     mapPublicEdition,
     mapPublicWorkDetails,

@@ -42,7 +42,7 @@ Cada importação cria chaves novas em `covers/{uuid}/...` e usa `Cache-Control:
 
 ## Obrigatoriedade e exclusão
 
-Obra, Edição e Volume exigem uma capa interna distinta por registro. Não é permitido salvar `null` nem excluir um ativo associado. Os triggers PostgreSQL coordenam associações e descartes com um lock transacional curto; chamadas ao R2 ocorrem fora desse lock.
+Obra e Volume exigem uma capa interna distinta por registro; a Edição não tem capa própria e exibe a capa do Volume `number = 1` da mesma Edição. Não é permitido salvar `null` nem excluir um ativo associado. Os triggers PostgreSQL coordenam associações e descartes com um lock transacional curto; chamadas ao R2 ocorrem fora desse lock.
 
 Uma capa removida por substituição/exclusão passa a `Descartando` na mesma transação. Esse estado não permite nova associação ou reativação. A limpeza preserva os metadados quando o R2 falha, para permitir nova tentativa. Execute `npm run media:cleanup` no ambiente autorizado para processar até 20 pendências; repita enquanto houver pendências, verificando os logs de falha.
 

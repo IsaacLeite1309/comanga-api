@@ -2,21 +2,42 @@ process.env.MEDIA_PUBLIC_BASE_URL = 'https://media.example.test';
 const bcrypt = require('bcrypt');
 const request = require('supertest');
 const db = require('../src/database');
-const mailer = { sendActivationEmail: jest.fn(), sendPasswordResetEmail: jest.fn() };
-jest.mock('../src/utils/mailer', () => mailer);
+const mockMailer = { sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined) };
+jest.mock('../src/modules/auth', () => {
+    const actual = jest.requireActual('../src/modules/auth');
+    const { createPasswordRecoveryHandlers } = jest.requireActual('../src/modules/auth/passwordRecovery');
+    return {
+        ...actual,
+        ...createPasswordRecoveryHandlers({
+            sendPasswordResetEmail: ({ toEmail, username, token }) => (
+                mockMailer.sendPasswordResetEmail(toEmail, username, token)
+            )
+        })
+    };
+});
 const app = require('../src/app');
-const { requestPasswordReset } = require('../src/modules/auth/passwordRecovery');
+const { requestPasswordReset } = require('../src/modules/auth');
+const mailer = mockMailer;
 const { createTestCover } = require('./helpers/cover');
-const { PrismaMediaAssetRepository } = require('../src/modules/admin/media/PrismaMediaAssetRepository');
-const { CoverRemovalService } = require('../src/modules/admin/media/CoverRemovalService');
+const { PrismaMediaAssetRepository } = require('../src/modules/media/PrismaMediaAssetRepository');
+const { CoverRemovalService } = require('../src/modules/media/CoverRemovalService');
 const prefix = `recovery_${Date.now()}`;
 const pass = 'SenhaForte123!';
 let user, typeId;
 const covers = [];
 async function cover() { const id = await createTestCover(db, prefix); covers.push(id); return id; }
 async function work(id, suffix) {
-    return db.query(`INSERT INTO works (title, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
-        VALUES ($1, $1, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
+    return db.query(`INSERT INTO works (title, romanized_title, synopsis, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
+        VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
+}
+// A Edição não tem capa própria: a concorrência de capas agora é entre Obra e Volume.
+async function edition(workId) {
+    return db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, cover_type_id, format_id, chronological_number, brazil_publication_status, atualizado_em)
+        VALUES ($1,$2,$2,$2,1,'Completa',NOW()) RETURNING id`, [workId, typeId]);
+}
+async function volume(editionId, coverId, number) {
+    return db.query(`INSERT INTO volumes (edition_id, number, cover_asset_id, release_date_precision, release_year, release_month, release_day, atualizado_em)
+        VALUES ($1,$2,$3,'Completa',2026,1,10,NOW()) RETURNING id`, [editionId, number, coverId]);
 }
 describe('integração de autenticação e capas', () => {
 beforeAll(async () => {
@@ -27,6 +48,8 @@ beforeAll(async () => {
     typeId = (await db.query('INSERT INTO domain_option_values (category_id,label) VALUES ($1,$2) RETURNING id', [cat.rows[0].id, prefix])).rows[0].id;
 });
 afterAll(async () => {
+    await db.query('DELETE FROM volumes WHERE edition_id IN (SELECT id FROM editions WHERE work_id IN (SELECT id FROM works WHERE title LIKE $1))', [`${prefix}%`]);
+    await db.query('DELETE FROM editions WHERE work_id IN (SELECT id FROM works WHERE title LIKE $1)', [`${prefix}%`]);
     await db.query('DELETE FROM works WHERE title LIKE $1', [`${prefix}%`]);
     await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`${prefix}/%`]);
     await db.query('DELETE FROM domain_option_values WHERE id=$1', [typeId]);
@@ -44,11 +67,10 @@ describe('senha e idade com banco real', () => {
         expect(login.status).toBe(200);
         for (let i = 0; i < 2; i++) {
             if (i) await db.query("UPDATE password_reset_tokens SET created_at=NOW() - INTERVAL '61 seconds' WHERE user_id=$1", [user.id]);
-            expect((await request(app).post('/api/auth/forgot-password').send({ email: user.email })).status).toBe(200);
-            // Delivery continues in the awaited handler after the neutral response.
-            for (let attempt = 0; attempt < 100 && mailer.sendPasswordResetEmail.mock.calls.length < i + 1; attempt++) {
-                await new Promise(resolve => global.setTimeout(resolve, 10));
-            }
+            const response = { status: jest.fn(() => response), json: jest.fn(() => response) };
+            await requestPasswordReset({ body: { email: user.email } }, response);
+            expect(response.status).toHaveBeenCalledWith(200);
+            expect(response.json).toHaveBeenCalledWith({ message: 'Se houver uma conta apta para este e-mail, enviaremos as instruções de recuperação.' });
             expect(mailer.sendPasswordResetEmail).toHaveBeenCalledTimes(i + 1);
         }
         const oldToken = mailer.sendPasswordResetEmail.mock.calls[0][2];
@@ -96,8 +118,10 @@ describe('senha e idade com banco real', () => {
         }
     });
     it('rejeita menor mesmo com a preferência adulterada e mantém data privada', async () => {
-        await db.query("UPDATE users SET birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$1",[user.id]);
-        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: 'SenhaNova123!' });
+        const passwordHash = await bcrypt.hash(pass, 10);
+        await db.query("UPDATE users SET password_hash=$1, birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$2",[passwordHash,user.id]);
+        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: pass });
+        expect(login.status).toBe(200);
         const cookie = login.headers['set-cookie'];
         const profile = await request(app).get('/api/users/me').set('Cookie',cookie);
         expect(profile.body.user).toMatchObject({ conteudo_adulto:false, can_enable_adult_content:false });
@@ -114,17 +138,33 @@ describe('capas com concorrência e restrições reais', () => {
         expect(results.filter(result => result.status==='fulfilled')).toHaveLength(1);
         expect(results.filter(result => result.status==='rejected')).toHaveLength(1);
     });
-    it('não compartilha uma capa entre Obra e Edição em requisições concorrentes', async () => {
+    it('não compartilha uma capa entre Obra e Volume em requisições concorrentes', async () => {
         const parent = await work(await cover(), 'parent-cross');
+        const parentEdition = await edition(parent.rows[0].id);
         const shared = await cover();
         const outcomes = await Promise.allSettled([
             work(shared, 'cross-work'),
-            db.query(`INSERT INTO editions (work_id, brazilian_publisher_id, edition_type_id, cover_type_id, format_id, chronological_number, brazil_publication_status, cover_asset_id, atualizado_em)
-                VALUES ($1,$2,$2,$2,$2,1,'Completa',$3,NOW()) RETURNING id`, [parent.rows[0].id, typeId, shared])
+            volume(parentEdition.rows[0].id, shared, 1)
         ]);
         expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
         expect(outcomes.filter(result => result.status === 'rejected')).toHaveLength(1);
+        await db.query('DELETE FROM volumes WHERE edition_id=$1', [parentEdition.rows[0].id]);
         await db.query('DELETE FROM editions WHERE work_id=$1', [parent.rows[0].id]);
+    });
+
+    it('não permite descartar uma capa ainda associada a um Volume', async () => {
+        const parent = await work(await cover(), 'parent-volume-cover');
+        const parentEdition = await edition(parent.rows[0].id);
+        const attached = await cover();
+        const created = await volume(parentEdition.rows[0].id, attached, 1);
+
+        await expect(db.query("UPDATE media_assets SET status='Descartando' WHERE id=$1", [attached]))
+            .rejects.toMatchObject({ code: '23514' });
+        await expect(db.query('DELETE FROM media_assets WHERE id=$1', [attached]))
+            .rejects.toMatchObject({ code: '23503' });
+
+        await db.query('DELETE FROM volumes WHERE id=$1', [created.rows[0].id]);
+        await db.query('DELETE FROM editions WHERE id=$1', [parentEdition.rows[0].id]);
     });
     it('marca capas intermediárias como descarte em duas substituições simultâneas', async () => {
         const [a,b,c]=await Promise.all([cover(),cover(),cover()]);
@@ -150,16 +190,21 @@ describe('capas com concorrência e restrições reais', () => {
         expect((await db.query('SELECT id FROM media_assets WHERE id=$1',[id])).rows).toHaveLength(0);
     });
 
-    it('admin menor consulta catálogo administrativo, mas não obtém conteúdo adulto público', async () => {
+    // Decisão 7 da entrega 4: a atribuição Administrador dispensa idade e preferência
+    // apenas na LEITURA pública; perder a atribuição devolve a conta à regra comum.
+    it('admin com atribuição vigente lê conteúdo adulto e perde o acesso ao ser rebaixado', async () => {
         const id = await cover(); const created = await work(id, 'adult'); const workId = created.rows[0].id;
+        const passwordHash = await bcrypt.hash(pass, 10);
         await db.query("UPDATE works SET adult_content=true, visibility='Público' WHERE id=$1",[workId]);
-        await db.query("UPDATE users SET nivel_acesso='Administrador', birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$1",[user.id]);
-        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: 'SenhaNova123!' });
+        await db.query("UPDATE users SET password_hash=$1, nivel_acesso='Administrador', birth_date=CURRENT_DATE - INTERVAL '17 years', conteudo_adulto=true WHERE id=$2",[passwordHash,user.id]);
+        const login = await request(app).post('/api/auth/login').send({ email: user.email, password: pass });
+        expect(login.status).toBe(200);
         const cookie = login.headers['set-cookie'];
         expect((await request(app).get(`/api/admin/works/${workId}`).set('Cookie',cookie)).status).toBe(200);
-        expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(404);
+        expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(200);
         await db.query("UPDATE users SET nivel_acesso='Usuário Padrão' WHERE id=$1",[user.id]);
         expect((await request(app).get(`/api/admin/works/${workId}`).set('Cookie',cookie)).status).toBe(403);
+        expect((await request(app).get(`/api/public/works/${prefix}_adult`).set('Cookie',cookie)).status).toBe(404);
     });
     it('recusa capa nula e recusa reativar um ativo em descarte',async()=>{
         await expect(work(null,'null')).rejects.toMatchObject({code:'23514'});

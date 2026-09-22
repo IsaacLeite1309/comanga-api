@@ -1,4 +1,4 @@
-const { createAdminMediaHandlers } = require('../src/modules/admin/media');
+const { createAdminMediaHandlers } = require('../src/modules/media/handlers');
 
 function response() {
     const res = {

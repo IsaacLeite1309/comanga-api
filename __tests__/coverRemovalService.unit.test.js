@@ -1,4 +1,4 @@
-const { CoverRemovalService } = require('../src/modules/admin/media/CoverRemovalService');
+const { CoverRemovalService } = require('../src/modules/media/CoverRemovalService');
 
 describe('CoverRemovalService', () => {
     it('remove objetos e registro de uma importação pendente do próprio administrador', async () => {

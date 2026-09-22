@@ -1,14 +1,19 @@
 const mockFindFirst = jest.fn();
+const mockVolumeFindMany = jest.fn();
 
 jest.mock('../src/prisma', () => ({
     __esModule: true,
     default: {
-        work: { findFirst: mockFindFirst }
+        work: { findFirst: mockFindFirst },
+        volume: { findMany: mockVolumeFindMany }
     }
 }));
 
 const { getPublicWorkDetails } = require('../src/modules/public-catalog');
-const { publicWorkDetailSelect } = require('../src/modules/public-catalog/queries');
+const {
+    publicEditionCoverSourceVolumeSelect,
+    publicWorkDetailSelect
+} = require('../src/modules/public-catalog/queries');
 
 function response() {
     const res = {
@@ -20,25 +25,30 @@ function response() {
     return res;
 }
 
-function workFixture() {
-    const cover = (id) => ({
+function cover(id) {
+    return {
         objectKey: `covers/${id}/master.webp`,
         variants: [{ kind: 'COVER_LARGE', objectKey: `covers/${id}/large.webp` }]
-    });
+    };
+}
+
+function workFixture() {
     return {
         id: 8,
         slug: 'lobo-solitario',
         title: 'Lobo Solitário',
-        originalTitle: 'Kozure Ōkami',
+        originalTitle: '子連れ狼',
+        romanizedTitle: 'Kozure Ōkami',
+        synopsis: 'A sinopse canônica da Obra.',
         originalPublicationStartYear: 1970,
         originalPublicationEndYear: 1976,
-        originalVolumeCount: 28,
         directRelease: false,
         country: 'Japão',
         originalPublicationStatus: 'Finalizada',
         coverAsset: cover('work'),
         type: { id: 1, label: 'Mangá' },
         authors: [{
+            position: 0,
             author: { id: 2, label: 'Kazuo Koike' },
             roles: [{ role: 'Roteiro' }]
         }],
@@ -50,9 +60,7 @@ function workFixture() {
             id: 10,
             chronologicalNumber: 1,
             brazilPublicationStatus: 'Em publicação',
-            coverAsset: cover('edition'),
             brazilianPublisher: { id: 6, label: 'Panini' },
-            editionType: { id: 7, label: 'Regular' },
             format: { id: 8, label: 'Tankobon' },
             coverType: { id: 9, label: 'Brochura' },
             _count: { volumes: 4 },
@@ -64,12 +72,13 @@ function workFixture() {
                 releaseYear: 2025,
                 releaseMonth: 8,
                 releaseDay: 20,
-                synopsis: 'A sinopse canônica da Obra.',
                 coverAsset: cover('volume')
             }]
         }]
     };
 }
+
+const HENTAI_RESTRICTION = { genres: { none: { genre: { OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' } } } } };
 
 describe('detalhes públicos da Obra', () => {
     const previousMediaUrl = process.env.MEDIA_PUBLIC_BASE_URL;
@@ -83,10 +92,14 @@ describe('detalhes públicos da Obra', () => {
         else process.env.MEDIA_PUBLIC_BASE_URL = previousMediaUrl;
     });
 
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockVolumeFindMany.mockResolvedValue([]);
+    });
 
     it('projeta ficha completa, Edições públicas e amostra limitada de Volumes públicos', async () => {
         mockFindFirst.mockResolvedValue(workFixture());
+        mockVolumeFindMany.mockResolvedValue([{ editionId: 10, coverAsset: cover('volume-1') }]);
         const res = response();
 
         await getPublicWorkDetails({
@@ -98,7 +111,8 @@ describe('detalhes públicos da Obra', () => {
             where: {
                 slug: 'lobo-solitario',
                 visibility: 'Público',
-                adultContent: false
+                adultContent: false,
+                ...HENTAI_RESTRICTION
             },
             select: publicWorkDetailSelect
         });
@@ -107,12 +121,15 @@ describe('detalhes públicos da Obra', () => {
             work: expect.objectContaining({
                 slug: 'lobo-solitario',
                 coverUrl: 'https://media.comanga.test/covers/work/large.webp',
+                originalTitle: '子連れ狼',
+                romanizedTitle: 'Kozure Ōkami',
                 synopsis: 'A sinopse canônica da Obra.',
                 authors: [{ id: 2, label: 'Kazuo Koike', roles: ['Roteiro'] }],
                 genres: [{ id: 3, label: 'Drama' }],
                 demographics: ['Seinen'],
                 editions: [expect.objectContaining({
                     id: 10,
+                    coverUrl: 'https://media.comanga.test/covers/volume-1/large.webp',
                     volumesCount: 4,
                     volumes: [expect.objectContaining({
                         id: 20,
@@ -139,9 +156,10 @@ describe('detalhes públicos da Obra', () => {
         });
     });
 
-    it('não usa como fallback a sinopse de uma Edição posterior', async () => {
+    it('não usa a sinopse de nenhum Volume, nem da primeira nem de outra Edição', async () => {
         const work = workFixture();
-        work.editions[0].volumes[0].synopsis = null;
+        work.synopsis = 'Somente a sinopse própria da Obra.';
+        work.editions[0].volumes[0].synopsis = 'Sinopse do Volume 1.';
         work.editions.push({
             ...work.editions[0],
             id: 11,
@@ -161,7 +179,7 @@ describe('detalhes públicos da Obra', () => {
         }, res, jest.fn());
 
         expect(res.json).toHaveBeenCalledWith({
-            work: expect.objectContaining({ synopsis: null })
+            work: expect.objectContaining({ synopsis: 'Somente a sinopse própria da Obra.' })
         });
     });
 
@@ -175,7 +193,38 @@ describe('detalhes públicos da Obra', () => {
         expect(res.json).toHaveBeenCalledWith({ error: 'Obra não encontrada.' });
     });
 
+    it('deriva a capa de cada Edição do Volume 1 público da própria Edição', async () => {
+        const work = workFixture();
+        work.editions.push({ ...work.editions[0], id: 11, chronologicalNumber: 2 });
+        mockFindFirst.mockResolvedValue(work);
+        // Só a Edição 11 tem Volume 1 público; a Edição 10 não pode herdar essa capa.
+        mockVolumeFindMany.mockResolvedValue([{ editionId: 11, coverAsset: cover('volume-1-edicao-11') }]);
+        const res = response();
+
+        await getPublicWorkDetails({ params: { slug: 'lobo-solitario' } }, res, jest.fn());
+
+        expect(mockVolumeFindMany).toHaveBeenCalledWith({
+            where: { editionId: { in: [10, 11] }, number: 1, visibility: 'Público' },
+            select: publicEditionCoverSourceVolumeSelect
+        });
+        const { editions } = res.json.mock.calls[0][0].work;
+        expect(editions.find((edition) => edition.id === 10).coverUrl).toBeNull();
+        expect(editions.find((edition) => edition.id === 11).coverUrl)
+            .toBe('https://media.comanga.test/covers/volume-1-edicao-11/large.webp');
+    });
+
+    it('não consulta o Volume 1 quando a Obra não possui Edições públicas', async () => {
+        mockFindFirst.mockResolvedValue({ ...workFixture(), editions: [] });
+        const res = response();
+
+        await getPublicWorkDetails({ params: { slug: 'lobo-solitario' } }, res, jest.fn());
+
+        expect(mockVolumeFindMany).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     it('limita a seleção a Edições e Volumes públicos', () => {
+        expect(publicWorkDetailSelect.editions.select).not.toHaveProperty('coverAsset');
         expect(publicWorkDetailSelect.editions.where).toEqual({ visibility: 'Público' });
         expect(publicWorkDetailSelect.editions.orderBy).toEqual([
             { chronologicalNumber: 'asc' },
@@ -183,7 +232,7 @@ describe('detalhes públicos da Obra', () => {
         ]);
         expect(publicWorkDetailSelect.editions.select.volumes.where).toEqual({ visibility: 'Público' });
         expect(publicWorkDetailSelect.editions.select.volumes.take).toBe(3);
-        expect(publicWorkDetailSelect.editions.select.volumes.select.synopsis).toBe(true);
+        expect(publicWorkDetailSelect.editions.select.volumes.select).not.toHaveProperty('synopsis');
         expect(publicWorkDetailSelect.editions.select._count.select.volumes.where)
             .toEqual({ visibility: 'Público' });
     });

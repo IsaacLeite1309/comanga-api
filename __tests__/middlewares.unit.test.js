@@ -7,9 +7,8 @@ const prisma = {
 
 jest.mock('../src/prisma', () => prisma);
 
-const authMiddleware = require('../src/middlewares/authMiddleware');
-const rbacMiddleware = require('../src/middlewares/rbacMiddleware');
-const loginRateLimiter = require('../src/middlewares/loginRateLimiter');
+const { authMiddleware, requireRole } = require('../src/modules/auth');
+const { defaultLimiter, LOGIN_FAILURE_LIMIT, RATE_LIMIT_MESSAGE } = require('../src/modules/auth/loginRateLimiter');
 const errorHandler = require('../src/middlewares/errorHandler');
 
 function makeRes() {
@@ -29,7 +28,7 @@ function makeRes() {
 describe('middlewares unitarios', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        loginRateLimiter.resetLoginRateLimiter();
+        defaultLimiter.reset();
         jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
@@ -70,7 +69,8 @@ describe('middlewares unitarios', () => {
                     username: 'isaac',
                     email: 'user@teste.local',
                     nivelAcesso: 'Usuário Padrão',
-                    status: 'Pendente'
+                    status: 'Pendente',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
                 }
             });
             const req = { headers: { cookie: 'comanga_session=abc123' } };
@@ -92,7 +92,8 @@ describe('middlewares unitarios', () => {
                     username: 'isaac',
                     email: 'user@teste.local',
                     nivelAcesso: 'Usuário Padrão',
-                    status: 'Ativada'
+                    status: 'Ativada',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
                 }
             });
             prisma.session.updateMany.mockResolvedValue({ count: 1 });
@@ -106,9 +107,74 @@ describe('middlewares unitarios', () => {
                 where: expect.objectContaining({ id: 1 }),
                 data: { lastUsedAt: expect.any(Date) }
             }));
-            expect(req.user).toEqual(expect.objectContaining({ userId: 'user-1', role: 'Usuário Padrão' }));
+            expect(req.user).toEqual(expect.objectContaining({
+                userId: 'user-1',
+                role: 'Usuário Padrão',
+                activeProfile: 'Usuário Padrão',
+                profiles: ['Usuário Padrão'],
+                hasAdminAssignment: false
+            }));
             expect(req.session).toEqual(expect.objectContaining({ id: 1, tokenHash: expect.any(String) }));
             expect(next).toHaveBeenCalledTimes(1);
+        });
+
+        it('rebaixa o perfil ativo quando a conta perdeu a atribuicao administrativa', async () => {
+            prisma.session.findFirst.mockResolvedValue({
+                id: 7,
+                lastUsedAt: new Date(),
+                activeProfile: { code: 'ADMINISTRADOR', name: 'Administrador' },
+                user: {
+                    id: 'user-1',
+                    username: 'isaac',
+                    email: 'user@teste.local',
+                    nivelAcesso: 'Usuário Padrão',
+                    status: 'Ativada',
+                    userProfiles: [{ profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }]
+                }
+            });
+            const req = { headers: { cookie: 'comanga_session=abc123' } };
+            const res = makeRes();
+            const next = jest.fn();
+
+            await authMiddleware(req, res, next);
+
+            expect(req.user).toEqual(expect.objectContaining({
+                activeProfile: 'Usuário Padrão',
+                profiles: ['Usuário Padrão'],
+                hasAdminAssignment: false
+            }));
+            expect(next).toHaveBeenCalledTimes(1);
+        });
+
+        it('mantem o perfil ativo administrador quando a atribuicao continua vigente', async () => {
+            prisma.session.findFirst.mockResolvedValue({
+                id: 8,
+                lastUsedAt: new Date(),
+                activeProfile: { code: 'ADMINISTRADOR', name: 'Administrador' },
+                user: {
+                    id: 'user-1',
+                    username: 'isaac',
+                    email: 'user@teste.local',
+                    nivelAcesso: 'Administrador',
+                    status: 'Ativada',
+                    userProfiles: [
+                        { profile: { code: 'ADMINISTRADOR', name: 'Administrador' } },
+                        { profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }
+                    ]
+                }
+            });
+            const req = { headers: { cookie: 'comanga_session=abc123' } };
+            const res = makeRes();
+            const next = jest.fn();
+
+            await authMiddleware(req, res, next);
+
+            expect(req.user).toEqual(expect.objectContaining({
+                role: 'Administrador',
+                activeProfile: 'Administrador',
+                profiles: ['Administrador', 'Usuário Padrão'],
+                hasAdminAssignment: true
+            }));
         });
 
         it('nao regrava lastUsedAt quando a sessao foi usada recentemente', async () => {
@@ -120,7 +186,11 @@ describe('middlewares unitarios', () => {
                     username: 'isaac',
                     email: 'user@teste.local',
                     nivelAcesso: 'Administrador',
-                    status: 'Ativada'
+                    status: 'Ativada',
+                    userProfiles: [
+                        { profile: { code: 'ADMINISTRADOR', name: 'Administrador' } },
+                        { profile: { code: 'USUARIO_PADRAO', name: 'Usuário Padrão' } }
+                    ]
                 }
             });
             const req = { headers: { cookie: 'comanga_session=abc123' } };
@@ -147,11 +217,17 @@ describe('middlewares unitarios', () => {
     });
 
     describe('rbacMiddleware', () => {
-        it('bloqueia usuario sem role permitida', () => {
-            const req = { user: { role: 'Usuário Padrão' } };
+        it('bloqueia perfil ativo sem permissao mesmo com atribuicao administrativa', () => {
+            const req = {
+                user: {
+                    role: 'Usuário Padrão',
+                    activeProfile: 'Usuário Padrão',
+                    profiles: ['Administrador', 'Usuário Padrão']
+                }
+            };
             const res = makeRes();
             const next = jest.fn();
-            const middleware = rbacMiddleware.requireRole('Administrador');
+            const middleware = requireRole('Administrador');
 
             middleware(req, res, next);
 
@@ -159,11 +235,45 @@ describe('middlewares unitarios', () => {
             expect(next).not.toHaveBeenCalled();
         });
 
-        it('permite usuario com role autorizada', () => {
-            const req = { user: { role: 'Administrador' } };
+        it('bloqueia perfil ativo administrador sem atribuicao vigente na conta', () => {
+            const req = {
+                user: {
+                    role: 'Administrador',
+                    activeProfile: 'Administrador',
+                    profiles: ['Usuário Padrão']
+                }
+            };
             const res = makeRes();
             const next = jest.fn();
-            const middleware = rbacMiddleware.requireRole('Administrador');
+            const middleware = requireRole('Administrador');
+
+            middleware(req, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('bloqueia requisicao sem usuario autenticado', () => {
+            const res = makeRes();
+            const next = jest.fn();
+
+            requireRole('Administrador')({}, res, next);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+        });
+
+        it('permite perfil ativo administrador com atribuicao vigente', () => {
+            const req = {
+                user: {
+                    role: 'Administrador',
+                    activeProfile: 'Administrador',
+                    profiles: ['Administrador', 'Usuário Padrão']
+                }
+            };
+            const res = makeRes();
+            const next = jest.fn();
+            const middleware = requireRole('Administrador');
 
             middleware(req, res, next);
 
@@ -176,12 +286,12 @@ describe('middlewares unitarios', () => {
         it('bloqueia a sexta tentativa apos cinco falhas de login no mesmo IP', () => {
             const ip = '198.51.100.10';
 
-            for (let attempt = 0; attempt < loginRateLimiter.LOGIN_FAILURE_LIMIT; attempt += 1) {
+            for (let attempt = 0; attempt < LOGIN_FAILURE_LIMIT; attempt += 1) {
                 const req = { ip, socket: {} };
                 const res = makeRes();
                 const next = jest.fn();
 
-                loginRateLimiter.loginRateLimiter(req, res, next);
+                defaultLimiter.middleware(req, res, next);
                 expect(next).toHaveBeenCalledTimes(1);
 
                 res.statusCode = 401;
@@ -192,11 +302,11 @@ describe('middlewares unitarios', () => {
             const blockedRes = makeRes();
             const blockedNext = jest.fn();
 
-            loginRateLimiter.loginRateLimiter(blockedReq, blockedRes, blockedNext);
+            defaultLimiter.middleware(blockedReq, blockedRes, blockedNext);
 
             expect(blockedRes.status).toHaveBeenCalledWith(429);
             expect(blockedRes.json).toHaveBeenCalledWith({
-                error: loginRateLimiter.RATE_LIMIT_MESSAGE,
+                error: RATE_LIMIT_MESSAGE,
                 code: 'LOGIN_RATE_LIMITED'
             });
             expect(blockedNext).not.toHaveBeenCalled();
@@ -207,14 +317,14 @@ describe('middlewares unitarios', () => {
             const failedReq = { ip, socket: {} };
             const failedRes = makeRes();
 
-            loginRateLimiter.loginRateLimiter(failedReq, failedRes, jest.fn());
+            defaultLimiter.middleware(failedReq, failedRes, jest.fn());
             failedRes.statusCode = 401;
             failedRes.finishCallback();
 
             const successReq = { ip, socket: {} };
             const successRes = makeRes();
 
-            loginRateLimiter.loginRateLimiter(successReq, successRes, jest.fn());
+            defaultLimiter.middleware(successReq, successRes, jest.fn());
             successRes.statusCode = 200;
             successRes.finishCallback();
 
@@ -222,7 +332,7 @@ describe('middlewares unitarios', () => {
             const nextRes = makeRes();
             const next = jest.fn();
 
-            loginRateLimiter.loginRateLimiter(nextReq, nextRes, next);
+            defaultLimiter.middleware(nextReq, nextRes, next);
 
             expect(next).toHaveBeenCalledTimes(1);
             expect(nextRes.status).not.toHaveBeenCalledWith(429);

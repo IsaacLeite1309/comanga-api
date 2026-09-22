@@ -1,19 +1,17 @@
-import userController from '../../controllers/userController';
-
-const {
-    getUserProfile,
+import { updateActiveProfile, updateOwnPassword, updateOwnUsername } from './accountSettings';
+import {
+    deleteOwnAccount,
     getOwnUserProfile,
-    getUserById,
+    getUserProfile,
     updateAdultContent,
-    updateUserById,
-    deleteOwnAccount
-} = userController;
+} from './handlers';
 
 export = {
     getUserProfile,
     getOwnUserProfile,
-    getUserById,
     updateAdultContent,
-    updateUserById,
+    updateActiveProfile,
+    updateOwnPassword,
+    updateOwnUsername,
     deleteOwnAccount
 };

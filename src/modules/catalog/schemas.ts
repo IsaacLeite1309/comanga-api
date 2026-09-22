@@ -1,0 +1,255 @@
+import { z } from 'zod';
+
+import {
+    AUTHOR_ROLE_VALUES,
+    EDITION_PUBLICATION_STATUS_VALUES,
+    EDITION_VISIBILITY_VALUES,
+    ORIGINAL_PUBLICATION_STATUS_VALUES,
+    VOLUME_PRICE_CURRENCY_VALUES,
+    VOLUME_RELEASE_PRECISION_VALUES,
+    WORK_COUNTRY_VALUES,
+    WORK_DEMOGRAPHY_VALUES,
+    WORK_SORT_FIELDS,
+    WORK_VISIBILITY_VALUES
+} from './constants';
+
+const workAuthorSchema = z.object({
+    authorId: z.coerce.number().int().positive(),
+    roles: z.array(z.enum(AUTHOR_ROLE_VALUES)).min(1),
+    position: z.coerce.number().int().min(0).optional()
+}).superRefine((author, context) => {
+    const hasCombinedCredit = author.roles.includes('História e Arte');
+    const hasHistoryCredit = author.roles.includes('História');
+    const hasArtCredit = author.roles.includes('Arte');
+    if ((hasCombinedCredit && (hasHistoryCredit || hasArtCredit)) || (hasHistoryCredit && hasArtCredit)) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['roles'],
+            message: 'Selecione apenas História e Arte, História ou Arte para o mesmo autor.'
+        });
+    }
+});
+
+const orderedWorkOptionSchema = z.union([
+    z.coerce.number().int().positive(),
+    z.object({
+        id: z.coerce.number().int().positive(),
+        position: z.coerce.number().int().min(0).optional()
+    })
+]);
+
+const coverAssetIdSchema = z.string().uuid();
+
+const createWorkSchema = z.object({
+    title: z.string().trim().min(1),
+    originalTitle: z.string().trim().optional().nullable(),
+    romanizedTitle: z.string().trim().min(1),
+    synopsis: z.string().trim().min(1),
+    originalPublicationStartYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
+    originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
+    directRelease: z.boolean().optional().default(false),
+    typeId: z.coerce.number().int().positive(),
+    country: z.enum(WORK_COUNTRY_VALUES),
+    originalPublisherIds: z.array(orderedWorkOptionSchema).optional().default([]),
+    originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES),
+    coverAssetId: coverAssetIdSchema,
+    adultContent: z.boolean().optional().default(false),
+    authors: z.array(workAuthorSchema).min(1),
+    genreIds: z.array(z.coerce.number().int().positive()).optional().default([]),
+    demographies: z.array(z.enum(WORK_DEMOGRAPHY_VALUES)).optional().default([]),
+    magazineIds: z.array(orderedWorkOptionSchema).optional().default([])
+}).strict();
+
+const updateWorkSchema = z.object({
+    title: z.string().trim().min(1).optional(),
+    originalTitle: z.string().trim().optional().nullable(),
+    romanizedTitle: z.string().trim().min(1).optional(),
+    synopsis: z.string().trim().min(1).optional(),
+    originalPublicationStartYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
+    originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
+    directRelease: z.boolean().optional(),
+    typeId: z.coerce.number().int().positive().optional(),
+    country: z.enum(WORK_COUNTRY_VALUES).optional(),
+    authors: z.array(workAuthorSchema).min(1).optional(),
+    originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES).optional().nullable(),
+    coverAssetId: coverAssetIdSchema.optional(),
+    adultContent: z.boolean().optional(),
+    genreIds: z.array(z.coerce.number().int().positive()).optional(),
+    demographies: z.array(z.enum(WORK_DEMOGRAPHY_VALUES)).optional(),
+    magazineIds: z.array(orderedWorkOptionSchema).optional(),
+    originalPublisherIds: z.array(orderedWorkOptionSchema).optional()
+}).strict();
+
+const updateWorkVisibilitySchema = z.object({
+    visibility: z.enum(WORK_VISIBILITY_VALUES)
+});
+
+const listWorksQuerySchema = z.object({
+    term: z.string().trim().optional(),
+    typeId: z.coerce.number().int().positive().optional(),
+    country: z.enum(WORK_COUNTRY_VALUES).optional(),
+    visibility: z.enum(WORK_VISIBILITY_VALUES).optional(),
+    sortBy: z.enum(WORK_SORT_FIELDS).default('title'),
+    order: z.enum(['ASC', 'DESC']).default('ASC'),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(10)
+});
+
+// A Edição não possui capa própria: a capa é derivada do Volume 1 da mesma Edição.
+const editionPayloadSchema = z.object({
+    brazilianPublisherId: z.coerce.number().int().positive(),
+    coverTypeId: z.coerce.number().int().positive().nullable(),
+    formatId: z.coerce.number().int().positive().nullable(),
+    paperId: z.coerce.number().int().positive().nullable(),
+    chronologicalNumber: z.coerce.number().int().positive(),
+    brazilPublicationStatus: z.enum(EDITION_PUBLICATION_STATUS_VALUES)
+}).strict();
+
+const updateEditionSchema = editionPayloadSchema.partial().refine((value) => Object.keys(value).length > 0, {
+    message: 'Informe ao menos um campo para alterar.'
+});
+
+const listEditionsQuerySchema = z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+    order: z.enum(['ASC', 'DESC']).default('DESC')
+});
+
+const updateEditionVisibilitySchema = z.object({
+    visibility: z.enum(EDITION_VISIBILITY_VALUES)
+});
+
+function normalizeIsbn(value: string) {
+    return value.replace(/[\s-]/g, '').toUpperCase();
+}
+
+function isValidIsbn10(value: string) {
+    const normalized = normalizeIsbn(value);
+    if (!/^\d{9}[\dX]$/.test(normalized)) return false;
+
+    const checksum = [...normalized].reduce((sum, character, index) => (
+        sum + (character === 'X' ? 10 : Number(character)) * (10 - index)
+    ), 0);
+    return checksum % 11 === 0;
+}
+
+function isValidIsbn13(value: string) {
+    const normalized = normalizeIsbn(value);
+    if (!/^\d{13}$/.test(normalized)) return false;
+
+    const checksum = [...normalized.slice(0, 12)].reduce((sum, character, index) => (
+        sum + Number(character) * (index % 2 === 0 ? 1 : 3)
+    ), 0);
+    const expectedCheckDigit = (10 - (checksum % 10)) % 10;
+    return expectedCheckDigit === Number(normalized[12]);
+}
+
+const isbn10Schema = z.string().trim().max(20).refine(isValidIsbn10, {
+    message: 'ISBN-10 inválido.'
+});
+const isbn13Schema = z.string().trim().max(20).refine(isValidIsbn13, {
+    message: 'ISBN-13 inválido.'
+});
+
+const volumePayloadBaseSchema = z.object({
+    number: z.coerce.number().int().min(0),
+    coverAssetId: coverAssetIdSchema,
+    singleVolume: z.boolean().optional(),
+    pages: z.coerce.number().int().positive().optional().nullable(),
+    priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).optional(),
+    price: z.coerce.number().min(0).optional().nullable(),
+    releaseDatePrecision: z.enum(VOLUME_RELEASE_PRECISION_VALUES).optional(),
+    releaseYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
+    releaseMonth: z.coerce.number().int().min(1).max(12).optional().nullable(),
+    releaseDay: z.coerce.number().int().min(1).max(31).optional().nullable(),
+    isbn10: isbn10Schema.optional().nullable(),
+    isbn13: isbn13Schema.optional().nullable(),
+    affiliateLink: z.string().trim().url().optional().nullable(),
+    synopsis: z.string().trim().optional().nullable()
+}).strict();
+
+interface VolumeReleaseDate {
+    releaseDatePrecision?: string | null;
+    releaseYear?: number | null;
+    releaseMonth?: number | null;
+    releaseDay?: number | null;
+}
+
+function hasCompleteVolumeReleaseDate(value: VolumeReleaseDate): value is VolumeReleaseDate & {
+    releaseYear: number;
+    releaseMonth: number;
+    releaseDay: number;
+} {
+    return Boolean(value.releaseYear && value.releaseMonth && value.releaseDay);
+}
+
+function validateVolumeReleaseDate(
+    value: VolumeReleaseDate,
+    ctx: z.RefinementCtx
+) {
+    const isComplete = value.releaseDatePrecision === 'Completa';
+    const hasCompleteDate = hasCompleteVolumeReleaseDate(value);
+
+    if (isComplete && !hasCompleteDate) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseDay'], message: 'Informe data completa.' });
+    }
+
+    if (isComplete && hasCompleteDate) {
+        const date = new Date(Date.UTC(value.releaseYear, value.releaseMonth - 1, value.releaseDay));
+        const isSameDate = date.getUTCFullYear() === value.releaseYear
+            && date.getUTCMonth() === value.releaseMonth - 1
+            && date.getUTCDate() === value.releaseDay;
+
+        if (!isSameDate) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseDay'], message: 'Informe uma data válida.' });
+        }
+    }
+
+    if (value.releaseDatePrecision === 'Mes e ano' && (!value.releaseYear || !value.releaseMonth)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseMonth'], message: 'Informe mes e ano.' });
+    }
+
+    if (value.releaseDatePrecision === 'Ano' && !value.releaseYear) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['releaseYear'], message: 'Informe ano.' });
+    }
+}
+
+const volumeReleaseDateSchema = volumePayloadBaseSchema.pick({
+    releaseDatePrecision: true, releaseYear: true, releaseMonth: true, releaseDay: true
+}).extend({ releaseDatePrecision: z.enum(VOLUME_RELEASE_PRECISION_VALUES) })
+    .superRefine(validateVolumeReleaseDate);
+
+const volumePayloadSchema = volumePayloadBaseSchema.extend({
+    singleVolume: z.boolean().default(false),
+    priceCurrency: z.enum(VOLUME_PRICE_CURRENCY_VALUES).default('R$'),
+    releaseDatePrecision: z.enum(VOLUME_RELEASE_PRECISION_VALUES).default('Completa')
+}).superRefine(validateVolumeReleaseDate);
+
+const updateVolumeSchema = volumePayloadBaseSchema.partial().refine((value) => Object.keys(value).length > 0, {
+    message: 'Informe ao menos um campo para alterar.'
+});
+
+const listVolumesQuerySchema = z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    order: z.enum(['ASC', 'DESC']).default('ASC')
+});
+
+export {
+    workAuthorSchema,
+    orderedWorkOptionSchema,
+    createWorkSchema,
+    updateWorkSchema,
+    updateWorkVisibilitySchema,
+    listWorksQuerySchema,
+    editionPayloadSchema,
+    updateEditionSchema,
+    listEditionsQuerySchema,
+    updateEditionVisibilitySchema,
+    volumePayloadBaseSchema,
+    volumeReleaseDateSchema,
+    validateVolumeReleaseDate,
+    volumePayloadSchema,
+    updateVolumeSchema,
+    listVolumesQuerySchema
+};

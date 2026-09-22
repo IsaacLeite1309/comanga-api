@@ -13,6 +13,8 @@ const {
     mapPublicWork
 } = require('../src/modules/public-catalog/mappers');
 
+const HENTAI_RESTRICTION = { genres: { none: { genre: { OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' } } } } };
+
 describe('contratos unitários do catálogo público', () => {
     it('normaliza filtros combináveis repetidos e separados por vírgula', () => {
         const result = publicWorksQuerySchema.parse({
@@ -74,6 +76,7 @@ describe('contratos unitários do catálogo público', () => {
         expect(where).toEqual(expect.objectContaining({
             visibility: 'Público',
             adultContent: false,
+            ...HENTAI_RESTRICTION,
             typeId: 3,
             country: 'Japão',
             originalPublishers: { some: { publisherId: 31 } },
@@ -96,7 +99,8 @@ describe('contratos unitários do catálogo público', () => {
 
         expect(buildPublicWorkWhere(query, false)).toEqual({
             visibility: 'Público',
-            adultContent: false
+            adultContent: false,
+            ...HENTAI_RESTRICTION
         });
         expect(buildPublicWorkWhere(query, true)).toEqual({
             visibility: 'Público'
@@ -107,7 +111,6 @@ describe('contratos unitários do catálogo público', () => {
         const query = publicEditionsQuerySchema.parse({
             term: 'Monster',
             brazilianPublisherId: 21,
-            editionTypeId: 24,
             formatId: 22,
             coverTypeId: 23,
             chronologicalNumber: 2,
@@ -124,7 +127,6 @@ describe('contratos unitários do catálogo público', () => {
         expect(where).toEqual(expect.objectContaining({
             visibility: 'Público',
             brazilianPublisherId: 21,
-            editionTypeId: 24,
             formatId: 22,
             coverTypeId: 23,
             chronologicalNumber: 2,
@@ -132,6 +134,7 @@ describe('contratos unitários do catálogo público', () => {
             work: expect.objectContaining({
                 visibility: 'Público',
                 adultContent: false,
+                ...HENTAI_RESTRICTION,
                 OR: expect.any(Array)
             })
         }));
@@ -165,7 +168,7 @@ describe('contratos unitários do catálogo público', () => {
         const edition = mapPublicEdition({
             id: 4,
             chronologicalNumber: 1,
-            coverAsset: null,
+            volumes: [],
             work: {
                 id: 1,
                 slug: 'monster',
@@ -184,5 +187,7 @@ describe('contratos unitários do catálogo público', () => {
         expect(work).not.toHaveProperty('adultContent');
         expect(edition).not.toHaveProperty('manualVolumeCount');
         expect(edition.volumesCount).toBe(18);
+        // Sem Volume 1 público não há capa derivada nem recurso alternativo.
+        expect(edition.coverUrl).toBeNull();
     });
 });

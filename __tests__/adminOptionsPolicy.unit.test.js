@@ -11,7 +11,7 @@ const {
     findListableCategoryBySlug,
     isListableOptionCategory,
     isManageableOptionCategory
-} = require('../src/modules/admin/optionServices');
+} = require('../src/modules/admin/options/services');
 
 describe('politica de categorias administrativas', () => {
     beforeEach(() => jest.clearAllMocks());
@@ -23,9 +23,9 @@ describe('politica de categorias administrativas', () => {
         'editoras-originais',
         'revistas-serializacao',
         'editoras-brasileiras',
-        'tipos-edicao',
         'tipos-capa',
-        'formatos-fisicos'
+        'formatos-fisicos',
+        'miolos'
     ])('permite a categoria gerenciavel %s', (slug) => {
         expect(isManageableOptionCategory(slug)).toBe(true);
         expect(isListableOptionCategory(slug)).toBe(true);
@@ -54,8 +54,7 @@ describe('politica de categorias administrativas', () => {
         'paises-origem',
         'papeis-autor',
         'demografias',
-        'status-publicacao-original',
-        'miolos'
+        'status-publicacao-original'
     ])('recusa a categoria interna ou nao utilizada %s antes de consultar o banco', async (slug) => {
         expect(isManageableOptionCategory(slug)).toBe(false);
         await expect(findCategoryBySlug(slug)).resolves.toBeNull();

@@ -10,7 +10,7 @@ jest.mock('../src/prisma', () => ({
     default: { mediaAsset: mockMediaAsset, $transaction: callback => callback({ mediaAsset: mockMediaAsset, $queryRaw: jest.fn().mockResolvedValue([]) }) }
 }));
 
-const { PrismaMediaAssetRepository } = require('../src/modules/admin/media/PrismaMediaAssetRepository');
+const { PrismaMediaAssetRepository } = require('../src/modules/media/PrismaMediaAssetRepository');
 
 describe('PrismaMediaAssetRepository', () => {
     const repository = new PrismaMediaAssetRepository();
@@ -65,10 +65,9 @@ describe('PrismaMediaAssetRepository', () => {
     });
 
     it.each([
-        { relations: { work: null, edition: null, volume: null }, attached: false },
-        { relations: { work: { id: 1 }, edition: null, volume: null }, attached: true },
-        { relations: { work: null, edition: { id: 2 }, volume: null }, attached: true },
-        { relations: { work: null, edition: null, volume: { id: 3 } }, attached: true }
+        { relations: { work: null, volume: null }, attached: false },
+        { relations: { work: { id: 1 }, volume: null }, attached: true },
+        { relations: { work: null, volume: { id: 3 } }, attached: true }
     ])('identifica se a capa removível já está vinculada: %o', async ({ relations, attached }) => {
         mockMediaAsset.findFirst.mockResolvedValue({
             id: 'asset-id',
@@ -83,6 +82,20 @@ describe('PrismaMediaAssetRepository', () => {
             variants: [{ objectKey: 'covers/id/large.webp' }],
             attached
         });
+    });
+
+    it('não considera mais a Edição ao apurar vínculo da capa removível', async () => {
+        mockMediaAsset.findFirst.mockResolvedValue({
+            id: 'asset-id',
+            objectKey: 'covers/id/master.webp',
+            variants: [],
+            work: null,
+            volume: null
+        });
+
+        await repository.claimRemoval('asset-id', 'user-id');
+
+        expect(mockMediaAsset.findFirst.mock.calls[0][0].select).not.toHaveProperty('edition');
     });
 
     it('exclui o ativo pela chave primária', async () => {

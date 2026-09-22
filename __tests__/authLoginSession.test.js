@@ -4,7 +4,7 @@ const crypto = require('crypto');
 
 const db = require('../src/database');
 const app = require('../src/app');
-const loginRateLimiter = require('../src/middlewares/loginRateLimiter');
+const { defaultLimiter, RATE_LIMIT_MESSAGE } = require('../src/modules/auth/loginRateLimiter');
 
 const runId = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 const testEmailDomain = 'login-test.local';
@@ -55,12 +55,12 @@ async function deleteTestUsers() {
 
 describe('POST /api/auth/login e middleware de sessao', () => {
     beforeEach(async () => {
-        loginRateLimiter.resetLoginRateLimiter();
+        defaultLimiter.reset();
         await deleteTestUsers();
     });
 
     afterEach(async () => {
-        loginRateLimiter.resetLoginRateLimiter();
+        defaultLimiter.reset();
         await deleteTestUsers();
     });
 
@@ -78,7 +78,9 @@ describe('POST /api/auth/login e middleware de sessao', () => {
             user: {
                 id: String(insertedUser.id),
                 username: user.username,
-                role: user.nivelAcesso
+                role: user.nivelAcesso,
+                profiles: ['Usuário Padrão'],
+                active_profile: 'Usuário Padrão'
             }
         });
 
@@ -136,7 +138,7 @@ describe('POST /api/auth/login e middleware de sessao', () => {
 
         expect(blockedResponse.status).toBe(429);
         expect(blockedResponse.body).toEqual({
-            error: loginRateLimiter.RATE_LIMIT_MESSAGE,
+            error: RATE_LIMIT_MESSAGE,
             code: 'LOGIN_RATE_LIMITED'
         });
     });

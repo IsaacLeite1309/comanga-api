@@ -1,12 +1,12 @@
-﻿import type { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../../prisma';
-import {
-    deleteOrphanedCoverAsset,
-    isCoverAssetAttachable
-} from '../../admin/media/coverAssetLifecycle';
+import { withCatalogWriteLock } from '../writeLock';
 import {
     INVALID_DOMAIN_REFERENCE_MESSAGE,
+    EDITION_COVER_SOURCE_VOLUME_NUMBER,
     EDITION_DUPLICATED_MESSAGE,
+    EDITION_WITHOUT_COVER_SOURCE_MESSAGE,
     PRIVATE_WORK_PUBLIC_EDITION_MESSAGE,
     PUBLIC_EDITION_DELETE_MESSAGE,
     EDITION_WITH_VOLUMES_DELETE_MESSAGE,
@@ -22,7 +22,10 @@ import {
     updateEditionVisibilitySchema,
     getEditionInclude,
     parsePositiveId
-} from '../../admin/shared';
+} from '../shared';
+
+// Sinaliza publicação recusada por falta do Volume 1 com capa, desfazendo a transação.
+class MissingEditionCoverSourceError extends Error {}
 
 async function createEdition(req: Request, res: Response, next: NextFunction) {
     const workId = parsePositiveId(req.params.workId);
@@ -55,34 +58,17 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
             return res.status(400).json({ error: INVALID_DOMAIN_REFERENCE_MESSAGE });
         }
 
-        if (data.coverAssetId && !await isCoverAssetAttachable(data.coverAssetId)) {
-            return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
-        }
-
         const createData = {
             workId,
             brazilianPublisherId: data.brazilianPublisherId,
-            editionTypeId: data.editionTypeId,
             coverTypeId: data.coverTypeId,
             formatId: data.formatId,
+            paperId: data.paperId,
             chronologicalNumber: data.chronologicalNumber,
             brazilPublicationStatus: data.brazilPublicationStatus,
-            coverAssetId: data.coverAssetId,
             visibility: 'Privado'
         };
-        const edition = data.coverAssetId
-            ? await prisma.$transaction(async (tx) => {
-                const createdEdition = await tx.edition.create({
-                    data: createData,
-                    include: getEditionInclude()
-                });
-                await tx.mediaAsset.update({
-                    where: { id: data.coverAssetId as string },
-                    data: { status: 'Ativo', ativadoEm: new Date() }
-                });
-                return createdEdition;
-            })
-            : await prisma.edition.create({ data: createData, include: getEditionInclude() });
+        const edition = await prisma.edition.create({ data: createData, include: getEditionInclude() });
 
         return res.status(201).json({
             edition: normalizeEdition(edition as unknown as EditionInput)
@@ -117,7 +103,7 @@ async function listEditionsByWork(req: Request, res: Response, next: NextFunctio
     try {
         const work = await prisma.work.findUnique({
             where: { id: workId },
-            select: { id: true, coverAssetId: true }
+            select: { id: true }
         });
 
         if (!work) {
@@ -194,18 +180,11 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
     try {
         const existingEdition = await prisma.edition.findUnique({
             where: { id: editionId },
-            select: { id: true, coverAssetId: true }
+            select: { id: true }
         });
 
         if (!existingEdition) {
             return res.status(404).json({ error: 'Edição não encontrada.' });
-        }
-
-        if (
-            data.coverAssetId
-            && !await isCoverAssetAttachable(data.coverAssetId, existingEdition.coverAssetId)
-        ) {
-            return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
         }
 
         const referencesAreValid = await validateEditionDomainReferences(data);
@@ -214,34 +193,18 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
             return res.status(400).json({ error: INVALID_DOMAIN_REFERENCE_MESSAGE });
         }
 
-        const updateEditionRecord = (client: typeof prisma) => client.edition.update({
-                where: { id: editionId },
-                data: {
-                    ...(data.brazilianPublisherId !== undefined ? { brazilianPublisherId: data.brazilianPublisherId } : {}),
-                    ...(data.editionTypeId !== undefined ? { editionTypeId: data.editionTypeId } : {}),
-                    ...(data.coverTypeId !== undefined ? { coverTypeId: data.coverTypeId } : {}),
-                    ...(data.formatId !== undefined ? { formatId: data.formatId } : {}),
-                    ...(data.chronologicalNumber !== undefined ? { chronologicalNumber: data.chronologicalNumber } : {}),
-                    ...(data.brazilPublicationStatus !== undefined ? { brazilPublicationStatus: data.brazilPublicationStatus } : {}),
-                    ...(data.coverAssetId !== undefined ? { coverAssetId: data.coverAssetId } : {})
-                },
-                include: getEditionInclude()
-            });
-        const shouldActivateCover = Boolean(data.coverAssetId && data.coverAssetId !== existingEdition.coverAssetId);
-        const edition = shouldActivateCover
-            ? await prisma.$transaction(async (tx) => {
-                const updatedEdition = await updateEditionRecord(tx as typeof prisma);
-                await tx.mediaAsset.update({
-                    where: { id: data.coverAssetId as string },
-                    data: { status: 'Ativo', ativadoEm: new Date() }
-                });
-                return updatedEdition;
-            })
-            : await updateEditionRecord(prisma);
-
-        if (data.coverAssetId !== undefined && existingEdition.coverAssetId !== data.coverAssetId) {
-            await deleteOrphanedCoverAsset(existingEdition.coverAssetId);
-        }
+        const edition = await prisma.edition.update({
+            where: { id: editionId },
+            data: {
+                ...(data.brazilianPublisherId !== undefined ? { brazilianPublisherId: data.brazilianPublisherId } : {}),
+                ...(data.coverTypeId !== undefined ? { coverTypeId: data.coverTypeId } : {}),
+                ...(data.formatId !== undefined ? { formatId: data.formatId } : {}),
+                ...(data.paperId !== undefined ? { paperId: data.paperId } : {}),
+                ...(data.chronologicalNumber !== undefined ? { chronologicalNumber: data.chronologicalNumber } : {}),
+                ...(data.brazilPublicationStatus !== undefined ? { brazilPublicationStatus: data.brazilPublicationStatus } : {})
+            },
+            include: getEditionInclude()
+        });
 
         return res.status(200).json({
             edition: normalizeEdition(edition as unknown as EditionInput)
@@ -268,7 +231,7 @@ async function deleteEdition(req: Request, res: Response, next: NextFunction) {
     try {
         const edition = await prisma.edition.findUnique({
             where: { id: editionId },
-            select: { id: true, visibility: true, coverAssetId: true }
+            select: { id: true, visibility: true }
         });
 
         if (!edition) {
@@ -293,8 +256,6 @@ async function deleteEdition(req: Request, res: Response, next: NextFunction) {
             })
         ]);
 
-        await deleteOrphanedCoverAsset(edition.coverAssetId);
-
         return res.status(200).json({ message: 'Edição excluída com sucesso.' });
 
     } catch (error) {
@@ -305,6 +266,46 @@ async function deleteEdition(req: Request, res: Response, next: NextFunction) {
 async function assertEditionCanBecomePrivate(editionId: number) {
     // Ponto de extensão para bloquear rebaixamento quando houver volumes em estantes de usuários.
     await Promise.resolve(editionId);
+}
+
+// Valida o estado final da publicação: o Volume 1 precisa existir, estar público e ter capa.
+async function assertPublishedEditionHasCoverSource(tx: Prisma.TransactionClient, editionId: number) {
+    const coverSourceVolume = await tx.volume.findFirst({
+        where: { editionId, number: EDITION_COVER_SOURCE_VOLUME_NUMBER },
+        select: { coverAssetId: true, visibility: true }
+    });
+
+    if (!coverSourceVolume?.coverAssetId || !isPublicVisibility(coverSourceVolume.visibility)) {
+        throw new MissingEditionCoverSourceError();
+    }
+}
+
+async function applyEditionVisibility(editionId: number, visibility: string) {
+    return withCatalogWriteLock(async (tx) => {
+        const edition = await tx.edition.findUnique({
+            where: { id: editionId }, select: { id: true, work: { select: { visibility: true } } }
+        });
+        if (!edition) return { status: 404, error: 'Edição não encontrada.' } as const;
+        if (isPublicVisibility(visibility) && !isPublicVisibility(edition.work.visibility)) {
+            return { status: 409, error: PRIVATE_WORK_PUBLIC_EDITION_MESSAGE } as const;
+        }
+        if (visibility === 'Privado') await assertEditionCanBecomePrivate(editionId);
+        const updatedEdition = await tx.edition.update({
+            where: { id: editionId },
+            data: { visibility },
+            include: getEditionInclude()
+        });
+        await tx.volume.updateMany({
+            where: { editionId },
+            data: { visibility }
+        });
+
+        if (isPublicVisibility(visibility)) {
+            await assertPublishedEditionHasCoverSource(tx, editionId);
+        }
+
+        return { edition: updatedEdition } as const;
+    });
 }
 
 async function updateEditionVisibility(req: Request, res: Response, next: NextFunction) {
@@ -323,53 +324,21 @@ async function updateEditionVisibility(req: Request, res: Response, next: NextFu
     const visibility = normalizeVisibility(validation.data.visibility);
 
     try {
-        const edition = await prisma.edition.findUnique({
-            where: { id: editionId },
-            select: {
-                id: true,
-                work: {
-                    select: {
-                        visibility: true
-                    }
-                }
-            }
-        });
-
-        if (!edition) {
-            return res.status(404).json({ error: 'Edição não encontrada.' });
-        }
-
-        if (isPublicVisibility(visibility) && !isPublicVisibility(edition.work.visibility)) {
-            return res.status(409).json({ error: PRIVATE_WORK_PUBLIC_EDITION_MESSAGE });
-        }
-
-        if (visibility === 'Privado') {
-            await assertEditionCanBecomePrivate(editionId);
-        }
-
-        const [updatedEdition] = await prisma.$transaction([
-            prisma.edition.update({
-                where: { id: editionId },
-                data: { visibility },
-                include: getEditionInclude()
-            }),
-            prisma.volume.updateMany({
-                where: { editionId },
-                data: { visibility }
-            })
-        ]);
-
+        const result = await applyEditionVisibility(editionId, visibility);
+        if (result.status !== undefined) return res.status(result.status).json({ error: result.error });
         return res.status(200).json({
-            edition: normalizeEdition(updatedEdition as unknown as EditionInput)
+            edition: normalizeEdition(result.edition as unknown as EditionInput)
         });
 
     } catch (error) {
+        if (error instanceof MissingEditionCoverSourceError) {
+            return res.status(409).json({ error: EDITION_WITHOUT_COVER_SOURCE_MESSAGE });
+        }
+
         return next(error);
     }
 }
-
-
-export = {
+export {
     createEdition,
     listEditionsByWork,
     getEditionById,
@@ -377,4 +346,3 @@ export = {
     deleteEdition,
     updateEditionVisibility
 };
-
