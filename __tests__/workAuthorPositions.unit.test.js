@@ -269,7 +269,10 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             body: { authors: [{ authorId: 4, roles: ['História'] }] }
         }), makeRes(), jest.fn());
 
-        expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function));
+        expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+            maxWait: 10000,
+            timeout: 15000
+        });
         expect(prisma.workAuthor.createMany).toHaveBeenCalledWith({
             data: [{ workId: 1, authorId: 4, position: 0 }]
         });
