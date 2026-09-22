@@ -414,6 +414,16 @@ const publicVolumeDetailSelect = {
             id: true,
             chronologicalNumber: true,
             brazilianPublisher: { select: { id: true, label: true } },
+            paper: { select: { id: true, label: true } },
+            volumes: {
+                where: { visibility: PUBLIC_VISIBILITY },
+                orderBy: [{ number: 'asc' }, { id: 'asc' }],
+                select: {
+                    id: true,
+                    number: true,
+                    singleVolume: true
+                }
+            },
             work: {
                 select: {
                     id: true,

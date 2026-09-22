@@ -41,6 +41,9 @@ function getWorkSummaryInclude() {
 
 function getEditionInclude() {
     return {
+        work: {
+            select: { id: true, slug: true, title: true }
+        },
         // Origem única da capa derivada: o Volume de número 1 desta mesma Edição.
         volumes: {
             where: { number: EDITION_COVER_SOURCE_VOLUME_NUMBER },

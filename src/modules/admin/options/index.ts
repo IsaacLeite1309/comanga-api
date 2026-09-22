@@ -141,6 +141,7 @@ async function listOptions(req: Request, res: Response, next: NextFunction) {
 
         const where = {
             categoryId: category.id,
+            ...(isSystemManagedOptionCategory(category.slug) ? { systemManaged: true } : {}),
             // Valores inativos só aparecem sob demanda, para permitir reativá-los.
             ...(includeInactive ? {} : { active: true }),
             ...(dependsOn
