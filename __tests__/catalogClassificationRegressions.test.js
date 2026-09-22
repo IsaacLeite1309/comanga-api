@@ -121,4 +121,29 @@ it('revalida tipo e país após aguardar outra atualização da mesma Obra', asy
     expect(stored.rows[0]).toEqual({ type_id: novelId, country: 'China' });
 });
 
+it('revalida o período após aguardar outra atualização da mesma Obra', async () => {
+    const workId = await createWork('concurrent-period');
+    await db.query(`UPDATE works SET original_publication_start_year=2020,
+        original_publication_end_year=2024 WHERE id=$1`, [workId]);
+    const blocker = await db.pool.connect();
+    const requests = [];
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT pg_advisory_xact_lock(9142026)');
+    try {
+        requests.push(request(app).patch(`/api/admin/works/${workId}`).set('Cookie', cookie)
+            .send({ originalPublicationStartYear: 2023 }).then(response => response.status));
+        await waitForBlockedRequests(1);
+        requests.push(request(app).patch(`/api/admin/works/${workId}`).set('Cookie', cookie)
+            .send({ originalPublicationEndYear: 2021 }).then(response => response.status));
+        await waitForBlockedRequests(2);
+    } finally {
+        await blocker.query('ROLLBACK');
+        blocker.release();
+    }
+    expect(await Promise.all(requests)).toEqual([200, 400]);
+    const stored = await db.query(`SELECT original_publication_start_year AS start,
+        original_publication_end_year AS end FROM works WHERE id=$1`, [workId]);
+    expect(stored.rows[0]).toEqual({ start: 2023, end: 2024 });
+});
+
 });

@@ -457,6 +457,8 @@ async function findWorkForUpdate(workId: number, client: Prisma.TransactionClien
         select: {
             id: true,
             coverAssetId: true,
+            originalPublicationStartYear: true,
+            originalPublicationEndYear: true,
             country: true,
             typeId: true,
             type: { select: { systemManaged: true } },
@@ -475,6 +477,10 @@ async function getUpdateWorkDependencyError(
     existingWork: NonNullable<Awaited<ReturnType<typeof findWorkForUpdate>>>,
     client: Prisma.TransactionClient
 ) {
+    // O PATCH pode omitir um dos anos ou limpá-lo com null; valida o estado final sob o lock.
+    if (hasInvalidPublicationPeriod({ ...existingWork, ...data })) {
+        return { status: 400, error: 'O fim da publicação original não pode ser anterior ao início.' };
+    }
     if (data.coverAssetId && !await isCoverAssetAttachable(data.coverAssetId, existingWork.coverAssetId, client)) {
         return { status: 400, error: 'A capa interna informada é inválida ou já está em uso.' };
     }

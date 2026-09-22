@@ -70,7 +70,7 @@ const updateWorkSchema = z.object({
     directRelease: z.boolean().optional(),
     typeId: z.coerce.number().int().positive().optional(),
     country: z.enum(WORK_COUNTRY_VALUES).optional(),
-    authors: z.array(workAuthorSchema).optional(),
+    authors: z.array(workAuthorSchema).min(1).optional(),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES).optional().nullable(),
     coverAssetId: coverAssetIdSchema.optional(),
     adultContent: z.boolean().optional(),

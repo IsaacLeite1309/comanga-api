@@ -118,6 +118,45 @@ describe('classificações controladas na área administrativa de Obras', () => 
 
     afterAll(deleteFixtures);
 
+    it('recusa remover todos os autores e preserva vínculos e créditos', async () => {
+        const created = await createWorkThroughApi(sessionCookie, { suffix: 'integridade-autores' });
+        expect(created.status).toBe(201);
+        const workId = created.body.work.id;
+        const response = await request(app).patch(`/api/admin/works/${workId}`)
+            .set('Cookie', sessionCookie).send({ authors: [] });
+        expect(response.status).toBe(400);
+        const unchanged = await request(app).get(`/api/admin/works/${workId}`).set('Cookie', sessionCookie);
+        expect(unchanged.body.work.authors).toEqual(created.body.work.authors);
+
+        const omitted = await request(app).patch(`/api/admin/works/${workId}`)
+            .set('Cookie', sessionCookie).send({ synopsis: 'Sinopse revisada sem alterar autoria.' });
+        expect(omitted.status).toBe(200);
+        expect(omitted.body.work.authors).toEqual(created.body.work.authors);
+    });
+
+    it.each([
+        ['fim anterior ao início salvo', { originalPublicationEndYear: 2010 }, 400, 2020, 2024],
+        ['início posterior ao fim salvo', { originalPublicationStartYear: 2030 }, 400, 2020, 2024],
+        ['fim igual ao início', { originalPublicationEndYear: 2020 }, 200, 2020, 2020],
+        ['início igual ao fim', { originalPublicationStartYear: 2024 }, 200, 2024, 2024],
+        ['fim ausente', { originalPublicationEndYear: null }, 200, 2020, null],
+        ['início ausente', { originalPublicationStartYear: null }, 200, null, 2024],
+        ['troca completa de período', { originalPublicationStartYear: 2000, originalPublicationEndYear: 2010 }, 200, 2000, 2010],
+        ['remove início e altera fim', { originalPublicationStartYear: null, originalPublicationEndYear: 2010 }, 200, null, 2010]
+    ])('valida o período final de uma atualização parcial: %s', async (label, patch, status, start, end) => {
+        const created = await createWorkThroughApi(sessionCookie, { suffix: `periodo-${label}` });
+        expect(created.status).toBe(201);
+        const workId = created.body.work.id;
+        const initial = await request(app).patch(`/api/admin/works/${workId}`).set('Cookie', sessionCookie)
+            .send({ originalPublicationStartYear: 2020, originalPublicationEndYear: 2024 });
+        expect(initial.status).toBe(200);
+        const response = await request(app).patch(`/api/admin/works/${workId}`).set('Cookie', sessionCookie).send(patch);
+        expect(response.status).toBe(status);
+        const persisted = await db.query(`SELECT original_publication_start_year AS start,
+            original_publication_end_year AS end FROM works WHERE id=$1`, [workId]);
+        expect(persisted.rows[0]).toEqual({ start, end });
+    });
+
     it.each(Object.entries({
         manga: ['Japão'], manhwa: ['Coreia do Sul'], manhua: ['China', 'Taiwan'],
         'light-novel': ['Japão'], novel: ['China', 'Coreia do Sul', 'Japão', 'Taiwan'],
