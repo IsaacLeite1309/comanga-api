@@ -116,7 +116,7 @@ model DomainOptionValue {
   editionsAsBrazilianPublisher Edition[]                     @relation("EditionBrazilianPublisher")
   editionsAsCoverType          Edition[]                     @relation("EditionCoverType")
   editionsAsFormat             Edition[]                     @relation("EditionFormat")
-  editionsAsPaper              Edition[]                     @relation("EditionPaper")
+  editionPapers                EditionPaper[]
 
   @@unique([categoryId, code], map: "uq_domain_option_values_category_code")
   @@index([categoryId, label], map: "idx_domain_option_values_category_label")
@@ -184,7 +184,6 @@ model Edition {
   brazilianPublisherId    Int                @map("brazilian_publisher_id")
   coverTypeId             Int?               @map("cover_type_id")
   formatId                Int?               @map("format_id")
-  paperId                 Int?               @map("paper_id")
   chronologicalNumber     Int                @map("chronological_number")
   brazilPublicationStatus String             @map("brazil_publication_status") @db.VarChar(30)
   visibility              String             @default("Privado") @db.VarChar(20)
@@ -194,7 +193,7 @@ model Edition {
   brazilianPublisher      DomainOptionValue  @relation("EditionBrazilianPublisher", fields: [brazilianPublisherId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   coverType               DomainOptionValue? @relation("EditionCoverType", fields: [coverTypeId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   format                  DomainOptionValue? @relation("EditionFormat", fields: [formatId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  paper                   DomainOptionValue? @relation("EditionPaper", fields: [paperId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  papers                  EditionPaper[]
   volumes                 Volume[]
 
   @@unique([workId, chronologicalNumber], map: "editions_work_chronological_number_unique")
@@ -203,10 +202,22 @@ model Edition {
   @@index([visibility, brazilianPublisherId, id], map: "idx_editions_visibility_publisher")
   @@index([visibility, formatId, id], map: "idx_editions_visibility_format")
   @@index([visibility, coverTypeId, id], map: "idx_editions_visibility_cover_type")
-  @@index([visibility, paperId, id], map: "idx_editions_visibility_paper")
   @@index([visibility, chronologicalNumber, id], map: "idx_editions_visibility_chronological")
   @@index([visibility, brazilPublicationStatus, id], map: "idx_editions_visibility_publication_status")
   @@map("editions")
+}
+
+model EditionPaper {
+  editionId Int               @map("edition_id")
+  paperId   Int               @map("paper_id")
+  position  Int               @default(0)
+  edition   Edition           @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  paper     DomainOptionValue @relation(fields: [paperId], references: [id], onDelete: Restrict)
+
+  @@id([editionId, paperId])
+  @@index([paperId], map: "idx_edition_papers_paper")
+  @@index([editionId, position], map: "idx_edition_papers_edition_position")
+  @@map("edition_papers")
 }
 
 model Volume {

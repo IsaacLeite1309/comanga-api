@@ -92,7 +92,7 @@ async function validateEditionDomainReferences(data: {
     brazilianPublisherId?: number;
     coverTypeId?: number | null;
     formatId?: number | null;
-    paperId?: number | null;
+    paperIds?: number[];
 }) {
     const validations: Array<Promise<boolean>> = [];
 
@@ -109,8 +109,8 @@ async function validateEditionDomainReferences(data: {
         validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.formats, [data.formatId]));
     }
 
-    if (data.paperId) {
-        validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.papers, [data.paperId]));
+    if (data.paperIds && data.paperIds.length > 0) {
+        validations.push(validateOptionIdsByCategory(EDITION_FORM_OPTION_CATEGORIES.papers, data.paperIds));
     }
 
     const results = await Promise.all(validations);

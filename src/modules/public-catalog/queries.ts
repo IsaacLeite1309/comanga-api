@@ -263,8 +263,9 @@ const publicEditionSelect = {
     coverType: {
         select: { id: true, label: true }
     },
-    paper: {
-        select: { id: true, label: true }
+    papers: {
+        orderBy: [{ position: 'asc' as const }, { paper: { label: 'asc' as const } }],
+        select: { paper: { select: { id: true, label: true } } }
     },
     _count: {
         select: { volumes: { where: { visibility: PUBLIC_VISIBILITY } } }
@@ -327,7 +328,10 @@ const publicWorkDetailSelect = {
             brazilianPublisher: { select: { id: true, label: true } },
             format: { select: { id: true, label: true } },
             coverType: { select: { id: true, label: true } },
-            paper: { select: { id: true, label: true } },
+            papers: {
+                orderBy: [{ position: 'asc' as const }, { paper: { label: 'asc' as const } }],
+                select: { paper: { select: { id: true, label: true } } }
+            },
             volumes: {
                 where: { visibility: PUBLIC_VISIBILITY },
                 orderBy: [{ number: 'asc' }, { id: 'asc' }],
@@ -361,7 +365,10 @@ const publicEditionDetailSelect = {
     brazilianPublisher: { select: { id: true, label: true } },
     format: { select: { id: true, label: true } },
     coverType: { select: { id: true, label: true } },
-    paper: { select: { id: true, label: true } },
+    papers: {
+        orderBy: [{ position: 'asc' as const }, { paper: { label: 'asc' as const } }],
+        select: { paper: { select: { id: true, label: true } } }
+    },
     work: {
         select: {
             id: true,
@@ -414,7 +421,6 @@ const publicVolumeDetailSelect = {
             id: true,
             chronologicalNumber: true,
             brazilianPublisher: { select: { id: true, label: true } },
-            paper: { select: { id: true, label: true } },
             volumes: {
                 where: { visibility: PUBLIC_VISIBILITY },
                 orderBy: [{ number: 'asc' }, { id: 'asc' }],

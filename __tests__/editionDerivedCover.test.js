@@ -63,7 +63,7 @@ async function createEdition(chronologicalNumber) {
             brazilianPublisherId: editionOptionIds.brazilianPublishers,
             coverTypeId: editionOptionIds.coverTypes,
             formatId: editionOptionIds.formats,
-            paperId: editionOptionIds.papers,
+            paperIds: [editionOptionIds.papers],
             chronologicalNumber,
             brazilPublicationStatus: 'Completa'
         });
@@ -119,7 +119,7 @@ describe('capa da Edição derivada do Volume 1', () => {
         const fields = {
             coverTypeId: bits & 1 ? editionOptionIds.coverTypes : null,
             formatId: bits & 2 ? editionOptionIds.formats : null,
-            paperId: bits & 4 ? editionOptionIds.papers : null
+            paperIds: bits & 4 ? [editionOptionIds.papers] : []
         };
         const created = await request(app).post(`/api/admin/works/${workId}/editions`)
             .set('Cookie', adminCookie).send({
@@ -128,12 +128,16 @@ describe('capa da Edição derivada do Volume 1', () => {
             });
         expect(created.status).toBe(201);
         expect(created.body.edition).not.toHaveProperty('editionType');
-        const stored = await prisma.edition.findUniqueOrThrow({ where: { id: created.body.edition.id } });
-        expect(stored).toEqual(expect.objectContaining(fields));
+        const stored = await prisma.edition.findUniqueOrThrow({
+            where: { id: created.body.edition.id },
+            include: { papers: { select: { paperId: true } } }
+        });
+        expect(stored).toEqual(expect.objectContaining({ coverTypeId: fields.coverTypeId, formatId: fields.formatId }));
+        expect(stored.papers.map(({ paperId }) => paperId)).toEqual(fields.paperIds);
         const updated = await request(app).patch(`/api/admin/editions/${stored.id}`)
-            .set('Cookie', adminCookie).send({ coverTypeId: null, formatId: null, paperId: null });
+            .set('Cookie', adminCookie).send({ coverTypeId: null, formatId: null, paperIds: [] });
         expect(updated.status).toBe(200);
-        expect(updated.body.edition).toEqual(expect.objectContaining({ coverType: null, format: null, paper: null }));
+        expect(updated.body.edition).toEqual(expect.objectContaining({ coverType: null, format: null, papers: [] }));
     });
 
     it('remove colunas e categoria descartadas sem apagar o miolo', async () => {
