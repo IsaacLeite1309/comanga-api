@@ -14,7 +14,10 @@ const PARAM_SAMPLES = {
     category: 'generos',
     slug: 'obra-inexistente',
     workId: '999999',
-    editionId: '999999'
+    editionId: '999999',
+    workSlug: 'obra-inexistente',
+    editionNumber: '999999',
+    volumeNumber: '999999'
 };
 
 function listAdminRoutes() {

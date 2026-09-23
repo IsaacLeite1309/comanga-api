@@ -23,9 +23,11 @@ async function ensureCategory(slug) {
 
 async function createOption(categorySlug, suffix) {
     const categoryId = await ensureCategory(categorySlug);
+    const label = `${prefix}_${suffix}`;
     const result = await db.query(
-        'INSERT INTO domain_option_values (category_id, label, active) VALUES ($1, $2, true) RETURNING id, label',
-        [categoryId, `${prefix}_${suffix}`]
+        `INSERT INTO domain_option_values (category_id, label, code, active)
+         VALUES ($1, $2, $3, true) RETURNING id, label, code`,
+        [categoryId, label, categorySlug === 'autores' ? label.toLowerCase().replace(/_/g, '-') : null]
     );
     fixture.optionIds.push(result.rows[0].id);
     return result.rows[0];
@@ -194,7 +196,7 @@ describe('fronteiras de acesso a conteúdo adulto nas leituras públicas', () =>
             const cookie = chave ? state.cookies[chave] : undefined;
             const [pesquisa, porAutor] = await Promise.all([
                 get(`/api/public/works?term=${prefix}&limit=1`, cookie),
-                get(`/api/public/authors/${fixture.options.author.id}/works?limit=1`, cookie)
+                get(`/api/public/authors/${fixture.options.author.code}/works?limit=1`, cookie)
             ]);
 
             expect(pesquisa.status).toBe(200);
@@ -210,7 +212,7 @@ describe('fronteiras de acesso a conteúdo adulto nas leituras públicas', () =>
             const cookie = state.cookies.completou18Hoje;
             const [pesquisa, porAutor] = await Promise.all([
                 get(`/api/public/works?term=${prefix}&limit=1`, cookie),
-                get(`/api/public/authors/${fixture.options.author.id}/works?limit=1`, cookie)
+                get(`/api/public/authors/${fixture.options.author.code}/works?limit=1`, cookie)
             ]);
 
             expect(pesquisa.body.pagination).toMatchObject({ total: 2, totalPages: 2 });
