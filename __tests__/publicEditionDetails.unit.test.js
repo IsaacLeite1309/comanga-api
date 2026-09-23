@@ -87,6 +87,27 @@ describe('detalhes públicos da Edição', () => {
 
     beforeEach(() => jest.clearAllMocks());
 
+    it('busca o número da Edição apenas dentro da Obra do caminho', async () => {
+        mockEditionFindFirst.mockResolvedValue(editionFixture());
+        mockVolumeFindMany.mockResolvedValue([]);
+        mockVolumeFindFirst.mockResolvedValue(null);
+        const res = response();
+        await getPublicEditionDetails({
+            params: { slug: 'monster', editionNumber: '2' },
+            query: {},
+            publicCatalogViewer: { canViewAdultContent: false }
+        }, res, jest.fn());
+        expect(mockEditionFindFirst).toHaveBeenCalledWith({
+            where: {
+                chronologicalNumber: 2,
+                visibility: 'Público',
+                work: { slug: 'monster', visibility: 'Público', adultContent: false, ...HENTAI_RESTRICTION }
+            },
+            select: publicEditionDetailSelect
+        });
+        expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     it('retorna ficha editorial e Volumes públicos paginados em ordem crescente', async () => {
         mockEditionFindFirst.mockResolvedValue(editionFixture());
         mockVolumeFindMany.mockResolvedValue([volumeFixture()]);

@@ -37,15 +37,19 @@ async function ensureCategory(slug) {
 
 async function createOption(categorySlug, suffix, active = true) {
     const categoryId = await ensureCategory(categorySlug);
+    const label = `${fixturePrefix}_${suffix}`;
+    const authorSlug = categorySlug === 'autores' ? label.toLowerCase().replace(/[^a-z0-9]+/g, '-') : null;
     const result = await db.query(
-        `INSERT INTO domain_option_values (category_id, label, active)
-         VALUES ($1, $2, $3)
-         RETURNING id, label`,
-        [categoryId, `${fixturePrefix}_${suffix}`, active]
+        `INSERT INTO domain_option_values (category_id, label, active, code)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, label, code`,
+        [categoryId, label, active, authorSlug]
     );
 
     fixture.optionIds.push(result.rows[0].id);
-    return result.rows[0];
+    return categorySlug === 'autores'
+        ? { id: result.rows[0].id, label: result.rows[0].label, slug: result.rows[0].code }
+        : { id: result.rows[0].id, label: result.rows[0].label };
 }
 
 function workOwnMetadata(title, romanizedTitle, synopsis) {
@@ -520,11 +524,13 @@ describe('catálogo público', () => {
             authors: [
                 {
                     id: fixture.options.authorZulu.id,
-                    label: fixture.options.authorZulu.label
+                    label: fixture.options.authorZulu.label,
+                    slug: fixture.options.authorZulu.slug
                 },
                 {
                     id: fixture.options.authorOne.id,
-                    label: fixture.options.authorOne.label
+                    label: fixture.options.authorOne.label,
+                    slug: fixture.options.authorOne.slug
                 }
             ]
         }));
@@ -672,11 +678,13 @@ describe('catálogo público', () => {
                 {
                     id: fixture.options.authorOne.id,
                     label: fixture.options.authorOne.label,
+                    slug: fixture.options.authorOne.slug,
                     roles: []
                 },
                 {
                     id: fixture.options.authorZulu.id,
                     label: fixture.options.authorZulu.label,
+                    slug: fixture.options.authorZulu.slug,
                     roles: []
                 }
             ],
@@ -784,11 +792,13 @@ describe('catálogo público', () => {
                 authors: [
                     {
                         id: fixture.options.authorZulu.id,
-                        label: fixture.options.authorZulu.label
+                        label: fixture.options.authorZulu.label,
+                        slug: fixture.options.authorZulu.slug
                     },
                     {
                         id: fixture.options.authorOne.id,
-                        label: fixture.options.authorOne.label
+                        label: fixture.options.authorOne.label,
+                        slug: fixture.options.authorOne.slug
                     }
                 ]
             }),
@@ -936,7 +946,7 @@ describe('catálogo público', () => {
     describe('GET /api/public/authors/:authorId/works', () => {
     it('retorna o Autor e somente suas Obras públicas permitidas ao visitante', async () => {
         const response = await request(app)
-            .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .get(`/api/public/authors/${fixture.options.authorOne.slug}/works`)
             .query({ page: 1, limit: 1 });
 
         expect(response.status).toBe(200);
@@ -961,7 +971,7 @@ describe('catálogo público', () => {
 
     it('lista os Autores de cada Obra na ordem editorial, n\u00e3o em ordem alfab\u00e9tica', async () => {
         const response = await request(app)
-            .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .get(`/api/public/authors/${fixture.options.authorOne.slug}/works`)
             .query({ page: 1, limit: 1 });
 
         expect(response.status).toBe(200);
@@ -978,7 +988,7 @@ describe('catálogo público', () => {
             adultContent: true
         });
         const response = await request(app)
-            .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .get(`/api/public/authors/${fixture.options.authorOne.slug}/works`)
             .set('Cookie', cookie)
             .query({ limit: 50 });
 
@@ -992,11 +1002,11 @@ describe('catálogo público', () => {
 
     it('não aceita outra categoria, ID inexistente ou parâmetros inválidos', async () => {
         const [otherCategory, missing, invalidId, invalidLimit] = await Promise.all([
-            request(app).get(`/api/public/authors/${fixture.options.typeOne.id}/works`),
-            request(app).get('/api/public/authors/2147483647/works'),
-            request(app).get('/api/public/authors/invalido/works'),
+            request(app).get('/api/public/authors/tipo-de-obra/works'),
+            request(app).get('/api/public/authors/autor-inexistente/works'),
+            request(app).get('/api/public/authors/Autor Inválido/works'),
             request(app)
-                .get(`/api/public/authors/${fixture.options.authorOne.id}/works`)
+            .get(`/api/public/authors/${fixture.options.authorOne.slug}/works`)
                 .query({ limit: 51 })
         ]);
 
@@ -1012,6 +1022,23 @@ describe('catálogo público', () => {
     });
 
     describe('GET /api/public/volumes/:volumeId', () => {
+    it('resolve Edição e Volume pelos números dentro da Obra indicada', async () => {
+        const slug = fixture.works.complete.slug;
+        const edition = await request(app).get(`/api/public/works/${slug}/editions/1`);
+        const volume = await request(app).get(`/api/public/works/${slug}/editions/1/volumes/1`);
+        expect(edition.status).toBe(200);
+        expect(edition.body.edition.id).toBe(fixture.editions.complete.id);
+        expect(volume.status).toBe(200);
+        expect(volume.body.volume.id).toBe(fixture.volumes.complete.id);
+
+        const wrongEdition = await request(app).get(`/api/public/works/${slug}/editions/999`);
+        const wrongVolume = await request(app).get(`/api/public/works/${slug}/editions/1/volumes/999`);
+        const wrongWork = await request(app).get(`/api/public/works/${fixture.works.private.slug}/editions/1/volumes/1`);
+        expect(wrongEdition.status).toBe(404);
+        expect(wrongVolume.status).toBe(404);
+        expect(wrongWork.status).toBe(404);
+    });
+
     it('retorna todos os dados públicos e as referências da Edição e da Obra', async () => {
         const response = await request(app)
             .get(`/api/public/volumes/${fixture.volumes.complete.id}`);
@@ -1156,7 +1183,7 @@ describe('catálogo público', () => {
                 withSession(request(app).get(`/api/public/works/${fixture.works.hentai.slug}`)),
                 withSession(request(app).get(`/api/public/works/${fixture.works.legacyHentai.slug}`)),
                 withSession(request(app)
-                    .get(`/api/public/authors/${fixture.options.authorHentai.id}/works`)
+                    .get(`/api/public/authors/${fixture.options.authorHentai.slug}/works`)
                     .query({ limit: 50 })),
                 withSession(request(app).get('/api/public/editions').query({ term: fixturePrefix, limit: 50 })),
                 withSession(request(app).get(`/api/public/editions/${fixture.editions.hentai.id}`)),

@@ -1947,7 +1947,7 @@ describe('módulos administrativos', () => {
             const req = makeReq({
                 params: { editionId: '20' },
                 body: {
-                    number: 1,
+                    number: 0,
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     singleVolume: true,
                     pages: 200,
@@ -1991,6 +1991,35 @@ describe('módulos administrativos', () => {
                     releaseDay: 10
                 })
             });
+        });
+
+        it('impede cadastrar outro Volume em Edição com Volume único', async () => {
+            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado' });
+            prisma.volume.findFirst.mockResolvedValue({ id: 30 });
+            const res = makeRes();
+            await catalog.createVolume(makeReq({
+                params: { editionId: '20' },
+                body: {
+                    number: 2,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    releaseDatePrecision: 'Ano',
+                    releaseYear: 2026
+                }
+            }), res);
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(prisma.volume.create).not.toHaveBeenCalled();
+        });
+
+        it('impede marcar Volume como único quando a Edição tem outro Volume', async () => {
+            prisma.volume.findUnique.mockResolvedValue({
+                id: 30, editionId: 20, number: 1, singleVolume: false,
+                coverAssetId: null, edition: { visibility: 'Privado' }
+            });
+            prisma.volume.findFirst.mockResolvedValue({ id: 31 });
+            const res = makeRes();
+            await catalog.updateVolume(makeReq({ params: { id: '30' }, body: { singleVolume: true } }), res);
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(prisma.volume.update).not.toHaveBeenCalled();
         });
 
         it('recusa cadastro de Volume sem capa interna antes de consultar a Edição', async () => {

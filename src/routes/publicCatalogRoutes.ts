@@ -19,5 +19,7 @@ router.get('/authors/:authorId/works', auth.optionalSessionMiddleware, listPubli
 router.get('/editions', auth.optionalSessionMiddleware, listPublicEditions);
 router.get('/editions/:editionId', auth.optionalSessionMiddleware, getPublicEditionDetails);
 router.get('/volumes/:volumeId', auth.optionalSessionMiddleware, getPublicVolumeDetails);
+router.get('/works/:slug/editions/:editionNumber', auth.optionalSessionMiddleware, getPublicEditionDetails);
+router.get('/works/:slug/editions/:editionNumber/volumes/:volumeNumber', auth.optionalSessionMiddleware, getPublicVolumeDetails);
 
 export default router;

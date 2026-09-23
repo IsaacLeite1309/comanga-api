@@ -11,6 +11,7 @@ export {
     createEdition,
     deleteEdition,
     getEditionById,
+    getEditionByNumber,
     listEditionsByWork,
     updateEdition,
     updateEditionVisibility
@@ -19,6 +20,7 @@ export {
     createVolume,
     deleteVolume,
     getVolumeById,
+    getVolumeByNumber,
     listVolumesByEdition,
     updateVolume
 } from './volumes';

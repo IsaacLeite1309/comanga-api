@@ -22,6 +22,8 @@ router.get('/editions/form-options', authMiddleware, requireAdmin, adminOptions.
 router.get('/works', authMiddleware, requireAdmin, catalog.listWorks);
 router.post('/works', authMiddleware, requireAdmin, catalog.createWork);
 router.get('/works/slug/:slug', authMiddleware, requireAdmin, catalog.getWorkBySlug);
+router.get('/works/slug/:workSlug/editions/:editionNumber', authMiddleware, requireAdmin, catalog.getEditionByNumber);
+router.get('/works/slug/:workSlug/editions/:editionNumber/volumes/:volumeNumber', authMiddleware, requireAdmin, catalog.getVolumeByNumber);
 router.post('/works/:workId/editions', authMiddleware, requireAdmin, catalog.createEdition);
 router.get('/works/:workId/editions', authMiddleware, requireAdmin, catalog.listEditionsByWork);
 router.post('/editions/:editionId/volumes', authMiddleware, requireAdmin, catalog.createVolume);

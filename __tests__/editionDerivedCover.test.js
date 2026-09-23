@@ -91,6 +91,45 @@ function publish(editionId) {
 }
 
 describe('capas derivadas da Edição com banco real', () => {
+it('resolve Edição e Volume administrativos pelos números dentro da Obra', async () => {
+    const edition = (await createEdition(123)).body.edition;
+    const volume = (await createVolume(edition.id, 1)).body.volume;
+    const editionPath = `/api/admin/works/slug/${prefix}/editions/123`;
+    const editionResult = await request(app).get(editionPath).set('Cookie', adminCookie);
+    const volumeResult = await request(app).get(`${editionPath}/volumes/1`).set('Cookie', adminCookie);
+    expect(editionResult.status).toBe(200);
+    expect(editionResult.body.edition.id).toBe(edition.id);
+    expect(volumeResult.status).toBe(200);
+    expect(volumeResult.body.volume.id).toBe(volume.id);
+    const wrongWork = await request(app).get('/api/admin/works/slug/obra-inexistente/editions/123').set('Cookie', adminCookie);
+    const wrongVolume = await request(app).get(`${editionPath}/volumes/2`).set('Cookie', adminCookie);
+    expect(wrongWork.status).toBe(404);
+    expect(wrongVolume.status).toBe(404);
+});
+it('fixa Volume único no número 1 e bloqueia outros Volumes até a marcação ser retirada', async () => {
+    const edition = (await createEdition(122)).body.edition;
+    const single = await createVolume(edition.id, 0, { singleVolume: true });
+    expect(single.status).toBe(201);
+    expect(single.body.volume).toEqual(expect.objectContaining({ number: 1, singleVolume: true }));
+
+    const blocked = await createVolume(edition.id, 2);
+    expect(blocked.status).toBe(409);
+
+    const unset = await request(app)
+        .patch(`/api/admin/volumes/${single.body.volume.id}`)
+        .set('Cookie', adminCookie)
+        .send({ singleVolume: false });
+    expect(unset.status).toBe(200);
+
+    const second = await createVolume(edition.id, 2);
+    expect(second.status).toBe(201);
+
+    const reenabled = await request(app)
+        .patch(`/api/admin/volumes/${single.body.volume.id}`)
+        .set('Cookie', adminCookie)
+        .send({ singleVolume: true });
+    expect(reenabled.status).toBe(409);
+});
 beforeAll(async () => {
     adminCookie = await createAdminSession();
     optionId = await createOption();

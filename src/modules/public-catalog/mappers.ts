@@ -52,7 +52,7 @@ function mapPublicWorkDetails(
             authorPriority(first.roles) - authorPriority(second.roles)
             || first.author.label.localeCompare(second.author.label, 'pt-BR', { sensitivity: 'base' })
         )).map(({ author, roles }) => ({
-            ...mapOption(author),
+            ...mapAuthor(author),
             roles: [...roles].sort((first, second) => authorPriority([first]) - authorPriority([second])).map(({ role }) => role)
         })),
         genres: work.genres.map(({ genre }) => mapOption(genre)),
@@ -92,8 +92,12 @@ function mapOption(option: PublicOptionInput | null) {
     };
 }
 
+function mapAuthor(author: PublicOptionInput) {
+    return { ...mapOption(author), slug: author.code };
+}
+
 function mapAuthors(authors: PublicWorkInput['authors']) {
-    return authors.map(({ author }) => mapOption(author));
+    return authors.map(({ author }) => mapAuthor(author));
 }
 
 function mapPublicWork(work: PublicWorkInput) {

@@ -56,7 +56,7 @@ function buildVolumeReleaseData(data: VolumePayload, mode: 'create' | 'update') 
 
 function buildVolumeData(data: VolumePayload, mode: 'create' | 'update' = 'create') {
     return {
-        number: data.number,
+        number: data.singleVolume ? 1 : data.number,
         coverAssetId: data.coverAssetId,
         singleVolume: withCreateDefault(data.singleVolume, false, mode),
         pages: withCreateDefault(data.pages, null, mode),
@@ -113,13 +113,22 @@ async function createVolume(req: Request, res: Response, next: NextFunction) {
                     }
                 }
             });
-        const volume = validation.data.coverAssetId
-            ? await prisma.$transaction(async (tx) => {
-                const createdVolume = await createVolumeRecord(tx as typeof prisma);
-                await activateCoverAsset(tx, validation.data.coverAssetId as string);
-                return createdVolume;
-            })
-            : await createVolumeRecord(prisma);
+        const result = await withCatalogWriteLock(async tx => {
+            const existingVolume = await tx.volume.findFirst({
+                where: { editionId, ...(validation.data.singleVolume ? {} : { singleVolume: true }) },
+                select: { id: true }
+            });
+            if (existingVolume) {
+                return { error: 'Esta Edição não pode ter outros Volumes enquanto houver um Volume único.' } as const;
+            }
+            const volume = await createVolumeRecord(tx as typeof prisma);
+            if (validation.data.coverAssetId) {
+                await activateCoverAsset(tx, validation.data.coverAssetId);
+            }
+            return { volume } as const;
+        });
+        if ('error' in result) return res.status(409).json({ error: result.error });
+        const { volume } = result;
 
         return res.status(201).json({ volume: normalizeVolume(volume as unknown as VolumeInput) });
     } catch (error) {
@@ -222,6 +231,28 @@ async function getVolumeById(req: Request, res: Response, next: NextFunction) {
     }
 }
 
+async function getVolumeByNumber(req: Request, res: Response, next: NextFunction) {
+    const editionNumber = parsePositiveId(req.params.editionNumber);
+    const volumeNumber = parsePositiveId(req.params.volumeNumber);
+    const workSlug = req.params.workSlug;
+    if (!editionNumber || !volumeNumber || typeof workSlug !== 'string' || !workSlug) {
+        return res.status(400).json({ error: 'Endereço do Volume inválido.' });
+    }
+    try {
+        const volume = await prisma.volume.findFirst({
+            where: {
+                number: volumeNumber,
+                edition: { chronologicalNumber: editionNumber, work: { slug: workSlug } }
+            },
+            include: { coverAsset: { select: { id: true, objectKey: true, variants: { select: { kind: true, objectKey: true } } } } }
+        });
+        if (!volume) return res.status(404).json({ error: 'Volume não encontrado.' });
+        return res.status(200).json({ volume: normalizeVolume(volume as unknown as VolumeInput) });
+    } catch (error) {
+        return next(error);
+    }
+}
+
 // Em Edição pública a capa vem do Volume 1: renumerá-lo deixaria a Edição sem origem de capa.
 function removesPublicEditionCoverSource(
     volume: { number: number; edition: { visibility: string } },
@@ -239,7 +270,9 @@ async function persistVolumeUpdate(volumeId: number, data: VolumePayload) {
             where: { id: volumeId },
             select: {
                 id: true,
+                editionId: true,
                 number: true,
+                singleVolume: true,
                 coverAssetId: true,
                 releaseDatePrecision: true,
                 releaseYear: true,
@@ -253,8 +286,22 @@ async function persistVolumeUpdate(volumeId: number, data: VolumePayload) {
             return { status: 404, error: 'Volume não encontrado.' } as const;
         }
 
-        if (removesPublicEditionCoverSource(existingVolume, data.number)) {
+        const nextSingleVolume = data.singleVolume ?? existingVolume.singleVolume;
+        const nextNumber = nextSingleVolume ? 1 : data.number;
+        if (removesPublicEditionCoverSource(existingVolume, nextNumber)) {
             return { status: 409, error: PUBLIC_EDITION_COVER_SOURCE_MESSAGE } as const;
+        }
+
+        const conflictingVolume = await tx.volume.findFirst({
+            where: {
+                editionId: existingVolume.editionId,
+                id: { not: volumeId },
+                ...(nextSingleVolume ? {} : { singleVolume: true })
+            },
+            select: { id: true }
+        });
+        if (conflictingVolume) {
+            return { status: 409, error: 'Esta Edição não pode ter outros Volumes enquanto houver um Volume único.' } as const;
         }
 
         if (
@@ -269,7 +316,7 @@ async function persistVolumeUpdate(volumeId: number, data: VolumePayload) {
 
         const volume = await tx.volume.update({
                 where: { id: volumeId },
-                data: buildVolumeData({ ...data, ...release.data }, 'update'),
+                data: buildVolumeData({ ...data, ...release.data, number: nextNumber }, 'update'),
                 include: {
                     coverAsset: {
                         select: {
@@ -365,6 +412,7 @@ export {
     createVolume,
     listVolumesByEdition,
     getVolumeById,
+    getVolumeByNumber,
     updateVolume,
     deleteVolume
 };
