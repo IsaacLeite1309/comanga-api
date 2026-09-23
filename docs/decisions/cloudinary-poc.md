@@ -1,43 +1,30 @@
-# Prova de conceito de capas com Cloudinary
+# Prova de conceito de capas com Cloudinary (histórico)
 
-> **Status: substituída em 19/08/2026.** A POC e suas rotas foram removidas. A decisão vigente é armazenar capas internas no Cloudflare R2, conforme `docs/operations/internal-cover-media.md`. O conteúdo abaixo permanece apenas como registro histórico da avaliação.
+> **Registro histórico. Não é a configuração atual.** A prova de conceito foi abandonada. O código, as rotas, a variável de ativação e os testes do Cloudinary foram removidos no commit `083f466` ("feat: internalizar capas no Cloudflare R2", agosto de 2026). O armazenamento vigente das capas é o **Cloudflare R2**, descrito em [operação das capas internas](../operations/internal-cover-media.md). Nada neste documento deve ser usado como instrução de configuração ou operação.
 
-## Objetivo
+## Contexto
 
-Avaliar a importação controlada de capas externas sem substituir o mecanismo atual do catálogo nem realizar migração em massa.
+Antes do armazenamento interno, o catálogo referenciava capas por URL externa. A prova de conceito avaliou se um serviço gerenciado de imagens poderia importar e entregar essas capas de forma controlada, sem migração em massa e sem alterar o mecanismo do catálogo durante a avaliação.
 
-## Escopo seguro
+## O que foi avaliado
 
-- A funcionalidade permanece desativada sem `CLOUDINARY_POC_ENABLED=true`.
-- As rotas exigem sessão ativa e papel `Administrador`.
-- O frontend nunca recebe `API Secret` ou assinatura reutilizável.
-- A origem deve usar HTTPS e apontar para JPG, PNG, WebP ou AVIF.
-- O backend bloqueia hosts locais/privados, limita redirecionamentos e restringe o tamanho configurado.
-- Os ativos ficam na pasta isolada `comanga-poc`.
-- A POC não grava URLs ou `publicId` nas tabelas do catálogo.
+- Importação de capas externas por URL, restrita a administradores, com a integração isolada atrás do contrato `MediaStorage` e desligada por padrão.
+- Restrições equivalentes às que hoje valem para o R2: origem HTTPS, formatos JPG, PNG, WebP ou AVIF, bloqueio de hosts locais e privados, limite de redirecionamentos e de tamanho.
+- Ativos numa pasta isolada do serviço, sem gravar URLs ou identificadores nas tabelas do catálogo.
+- Entrega otimizada em proporção 2:3, com corte automático e formato e qualidade automáticos (`c_fill,ar_2:3,g_auto/f_auto,q_auto`).
+- Medição de armazenamento, transformações e largura de banda, a comparar com os limites do plano gratuito.
 
-## Transformação avaliada
+## Resultado da avaliação
 
-A URL otimizada usa proporção 2:3, corte com gravidade automática, formato automático e qualidade automática:
+Na época, a decisão registrada foi **adiar**: a integração estava tecnicamente pronta para uma prova controlada, mas o catálogo tinha poucos registros reais e não havia medição representativa de consumo ou benefício. Nenhum resultado de medição foi registrado neste repositório.
 
-```text
-c_fill,ar_2:3,g_auto/f_auto,q_auto
-```
+## Decisão final
 
-## Medição
+A prova de conceito foi encerrada sem adoção e substituída pelo armazenamento interno no Cloudflare R2. O motivo detalhado da troca não foi registrado neste repositório. A solução adotada tem estas características:
 
-`GET /api/admin/media/poc/metrics` informa ativos acompanhados pelo processo atual, bytes armazenados e quantidades de importações, substituições e exclusões. Como esse registro é local e reinicia junto com a instância, o uso faturável deve ser conferido no painel do Cloudinary durante a prova.
+- a própria API baixa a imagem e a processa com Sharp, gerando variantes WebP 2:3 fixas;
+- os arquivos ficam no R2 com chaves imutáveis, e o PostgreSQL guarda apenas metadados;
+- as capas são servidas pelo domínio público configurado em `MEDIA_PUBLIC_BASE_URL`;
+- a associação, o descarte e a limpeza das capas são coordenados por gatilhos no banco e pelo comando `npm run media:cleanup`.
 
-Registrar para cada rodada:
-
-| Medida | Antes | Depois | Diferença |
-| --- | ---: | ---: | ---: |
-| Armazenamento |  |  |  |
-| Transformações |  |  |  |
-| Largura de banda |  |  |  |
-
-Também devem ser verificados: importação por URL, entrega otimizada, substituição mantendo `publicId`, invalidação da versão anterior e exclusão do ativo.
-
-## Decisão histórica: Adiar
-
-O Cloudinary foi isolado atrás de `MediaStorage` e está tecnicamente pronto para uma prova controlada. Ele ainda não é o armazenamento padrão porque o catálogo possui poucos registros reais e não há medição representativa de consumo ou benefício. A decisão deve ser reavaliada após cadastrar uma amostra de capas e comparar estabilidade, armazenamento, transformações e largura de banda com os limites gratuitos vigentes.
+Não existe dependência, variável de ambiente nem rota do Cloudinary no código atual.
