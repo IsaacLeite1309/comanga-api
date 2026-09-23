@@ -16,8 +16,9 @@ async function migrate() {
 }
 
 async function option(category, label, active = true) {
-    const result = await db.query(`INSERT INTO domain_option_values(category_id,label,active)
-        SELECT id,$2,$3 FROM domain_option_categories WHERE slug=$1 RETURNING id`, [category, label, active]);
+    const result = await db.query(`INSERT INTO domain_option_values(category_id,label,active,code)
+        SELECT id,$2,$3,$4 FROM domain_option_categories WHERE slug=$1 RETURNING id`,
+        [category, label, active, category === 'autores' ? label.toLowerCase().replace(/[^a-z0-9]+/g, '-') : null]);
     fixture.options.push(result.rows[0].id);
     return result.rows[0].id;
 }
@@ -113,7 +114,7 @@ it.each([
     }
     const editions = await get('/api/public/editions', { term: main.slug });
     expect(editions.body.editions.map(e => e.id)).toEqual(allowed ? [editionId] : []);
-    const authored = await get(`/api/public/authors/${authorId}/works`);
+    const authored = await get(`/api/public/authors/${prefix.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/works`);
     expect(authored.body.works.map(w => w.id)).toEqual(allowed ? [main.id] : []);
     const options = await get('/api/public/catalog-options');
     expect(options.body.options.genres.some(g => g.id === aliases[0])).toBe(allowed);

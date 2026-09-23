@@ -166,6 +166,22 @@ async function getEditionById(req: Request, res: Response, next: NextFunction) {
     }
 }
 
+async function getEditionByNumber(req: Request, res: Response, next: NextFunction) {
+    const number = parsePositiveId(req.params.editionNumber);
+    const workSlug = req.params.workSlug;
+    if (!number || typeof workSlug !== 'string' || !workSlug) return res.status(400).json({ error: 'Endereço da Edição inválido.' });
+    try {
+        const edition = await prisma.edition.findFirst({
+            where: { chronologicalNumber: number, work: { slug: workSlug } },
+            include: getEditionInclude()
+        });
+        if (!edition) return res.status(404).json({ error: 'Edição não encontrada.' });
+        return res.status(200).json({ edition: normalizeEdition(edition as unknown as EditionInput) });
+    } catch (error) {
+        return next(error);
+    }
+}
+
 async function updateEdition(req: Request, res: Response, next: NextFunction) {
     const editionId = parsePositiveId(req.params.id);
 
@@ -353,6 +369,7 @@ export {
     createEdition,
     listEditionsByWork,
     getEditionById,
+    getEditionByNumber,
     updateEdition,
     deleteEdition,
     updateEditionVisibility

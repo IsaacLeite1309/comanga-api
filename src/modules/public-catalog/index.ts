@@ -49,6 +49,8 @@ import {
     publicEditionsQuerySchema,
     publicEntityIdParamsSchema,
     publicVolumeIdParamsSchema,
+    publicEditionContextParamsSchema,
+    publicVolumeContextParamsSchema,
     publicWorksQuerySchema
 } from './schemas';
 
@@ -153,14 +155,15 @@ async function listPublicAuthorWorks(req: Request, res: Response, next: NextFunc
 
     const { authorId } = paramsValidation.data;
     const query = queryValidation.data;
-    const where = buildPublicAuthorWorksWhere(authorId, canViewAdultContent(req));
 
     try {
-        const [author, works, total] = await prisma.$transaction([
-            prisma.domainOptionValue.findFirst({
-                where: { id: authorId, category: { slug: PUBLIC_AUTHOR_CATEGORY } },
-                select: { id: true, label: true }
-            }),
+        const author = await prisma.domainOptionValue.findFirst({
+            where: { code: authorId, category: { slug: PUBLIC_AUTHOR_CATEGORY } },
+            select: { id: true, label: true, code: true }
+        });
+        if (!author) return res.status(404).json({ error: 'Autor não encontrado.' });
+        const where = buildPublicAuthorWorksWhere(author.id, canViewAdultContent(req));
+        const [works, total] = await prisma.$transaction([
             prisma.work.findMany({
                 where,
                 select: publicWorkSelect,
@@ -172,12 +175,8 @@ async function listPublicAuthorWorks(req: Request, res: Response, next: NextFunc
         ]);
 
         prepareViewerDependentResponse(res);
-        if (!author) {
-            return res.status(404).json({ error: 'Autor não encontrado.' });
-        }
-
         return res.status(200).json({
-            author: mapOption(author),
+            author: { ...mapOption(author), slug: author.code },
             works: works.map(mapPublicWork),
             pagination: pagination(query.page, query.limit, total)
         });
@@ -264,19 +263,28 @@ async function listPublicEditions(req: Request, res: Response, next: NextFunctio
 }
 
 async function getPublicEditionDetails(req: Request, res: Response, next: NextFunction) {
-    const paramsValidation = publicEntityIdParamsSchema.safeParse(req.params);
+    const contextual = req.params.slug !== undefined;
+    const paramsValidation = contextual
+        ? publicEditionContextParamsSchema.safeParse(req.params)
+        : publicEntityIdParamsSchema.safeParse(req.params);
     const queryValidation = publicDetailsQuerySchema.safeParse(req.query);
 
     if (!paramsValidation.success || !queryValidation.success) {
         return res.status(400).json({ error: INVALID_PUBLIC_PARAMETERS_MESSAGE });
     }
 
-    const { editionId } = paramsValidation.data;
     const { page, limit } = queryValidation.data;
-    const editionWhere = buildPublicEditionDetailWhere(
-        editionId,
-        canViewAdultContent(req)
-    );
+    const editionWhere: Prisma.EditionWhereInput = contextual
+        ? {
+            chronologicalNumber: Number(req.params.editionNumber),
+            visibility: PUBLIC_VISIBILITY,
+            work: {
+                slug: Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug,
+                visibility: PUBLIC_VISIBILITY,
+                ...buildAdultWorkRestriction(canViewAdultContent(req))
+            }
+        }
+        : buildPublicEditionDetailWhere(Number(req.params.editionId), canViewAdultContent(req));
 
     try {
         const [edition, volumes, firstPublicationVolume, lastPublicationVolume] = await prisma.$transaction([
@@ -336,16 +344,30 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
 }
 
 async function getPublicVolumeDetails(req: Request, res: Response, next: NextFunction) {
-    const validation = publicVolumeIdParamsSchema.safeParse(req.params);
+    const contextual = req.params.slug !== undefined;
+    const validation = contextual
+        ? publicVolumeContextParamsSchema.safeParse(req.params)
+        : publicVolumeIdParamsSchema.safeParse(req.params);
 
     if (!validation.success) {
         return res.status(400).json({ error: INVALID_PUBLIC_PARAMETERS_MESSAGE });
     }
 
-    const where = buildPublicVolumeDetailWhere(
-        validation.data.volumeId,
-        canViewAdultContent(req)
-    );
+    const where: Prisma.VolumeWhereInput = contextual
+        ? {
+            number: Number(req.params.volumeNumber),
+            visibility: PUBLIC_VISIBILITY,
+            edition: {
+                chronologicalNumber: Number(req.params.editionNumber),
+                visibility: PUBLIC_VISIBILITY,
+                work: {
+                    slug: Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug,
+                    visibility: PUBLIC_VISIBILITY,
+                    ...buildAdultWorkRestriction(canViewAdultContent(req))
+                }
+            }
+        }
+        : buildPublicVolumeDetailWhere(Number(req.params.volumeId), canViewAdultContent(req));
 
     try {
         const volume = await prisma.volume.findFirst({

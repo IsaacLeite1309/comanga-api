@@ -205,7 +205,7 @@ const publicWorkSelect = {
     authors: {
         select: {
             author: {
-                select: { id: true, label: true }
+                select: { id: true, label: true, code: true }
             }
         },
         orderBy: [
@@ -244,7 +244,7 @@ const publicEditionSelect = {
             authors: {
                 select: {
                     author: {
-                        select: { id: true, label: true }
+                        select: { id: true, label: true, code: true }
                     }
                 },
                 orderBy: [
@@ -297,7 +297,7 @@ const publicWorkDetailSelect = {
     type: { select: { id: true, label: true } },
     authors: {
         select: {
-            author: { select: { id: true, label: true } },
+            author: { select: { id: true, label: true, code: true } },
             roles: { select: { role: true }, orderBy: { role: 'asc' } }
         },
         orderBy: [{ position: 'asc' }, { authorId: 'asc' }]
@@ -376,7 +376,7 @@ const publicEditionDetailSelect = {
             title: true,
             originalTitle: true,
             authors: {
-                select: { author: { select: { id: true, label: true } } },
+                select: { author: { select: { id: true, label: true, code: true } } },
                 orderBy: [{ position: 'asc' }, { authorId: 'asc' }]
             }
         }

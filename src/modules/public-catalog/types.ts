@@ -1,6 +1,7 @@
 interface PublicOptionInput {
     id: number;
     label: string;
+    code?: string | null;
 }
 
 interface PublicAuthorRelationInput {

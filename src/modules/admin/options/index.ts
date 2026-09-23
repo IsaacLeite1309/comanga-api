@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { z } from 'zod';
 import prisma from '../../../prisma';
+import { availableAuthorSlug } from '../../../utils/authorSlug';
 import {
     COUNTRY_DEPENDENT_CATEGORY_SLUGS,
     EDITION_FORM_OPTION_CATEGORIES,
@@ -245,10 +246,16 @@ async function createOption(req: Request, res: Response, next: NextFunction) {
             const createdValues = [];
 
             for (const itemLabel of labels) {
+                const authorCode = category.slug === 'autores'
+                    ? await availableAuthorSlug(category.id, itemLabel, async (categoryId, code) => Boolean(
+                        await tx.domainOptionValue.findFirst({ where: { categoryId, code }, select: { id: true } })
+                    ))
+                    : null;
                 const createdValue = await tx.domainOptionValue.create({
                     data: {
                         categoryId: category.id,
-                        label: itemLabel
+                        label: itemLabel,
+                        ...(authorCode ? { code: authorCode } : {})
                     },
                     select: getOptionValueSelect(false)
                 });

@@ -73,7 +73,7 @@ const publicEntityIdParamsSchema = z.object({
 });
 
 const publicAuthorIdParamsSchema = z.object({
-    authorId: z.coerce.number().int().positive()
+    authorId: z.string().trim().min(1).regex(/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u)
 });
 
 const publicAuthorWorksQuerySchema = z.object({
@@ -84,6 +84,15 @@ const publicAuthorWorksQuerySchema = z.object({
 
 const publicVolumeIdParamsSchema = z.object({
     volumeId: z.coerce.number().int().positive()
+});
+
+const publicEditionContextParamsSchema = z.object({
+    slug: z.string().min(1),
+    editionNumber: z.coerce.number().int().positive()
+});
+
+const publicVolumeContextParamsSchema = publicEditionContextParamsSchema.extend({
+    volumeNumber: z.coerce.number().int().min(0)
 });
 
 const publicDetailsQuerySchema = z.object({
@@ -98,5 +107,7 @@ export {
     publicAuthorIdParamsSchema,
     publicAuthorWorksQuerySchema,
     publicVolumeIdParamsSchema,
+    publicEditionContextParamsSchema,
+    publicVolumeContextParamsSchema,
     publicDetailsQuerySchema
 };

@@ -80,6 +80,28 @@ describe('detalhes públicos do Volume', () => {
 
     beforeEach(() => jest.clearAllMocks());
 
+    it('busca o número do Volume na Edição e Obra do caminho', async () => {
+        mockVolumeFindFirst.mockResolvedValue(volumeFixture());
+        const res = response();
+        await getPublicVolumeDetails({
+            params: { slug: 'monster', editionNumber: '2', volumeNumber: '1' },
+            publicCatalogViewer: { canViewAdultContent: false }
+        }, res, jest.fn());
+        expect(mockVolumeFindFirst).toHaveBeenCalledWith({
+            where: {
+                number: 1,
+                visibility: 'Público',
+                edition: {
+                    chronologicalNumber: 2,
+                    visibility: 'Público',
+                    work: { slug: 'monster', visibility: 'Público', adultContent: false, ...HENTAI_RESTRICTION }
+                }
+            },
+            select: publicVolumeDetailSelect
+        });
+        expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     it('retorna todos os dados públicos e as referências da hierarquia', async () => {
         mockVolumeFindFirst.mockResolvedValue(volumeFixture());
         const res = response();
