@@ -25,7 +25,7 @@ describe('contratos de criação e alteração de capas', () => {
     const { createWorkSchema, editionPayloadSchema, updateWorkSchema, updateEditionSchema, updateVolumeSchema } = require('../src/modules/catalog/schemas');
     const asset = '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e';
     const work = { title: 'Obra', romanizedTitle: 'Obra', synopsis: 'Sinopse da Obra.', typeId: 1, country: 'Japão', originalPublicationStatus: 'Completa', authors: [{ authorId: 1, roles: ['História e Arte'] }] };
-    const edition = { brazilianPublisherId: 1, coverTypeId: 3, formatId: 4, paperId: 5, chronologicalNumber: 1, brazilPublicationStatus: 'Completa' };
+    const edition = { brazilianPublisherId: 1, coverTypeId: 3, formatId: 4, paperIds: [5], chronologicalNumber: 1, brazilPublicationStatus: 'Completa' };
     it.each([[createWorkSchema, work]])('exige capa válida na criação', (schema, data) => {
         for (const value of [undefined, null, '', 'invalid']) expect(schema.safeParse({ ...data, coverAssetId: value }).success).toBe(false);
         expect(schema.safeParse({ ...data, coverAssetId: asset }).success).toBe(true);

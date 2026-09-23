@@ -1647,14 +1647,14 @@ describe('módulos administrativos', () => {
             brazilianPublisher: { id: 2, label: 'Panini' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            paper: { id: 6, label: 'Papel' },
+            papers: [{ paper: { id: 6, label: 'Papel' } }],
             brazilPublicationStatus: 'Completa'
         };
         const editionBodyWithoutCover = {
             brazilianPublisherId: 2,
             coverTypeId: 4,
             formatId: 5,
-            paperId: 6,
+            paperIds: [6],
             chronologicalNumber: 1,
             brazilPublicationStatus: 'Completa'
         };
@@ -2151,7 +2151,7 @@ describe('módulos administrativos', () => {
             brazilianPublisherId: 2,
             coverTypeId: 4,
             formatId: 5,
-            paperId: 6,
+            paperIds: [6],
             chronologicalNumber: 1,
             brazilPublicationStatus: 'Completa',
         };
@@ -2164,7 +2164,7 @@ describe('módulos administrativos', () => {
             brazilianPublisher: { id: 2, label: 'Panini' },
             coverType: { id: 4, label: 'Capa comum' },
             format: { id: 5, label: 'Impresso' },
-            paper: { id: 6, label: 'Papel' },
+            papers: [{ paper: { id: 6, label: 'Papel' } }],
             brazilPublicationStatus: 'Completa',
             _count: { volumes: 0 }
         };

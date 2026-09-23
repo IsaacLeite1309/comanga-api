@@ -175,24 +175,29 @@ async function createEdition({
             brazilian_publisher_id,
             cover_type_id,
             format_id,
-            paper_id,
             chronological_number,
             brazil_publication_status,
             visibility,
             atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          RETURNING id`,
         [
             workId,
             brazilianPublisherId,
             coverTypeId,
             formatId,
-            paperId,
             chronologicalNumber,
             brazilPublicationStatus,
             visibility
         ]
     );
+
+    if (paperId) {
+        await db.query(
+            'INSERT INTO edition_papers (edition_id, paper_id, position) VALUES ($1, $2, 0)',
+            [result.rows[0].id, paperId]
+        );
+    }
 
     fixture.editionIds.push(result.rows[0].id);
     return result.rows[0];
@@ -1036,7 +1041,6 @@ describe('catálogo público', () => {
                 id: fixture.editions.complete.id,
                 chronologicalNumber: 1,
                 brazilianPublisher: fixture.options.publisherOne,
-                paper: fixture.options.paper,
                 work: {
                     id: fixture.works.complete.id,
                     slug: fixture.works.complete.slug,

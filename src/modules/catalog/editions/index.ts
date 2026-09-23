@@ -63,7 +63,11 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
             brazilianPublisherId: data.brazilianPublisherId,
             coverTypeId: data.coverTypeId,
             formatId: data.formatId,
-            paperId: data.paperId,
+            ...(data.paperIds.length > 0 ? { papers: {
+                createMany: {
+                    data: data.paperIds.map((paperId, position) => ({ paperId, position }))
+                }
+            } } : {}),
             chronologicalNumber: data.chronologicalNumber,
             brazilPublicationStatus: data.brazilPublicationStatus,
             visibility: 'Privado'
@@ -199,7 +203,14 @@ async function updateEdition(req: Request, res: Response, next: NextFunction) {
                 ...(data.brazilianPublisherId !== undefined ? { brazilianPublisherId: data.brazilianPublisherId } : {}),
                 ...(data.coverTypeId !== undefined ? { coverTypeId: data.coverTypeId } : {}),
                 ...(data.formatId !== undefined ? { formatId: data.formatId } : {}),
-                ...(data.paperId !== undefined ? { paperId: data.paperId } : {}),
+                ...(data.paperIds !== undefined ? {
+                    papers: {
+                        deleteMany: {},
+                        ...(data.paperIds.length > 0 ? { createMany: {
+                            data: data.paperIds.map((paperId, position) => ({ paperId, position }))
+                        } } : {})
+                    }
+                } : {}),
                 ...(data.chronologicalNumber !== undefined ? { chronologicalNumber: data.chronologicalNumber } : {}),
                 ...(data.brazilPublicationStatus !== undefined ? { brazilPublicationStatus: data.brazilPublicationStatus } : {})
             },

@@ -74,8 +74,9 @@ function getEditionInclude() {
         format: {
             select: { id: true, label: true }
         },
-        paper: {
-            select: { id: true, label: true }
+        papers: {
+            orderBy: [{ position: 'asc' as const }, { paper: { label: 'asc' as const } }],
+            select: { paper: { select: { id: true, label: true } } }
         }
     };
 }

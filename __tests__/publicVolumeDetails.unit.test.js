@@ -48,7 +48,6 @@ function volumeFixture(overrides = {}) {
             id: 20,
             chronologicalNumber: 2,
             brazilianPublisher: { id: 4, label: 'Panini' },
-            paper: { id: 7, label: 'Offset' },
             volumes: [
                 { id: 29, number: 0, singleVolume: false },
                 { id: 30, number: 1, singleVolume: false },
@@ -125,7 +124,6 @@ describe('detalhes públicos do Volume', () => {
                     id: 20,
                     chronologicalNumber: 2,
                     brazilianPublisher: { id: 4, label: 'Panini' },
-                    paper: { id: 7, label: 'Offset' },
                     work: {
                         id: 8,
                         slug: 'monster',
@@ -190,11 +188,7 @@ describe('detalhes públicos do Volume', () => {
             isbn13: null,
             affiliateLink: null,
             synopsis: null,
-            edition: {
-                ...volumeFixture().edition,
-                paper: null,
-                volumes: [{ id: 30, number: 1, singleVolume: false }]
-            }
+            edition: { ...volumeFixture().edition, volumes: [{ id: 30, number: 1, singleVolume: false }] }
         }));
         const res = response();
 
@@ -209,8 +203,7 @@ describe('detalhes públicos do Volume', () => {
             affiliateLink: null,
             synopsis: null,
             previousVolume: null,
-            nextVolume: null,
-            edition: expect.objectContaining({ paper: null })
+            nextVolume: null
         }));
     });
 
@@ -234,7 +227,6 @@ describe('detalhes públicos do Volume', () => {
             edition: expect.any(Object)
         });
         expect(publicVolumeDetailSelect.edition.select).toEqual(expect.objectContaining({
-            paper: { select: { id: true, label: true } },
             volumes: expect.objectContaining({
                 where: { visibility: 'Público' },
                 orderBy: [{ number: 'asc' }, { id: 'asc' }],

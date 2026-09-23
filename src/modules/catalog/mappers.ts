@@ -120,7 +120,7 @@ function normalizeEdition(edition: EditionInput) {
         brazilianPublisher: normalizeOptionSummary(edition.brazilianPublisher),
         coverType: normalizeOptionSummary(edition.coverType),
         format: normalizeOptionSummary(edition.format),
-        paper: normalizeOptionSummary(edition.paper),
+        papers: (edition.papers ?? []).map(({ paper }) => normalizeOptionSummary(paper)),
         brazilPublicationStatus: edition.brazilPublicationStatus,
         volumesCount: edition._count?.volumes ?? 0
     };

@@ -88,7 +88,7 @@ interface EditionInput {
     brazilianPublisher: OptionSummary;
     coverType: OptionSummary | null;
     format: OptionSummary | null;
-    paper: OptionSummary | null;
+    papers?: Array<{ paper: OptionSummary }>;
     brazilPublicationStatus: string;
     _count?: {
         volumes?: number;

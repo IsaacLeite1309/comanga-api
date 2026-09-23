@@ -100,7 +100,8 @@ const editionPayloadSchema = z.object({
     brazilianPublisherId: z.coerce.number().int().positive(),
     coverTypeId: z.coerce.number().int().positive().nullable(),
     formatId: z.coerce.number().int().positive().nullable(),
-    paperId: z.coerce.number().int().positive().nullable(),
+    paperIds: z.array(z.coerce.number().int().positive()).max(50)
+        .refine((ids) => new Set(ids).size === ids.length, 'Não repita o mesmo Miolo.'),
     chronologicalNumber: z.coerce.number().int().positive(),
     brazilPublicationStatus: z.enum(EDITION_PUBLICATION_STATUS_VALUES)
 }).strict();

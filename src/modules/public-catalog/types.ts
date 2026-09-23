@@ -70,7 +70,7 @@ interface PublicEditionDetailInput {
     brazilianPublisher: PublicOptionInput;
     format: PublicOptionInput | null;
     coverType: PublicOptionInput | null;
-    paper: PublicOptionInput | null;
+    papers?: Array<{ paper: PublicOptionInput }>;
     volumes: PublicVolumePreviewInput[];
     _count: { volumes: number };
 }
@@ -82,7 +82,7 @@ interface PublicEditionPageInput extends PublicEditionCoverSourceInput {
     brazilianPublisher: PublicOptionInput;
     format: PublicOptionInput | null;
     coverType: PublicOptionInput | null;
-    paper: PublicOptionInput | null;
+    papers?: Array<{ paper: PublicOptionInput }>;
     work: {
         id: number;
         slug: string;
@@ -113,7 +113,6 @@ interface PublicVolumeDetailInput {
         id: number;
         chronologicalNumber: number;
         brazilianPublisher: PublicOptionInput;
-        paper: PublicOptionInput | null;
         volumes: Array<{
             id: number;
             number: number;
