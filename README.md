@@ -176,7 +176,7 @@ Use Node.js 22 e `npm ci` para instalar as versões do lockfile.
 
 - `npm run check`: fronteiras arquiteturais, lint sem avisos, build e cobertura mínima de 80% em cada métrica.
 - `npm run test:architecture`: regressões da configuração arquitetural do ESLint em projetos temporários.
-- `npm run check:online`: auditoria de todas as dependências, incluindo ferramentas de desenvolvimento.
+- `npm run check:online`: auditoria das dependências instaladas em produção.
 - `npm run test:unit`: todos os testes unitários, sem credenciais ou banco real.
 - `npm run check:integration`: executa lint e regressões arquiteturais, aplica o histórico de migrations e executa todos os testes com cobertura.
 
