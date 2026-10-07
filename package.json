@@ -19,7 +19,7 @@
     "test:unit": "jest --config jest.unit.config.js --runInBand",
     "check": "npm run lint && npm run test:architecture && npm run build && npm run test:coverage:unit",
     "check:integration": "npm run lint && npm run test:architecture && npm run migrate:test && npm run test:coverage",
-    "check:online": "npm audit",
+    "check:online": "npm audit --omit=dev",
     "check:covers": "node scripts/check-catalog-covers.js",
     "media:cleanup": "npm run build && node dist/src/commands/cleanupDiscardedCovers.js",
     "test:architecture": "node --test scripts/eslint-architecture.test.cjs"
@@ -43,7 +43,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "pg": "^8.20.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
