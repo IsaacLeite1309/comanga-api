@@ -1,0 +1,146 @@
+name: Production backups
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 00:17 em Sao Paulo (UTC-3). Evita o inicio da hora, quando o GitHub
+    # pode atrasar ou descartar execucoes agendadas sob carga.
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-backups
+  cancel-in-progress: false
+
+jobs:
+  database:
+    name: Neon PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NEON_PRODUCTION_DATABASE_URL: ${{ secrets.NEON_PRODUCTION_DATABASE_URL }}
+      R2_BACKUP_BUCKET: ${{ vars.R2_BACKUP_BUCKET }}
+      RCLONE_CONFIG_BACKUP_TYPE: s3
+      RCLONE_CONFIG_BACKUP_PROVIDER: Cloudflare
+      RCLONE_CONFIG_BACKUP_ENDPOINT: ${{ vars.R2_BACKUP_S3_ENDPOINT }}
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_BACKUP_NO_CHECK_BUCKET: "true"
+
+    steps:
+      - name: Validate backup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in NEON_PRODUCTION_DATABASE_URL R2_BACKUP_BUCKET \
+            RCLONE_CONFIG_BACKUP_ENDPOINT RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID \
+            RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Configure $key antes de executar o backup."
+              exit 1
+            fi
+          done
+          [[ "$R2_BACKUP_BUCKET" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]] || {
+            echo "::error::R2_BACKUP_BUCKET invalido."
+            exit 1
+          }
+
+      - name: Install rclone
+        run: sudo apt-get update && sudo apt-get install -y rclone
+
+      - name: Export and verify PostgreSQL archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          backup_dir="$(mktemp -d "$RUNNER_TEMP/comanga-db.XXXXXX")"
+          backup_name="comanga-$(date -u +'%Y-%m-%dT%H-%M-%SZ').dump"
+          backup_day="$(date -u +'%Y/%m/%d')"
+          echo "BACKUP_DIR=$backup_dir" >> "$GITHUB_ENV"
+          echo "BACKUP_DAY=$backup_day" >> "$GITHUB_ENV"
+
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            --mount "type=bind,src=$backup_dir,dst=/backup" \
+            --env NEON_PRODUCTION_DATABASE_URL \
+            --env "BACKUP_NAME=$backup_name" \
+            postgres:18 \
+            sh -c 'pg_dump --dbname="$NEON_PRODUCTION_DATABASE_URL" --format=custom --no-owner --no-acl --file="/backup/$BACKUP_NAME"'
+
+          test -s "$backup_dir/$backup_name"
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            --mount "type=bind,src=$backup_dir,dst=/backup,readonly" \
+            postgres:18 pg_restore --file=/dev/null "/backup/$backup_name"
+          (cd "$backup_dir" && sha256sum "$backup_name" > "$backup_name.sha256")
+
+      - name: Upload and verify database backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="backup:$R2_BACKUP_BUCKET/database/$BACKUP_DAY"
+          rclone copy "$BACKUP_DIR" "$destination" --immutable
+          rclone check "$BACKUP_DIR" "$destination" --one-way --size-only
+
+  media:
+    name: Cloudflare R2 media
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      R2_PRODUCTION_BUCKET: ${{ vars.R2_PRODUCTION_BUCKET }}
+      R2_BACKUP_BUCKET: ${{ vars.R2_BACKUP_BUCKET }}
+      RCLONE_CONFIG_SOURCE_TYPE: s3
+      RCLONE_CONFIG_SOURCE_PROVIDER: Cloudflare
+      RCLONE_CONFIG_SOURCE_ENDPOINT: ${{ vars.R2_PRODUCTION_S3_ENDPOINT }}
+      RCLONE_CONFIG_SOURCE_ACCESS_KEY_ID: ${{ secrets.R2_PRODUCTION_READ_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY: ${{ secrets.R2_PRODUCTION_READ_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_SOURCE_NO_CHECK_BUCKET: "true"
+      RCLONE_CONFIG_BACKUP_TYPE: s3
+      RCLONE_CONFIG_BACKUP_PROVIDER: Cloudflare
+      RCLONE_CONFIG_BACKUP_ENDPOINT: ${{ vars.R2_BACKUP_S3_ENDPOINT }}
+      RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_BACKUP_NO_CHECK_BUCKET: "true"
+
+    steps:
+      - name: Validate media backup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in R2_PRODUCTION_BUCKET R2_BACKUP_BUCKET \
+            RCLONE_CONFIG_SOURCE_ENDPOINT RCLONE_CONFIG_SOURCE_ACCESS_KEY_ID \
+            RCLONE_CONFIG_SOURCE_SECRET_ACCESS_KEY RCLONE_CONFIG_BACKUP_ENDPOINT \
+            RCLONE_CONFIG_BACKUP_ACCESS_KEY_ID RCLONE_CONFIG_BACKUP_SECRET_ACCESS_KEY; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Configure $key antes de executar o backup."
+              exit 1
+            fi
+          done
+          if [[ "$R2_PRODUCTION_BUCKET" == "$R2_BACKUP_BUCKET" && \
+                "$RCLONE_CONFIG_SOURCE_ENDPOINT" == "$RCLONE_CONFIG_BACKUP_ENDPOINT" ]]; then
+            echo "::error::O bucket de backup deve ser diferente do bucket de producao."
+            exit 1
+          fi
+          for bucket in "$R2_PRODUCTION_BUCKET" "$R2_BACKUP_BUCKET"; do
+            [[ "$bucket" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]] || {
+              echo "::error::Nome de bucket invalido."
+              exit 1
+            }
+          done
+
+      - name: Install rclone
+        run: sudo apt-get update && sudo apt-get install -y rclone
+
+      - name: Copy and verify media objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="source:$R2_PRODUCTION_BUCKET"
+          current="backup:$R2_BACKUP_BUCKET/media/current"
+          history="backup:$R2_BACKUP_BUCKET/media/history/$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+
+          # copy preserva objetos removidos da origem. backup-dir guarda a
+          # versao anterior de qualquer objeto que tenha sido sobrescrito.
+          rclone copy "$source" "$current" --backup-dir "$history"
+          rclone check "$source" "$current" --one-way --size-only
