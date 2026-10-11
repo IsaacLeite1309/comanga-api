@@ -2160,6 +2160,37 @@ describe('módulos administrativos', () => {
             });
         });
 
+        it('consulta Volume 0 pelo endereço contextual da Obra e Edição', async () => {
+            prisma.volume.findFirst.mockResolvedValue({ ...volume, number: 0 });
+            const res = makeRes();
+
+            await catalog.getVolumeByNumber(makeReq({
+                params: { workSlug: 'historia', editionNumber: '1', volumeNumber: '0' }
+            }), res);
+
+            expect(prisma.volume.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+                where: {
+                    number: 0,
+                    edition: { chronologicalNumber: 1, work: { slug: 'historia' } }
+                }
+            }));
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith({
+                volume: expect.objectContaining({ id: 30, number: 0 })
+            });
+        });
+
+        it.each(['-1', '1.5', 'invalido'])('rejeita número de Volume inválido no endereço: %s', async (volumeNumber) => {
+            const res = makeRes();
+
+            await catalog.getVolumeByNumber(makeReq({
+                params: { workSlug: 'historia', editionNumber: '1', volumeNumber }
+            }), res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(prisma.volume.findFirst).not.toHaveBeenCalled();
+        });
+
         it('bloqueia exclusão de volume publico', async () => {
             prisma.volume.findUnique.mockResolvedValue({ id: 30, visibility: 'Público' });
             const req = makeReq({ params: { id: '30' } });

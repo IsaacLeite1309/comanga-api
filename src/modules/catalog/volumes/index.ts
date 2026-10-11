@@ -233,9 +233,11 @@ async function getVolumeById(req: Request, res: Response, next: NextFunction) {
 
 async function getVolumeByNumber(req: Request, res: Response, next: NextFunction) {
     const editionNumber = parsePositiveId(req.params.editionNumber);
-    const volumeNumber = parsePositiveId(req.params.volumeNumber);
+    const volumeNumber = typeof req.params.volumeNumber === 'string'
+        ? Number(req.params.volumeNumber)
+        : NaN;
     const workSlug = req.params.workSlug;
-    if (!editionNumber || !volumeNumber || typeof workSlug !== 'string' || !workSlug) {
+    if (!editionNumber || !Number.isSafeInteger(volumeNumber) || volumeNumber < 0 || typeof workSlug !== 'string' || !workSlug) {
         return res.status(400).json({ error: 'Endereço do Volume inválido.' });
     }
     try {
