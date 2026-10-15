@@ -1,8 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import ApplicationError from '../../errors/ApplicationError';
 import { canViewAdultContent } from '../public-catalog';
-import { volumeParamsSchema, editionParamsSchema, readSchema, batchSchema } from './schemas';
+import { volumeParamsSchema, editionParamsSchema, paginationSchema, readSchema, batchSchema } from './schemas';
 import { addOwned, addWanted, removeItem, syncOwned, updateRead } from './mutations';
+import { listCollection, getEditionSelection, listWishlist } from './readers';
 
 function authenticatedUser(req: Request) {
     if (!req.user) throw new ApplicationError({ statusCode: 401, code: 'UNAUTHORIZED', message: 'Faça login para acessar seu acervo.' });
@@ -20,6 +21,11 @@ function editionId(req: Request) {
     const validation = editionParamsSchema.safeParse(req.params);
     if (!validation.success) invalidInput();
     return validation.data.editionId;
+}
+function pageInput(req: Request) {
+    const validation = paginationSchema.safeParse(req.query);
+    if (!validation.success) invalidInput();
+    return validation.data;
 }
 function handler(operation: (req: Request) => Promise<unknown>, status = 200) {
     return async (req: Request, res: Response, next: NextFunction) => {
@@ -45,5 +51,8 @@ const putEdition = handler(req => {
     if (!validation.success) invalidInput();
     return syncOwned(authenticatedUser(req), editionId(req), validation.data, canViewAdultContent(req));
 });
+const getCollection = handler(req => listCollection(authenticatedUser(req), canViewAdultContent(req), pageInput(req)));
+const getWishlist = handler(req => listWishlist(authenticatedUser(req), canViewAdultContent(req), pageInput(req)));
+const getSelection = handler(req => getEditionSelection(authenticatedUser(req), editionId(req), canViewAdultContent(req), pageInput(req)));
 
-export { putOwned, putWanted, deleteOwned, deleteWanted, patchRead, putEdition };
+export { putOwned, putWanted, deleteOwned, deleteWanted, patchRead, putEdition, getCollection, getWishlist, getSelection };

@@ -21,7 +21,7 @@ function authorPriority(roles: Array<{ role: string }>) {
     }));
 }
 
-function mapCoverUrl(asset: PublicCoverAssetInput | null) {
+export function mapCoverUrl(asset: PublicCoverAssetInput | null) {
     if (!asset) return null;
     return resolveCoverUrl(asset, mediaPublicUrlResolverFromEnvironment());
 }

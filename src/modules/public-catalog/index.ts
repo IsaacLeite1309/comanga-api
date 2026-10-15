@@ -517,3 +517,5 @@ export {
     getPublicVolumeDetails,
     getPublicCatalogOptions
 };
+
+export { mapCoverUrl } from './mappers';
