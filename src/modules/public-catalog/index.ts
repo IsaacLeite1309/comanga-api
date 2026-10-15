@@ -506,6 +506,8 @@ async function getPublicCatalogOptions(req: Request, res: Response, next: NextFu
 }
 
 export {
+    buildAdultWorkRestriction,
+    canViewAdultContent,
     listPublicCalendar,
     listPublicWorks,
     listPublicAuthorWorks,
