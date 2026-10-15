@@ -4,6 +4,7 @@ import { EDITION_COVER_SOURCE_VOLUME_NUMBER, PUBLIC_VISIBILITY } from './constan
 import { buildAdultWorkRestriction } from './adultContentPolicy';
 import {
     publicAuthorWorksQuerySchema,
+    publicCalendarQuerySchema,
     publicEditionsQuerySchema,
     publicWorksQuerySchema
 } from './schemas';
@@ -11,6 +12,22 @@ import {
 type PublicWorksQuery = z.infer<typeof publicWorksQuerySchema>;
 type PublicEditionsQuery = z.infer<typeof publicEditionsQuerySchema>;
 type PublicAuthorWorksQuery = z.infer<typeof publicAuthorWorksQuerySchema>;
+type PublicCalendarQuery = z.infer<typeof publicCalendarQuerySchema> & { year: number; month: number };
+
+function buildPublicCalendarWhere(query: PublicCalendarQuery, canViewAdultContent: boolean): Prisma.VolumeWhereInput {
+    return {
+        visibility: PUBLIC_VISIBILITY,
+        releaseYear: query.year,
+        releaseMonth: query.month,
+        releaseDatePrecision: { in: ['Completa', 'Mes e ano'] },
+        edition: buildPublicEditionWhere(query, canViewAdultContent)
+    };
+}
+
+const publicCalendarOrderBy: Prisma.VolumeOrderByWithRelationInput[] = [
+    { releaseDay: { sort: 'asc', nulls: 'last' } },
+    { id: 'asc' }
+];
 
 function buildIdentitySearch(term: string): Prisma.WorkWhereInput {
     return {
@@ -74,7 +91,7 @@ function buildPublicWorkWhere(
 }
 
 function buildPublicEditionWhere(
-    query: PublicEditionsQuery,
+    query: Omit<PublicEditionsQuery, 'page' | 'limit' | 'sortBy' | 'order'>,
     canViewAdultContent: boolean
 ): Prisma.EditionWhereInput {
     const workFilters: Prisma.WorkWhereInput = {
@@ -400,6 +417,27 @@ const publicEditionVolumeSelect = {
     coverAsset: { select: publicCoverAssetSelect }
 } satisfies Prisma.VolumeSelect;
 
+const publicCalendarVolumeSelect = {
+    id: true,
+    number: true,
+    singleVolume: true,
+    releaseDatePrecision: true,
+    releaseYear: true,
+    releaseMonth: true,
+    releaseDay: true,
+    coverAsset: { select: publicCoverAssetSelect },
+    edition: {
+        select: {
+            id: true,
+            chronologicalNumber: true,
+            brazilianPublisher: { select: { id: true, label: true } },
+            work: {
+                select: { id: true, slug: true, title: true, originalTitle: true }
+            }
+        }
+    }
+} satisfies Prisma.VolumeSelect;
+
 const publicVolumeDetailSelect = {
     id: true,
     number: true,
@@ -458,6 +496,9 @@ function buildPublicEditionCoverSourceWhere(editionIds: number[]): Prisma.Volume
 }
 
 export {
+    buildPublicCalendarWhere,
+    publicCalendarOrderBy,
+    publicCalendarVolumeSelect,
     buildIdentitySearch,
     buildPublicEditionCoverSourceWhere,
     publicEditionCoverSourceVolumeSelect,

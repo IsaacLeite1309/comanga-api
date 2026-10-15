@@ -7,12 +7,14 @@ import {
     getPublicWorkDetails,
     listPublicEditions,
     listPublicAuthorWorks,
-    listPublicWorks
+    listPublicWorks,
+    listPublicCalendar
 } from '../modules/public-catalog';
 
 const router = express.Router();
 
 router.get('/catalog-options', auth.optionalSessionMiddleware, getPublicCatalogOptions);
+router.get('/calendar', auth.optionalSessionMiddleware, listPublicCalendar);
 router.get('/works', auth.optionalSessionMiddleware, listPublicWorks);
 router.get('/works/:slug', auth.optionalSessionMiddleware, getPublicWorkDetails);
 router.get('/authors/:authorId/works', auth.optionalSessionMiddleware, listPublicAuthorWorks);

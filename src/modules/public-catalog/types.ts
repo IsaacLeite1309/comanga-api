@@ -35,6 +35,15 @@ interface PublicEditionVolumeInput extends PublicVolumePreviewInput {
     pages: number | null;
 }
 
+interface PublicCalendarVolumeInput extends PublicVolumePreviewInput {
+    edition: {
+        id: number;
+        chronologicalNumber: number;
+        brazilianPublisher: PublicOptionInput;
+        work: { id: number; slug: string; title: string; originalTitle: string | null };
+    };
+}
+
 interface PublicWorkInput {
     id: number;
     slug: string;
@@ -143,6 +152,7 @@ interface PublicWorkDetailInput extends Omit<PublicWorkInput, 'authors'> {
 }
 
 export type {
+    PublicCalendarVolumeInput,
     PublicOptionInput,
     PublicCoverAssetInput,
     PublicEditionCoverSourceInput,

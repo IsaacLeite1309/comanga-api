@@ -17,6 +17,7 @@ import {
     isRestrictedAdultOption
 } from './adultContentPolicy';
 import {
+    mapPublicCalendarVolume,
     mapOption,
     mapPublicEdition,
     mapPublicEditionDetails,
@@ -26,6 +27,9 @@ import {
     mapPublicWorkDetails
 } from './mappers';
 import {
+    buildPublicCalendarWhere,
+    publicCalendarOrderBy,
+    publicCalendarVolumeSelect,
     buildPublicEditionCoverSourceWhere,
     buildPublicEditionDetailWhere,
     buildPublicEditionOrderBy,
@@ -43,6 +47,7 @@ import {
     publicWorkDetailSelect
 } from './queries';
 import {
+    publicCalendarQuerySchema,
     publicAuthorIdParamsSchema,
     publicAuthorWorksQuerySchema,
     publicDetailsQuerySchema,
@@ -138,6 +143,44 @@ async function listPublicWorks(req: Request, res: Response, next: NextFunction) 
         prepareViewerDependentResponse(res);
         return res.status(200).json({
             works: works.map(mapPublicWork),
+            pagination: pagination(query.page, query.limit, total)
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
+
+async function listPublicCalendar(req: Request, res: Response, next: NextFunction) {
+    const validation = publicCalendarQuerySchema.safeParse(req.query);
+    if (!validation.success) {
+        return res.status(400).json({ error: INVALID_PUBLIC_FILTERS_MESSAGE });
+    }
+
+    const now = new Date();
+    const query = {
+        ...validation.data,
+        year: validation.data.year ?? now.getFullYear(),
+        month: validation.data.month ?? now.getMonth() + 1
+    };
+    const where = buildPublicCalendarWhere(query, canViewAdultContent(req));
+
+    try {
+        const [volumes, total] = await prisma.$transaction([
+            prisma.volume.findMany({
+                where,
+                select: publicCalendarVolumeSelect,
+                orderBy: publicCalendarOrderBy,
+                skip: (query.page - 1) * query.limit,
+                take: query.limit
+            }),
+            prisma.volume.count({ where })
+        ]);
+
+        prepareViewerDependentResponse(res);
+        return res.status(200).json({
+            year: query.year,
+            month: query.month,
+            volumes: volumes.map(mapPublicCalendarVolume),
             pagination: pagination(query.page, query.limit, total)
         });
     } catch (error) {
@@ -463,6 +506,7 @@ async function getPublicCatalogOptions(req: Request, res: Response, next: NextFu
 }
 
 export {
+    listPublicCalendar,
     listPublicWorks,
     listPublicAuthorWorks,
     getPublicWorkDetails,

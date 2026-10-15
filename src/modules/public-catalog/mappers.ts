@@ -1,4 +1,5 @@
 import type {
+    PublicCalendarVolumeInput,
     PublicCoverAssetInput,
     PublicEditionCoverSourceInput,
     PublicEditionInput,
@@ -168,6 +169,30 @@ function mapPublicEditionVolume(volume: PublicEditionVolumeInput) {
     };
 }
 
+function mapPublicCalendarVolume(volume: PublicCalendarVolumeInput) {
+    return {
+        id: volume.id,
+        number: volume.number,
+        singleVolume: volume.singleVolume,
+        coverUrl: mapCoverUrl(volume.coverAsset),
+        releaseDatePrecision: volume.releaseDatePrecision,
+        releaseYear: volume.releaseYear,
+        releaseMonth: volume.releaseMonth,
+        releaseDay: volume.releaseDay,
+        edition: {
+            id: volume.edition.id,
+            chronologicalNumber: volume.edition.chronologicalNumber,
+            brazilianPublisher: mapOption(volume.edition.brazilianPublisher),
+            work: {
+                id: volume.edition.work.id,
+                slug: volume.edition.work.slug,
+                title: volume.edition.work.title,
+                originalTitle: volume.edition.work.originalTitle
+            }
+        }
+    };
+}
+
 function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
     const currentIndex = volume.edition.volumes.findIndex(({ id }) => id === volume.id);
     const mapNavigationVolume = (navigationVolume: PublicVolumeDetailInput['edition']['volumes'][number] | undefined) => (
@@ -217,6 +242,7 @@ function mapPublicVolumeDetails(volume: PublicVolumeDetailInput) {
 }
 
 export {
+    mapPublicCalendarVolume,
     mapOption,
     mapDerivedEditionCoverUrl,
     mapPublicWork,
