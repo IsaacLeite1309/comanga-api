@@ -68,6 +68,20 @@ const publicEditionsQuerySchema = z.object({
     ...paginationShape
 });
 
+function calendarIntegerSchema(min: number, max: number) {
+    return z.union([z.string().trim().min(1), z.number()])
+        .pipe(z.coerce.number<string | number>().int().min(min).max(max));
+}
+
+const publicCalendarQuerySchema = z.object({
+    year: calendarIntegerSchema(1900, 2200).optional(),
+    month: calendarIntegerSchema(1, 12).optional(),
+    term: z.string().trim().max(255).optional(),
+    brazilianPublisherId: calendarIntegerSchema(1, 2147483647).optional(),
+    page: calendarIntegerSchema(1, 2147483647).default(1),
+    limit: calendarIntegerSchema(1, 50).default(12)
+}).refine(({ page, limit }) => (page - 1) * limit <= 2147483647);
+
 const publicEntityIdParamsSchema = z.object({
     editionId: z.coerce.number().int().positive()
 });
@@ -103,6 +117,7 @@ export {
     parseListInput,
     publicWorksQuerySchema,
     publicEditionsQuerySchema,
+    publicCalendarQuerySchema,
     publicEntityIdParamsSchema,
     publicAuthorIdParamsSchema,
     publicAuthorWorksQuerySchema,
