@@ -25,6 +25,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   sessions            Session[]
   mediaAssets         MediaAsset[]
+  personalVolumes     UserVolume[]
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_username_trgm")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_users_email_trgm")
@@ -242,6 +243,7 @@ model Volume {
   atualizadoEm         DateTime   @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz
   edition              Edition    @relation(fields: [editionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   coverAsset           MediaAsset @relation("VolumeCover", fields: [coverAssetId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  userVolumes          UserVolume[]
 
   @@unique([editionId, number], map: "volumes_edition_number_unique")
   @@index([editionId, number], map: "idx_volumes_edition_number")
@@ -249,6 +251,21 @@ model Volume {
   @@index([visibility], map: "idx_volumes_visibility")
   @@index([visibility, releaseYear, releaseMonth, releaseDay, id, editionId], map: "idx_volumes_calendar_release")
   @@map("volumes")
+}
+
+model UserVolume {
+  userId    String   @map("user_id") @db.Uuid
+  volumeId  Int      @map("volume_id")
+  state     String   @db.VarChar(10)
+  read      Boolean?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volume    Volume   @relation(fields: [volumeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([userId, volumeId])
+  @@index([userId, state, volumeId], map: "idx_user_volumes_user_state")
+  @@index([volumeId], map: "idx_user_volumes_volume")
+  @@map("user_volumes")
 }
 
 model MediaAsset {

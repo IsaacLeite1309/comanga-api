@@ -14,7 +14,8 @@ const domains = {
     // A administração de usuários passou a conceder/remover perfis, cuja regra vive em auth.
     "admin-users": {"path": "src/modules/admin/users", "dependencies": ["auth"]},
     "admin-options": {"path": "src/modules/admin/options", "dependencies": ["catalog"]},
-    "public-catalog": {"path": "src/modules/public-catalog", "dependencies": []}
+    "public-catalog": {"path": "src/modules/public-catalog", "dependencies": []},
+    "personal-catalog": {"path": "src/modules/personal-catalog", "dependencies": ["auth", "public-catalog"]}
 };
 const composition = ["src/routes/**/*", "src/middlewares/**/*", "src/app.ts", "src/server.ts", "src/commands/**/*"];
 const shared = ["src/infrastructure/**/*", "src/database/**/*", "src/prisma.ts", "src/errors/**/*", "src/utils/**/*", "src/types/**/*"];
