@@ -4,6 +4,9 @@ import * as personal from '../modules/personal-catalog';
 
 const router = express.Router();
 router.use(auth.authMiddleware, auth.optionalSessionMiddleware);
+router.get('/collection', personal.getCollection);
+router.get('/wishlist', personal.getWishlist);
+router.get('/collection/editions/:editionId', personal.getSelection);
 router.put('/collection/editions/:editionId', personal.putEdition);
 router.put('/collection/volumes/:volumeId', personal.putOwned);
 router.patch('/collection/volumes/:volumeId', personal.patchRead);
