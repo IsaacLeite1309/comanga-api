@@ -227,11 +227,11 @@ describe('detalhes públicos da Obra', () => {
         expect(publicWorkDetailSelect.editions.select).not.toHaveProperty('coverAsset');
         expect(publicWorkDetailSelect.editions.where).toEqual({ visibility: 'Público' });
         expect(publicWorkDetailSelect.editions.orderBy).toEqual([
-            { chronologicalNumber: 'asc' },
-            { id: 'asc' }
+            { chronologicalNumber: 'desc' },
+            { id: 'desc' }
         ]);
         expect(publicWorkDetailSelect.editions.select.volumes.where).toEqual({ visibility: 'Público' });
-        expect(publicWorkDetailSelect.editions.select.volumes.take).toBe(3);
+        expect(publicWorkDetailSelect.editions.select.volumes.take).toBe(5);
         expect(publicWorkDetailSelect.editions.select.volumes.select).not.toHaveProperty('synopsis');
         expect(publicWorkDetailSelect.editions.select._count.select.volumes.where)
             .toEqual({ visibility: 'Público' });
