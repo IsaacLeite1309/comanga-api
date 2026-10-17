@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
 import type { PublicCoverAssetInput } from './types';
+import { enrichPublicWork, loadPersonalCatalogState, personalSummaryFields, personalVolumeFields } from './personalState';
 import {
     PUBLIC_AUTHOR_CATEGORY,
     PUBLIC_CATALOG_OPTION_CATEGORIES,
@@ -243,6 +244,7 @@ async function findEditionCoverAssets(editionIds: number[]) {
 }
 
 async function getPublicWorkDetails(req: Request, res: Response, next: NextFunction) {
+    prepareViewerDependentResponse(res);
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
     const where = {
         slug,
@@ -256,14 +258,13 @@ async function getPublicWorkDetails(req: Request, res: Response, next: NextFunct
             select: publicWorkDetailSelect
         });
 
-        prepareViewerDependentResponse(res);
         if (!work) {
             return res.status(404).json({ error: 'Obra não encontrada.' });
         }
 
         const editionCoverAssets = await findEditionCoverAssets(work.editions.map((edition) => edition.id));
-
-        return res.status(200).json({ work: mapPublicWorkDetails(work, editionCoverAssets) });
+        const personal = await loadPersonalCatalogState(req, { workId: work.id });
+        return res.status(200).json({ work: enrichPublicWork(mapPublicWorkDetails(work, editionCoverAssets), personal) });
     } catch (error) {
         return next(error);
     }
@@ -306,6 +307,7 @@ async function listPublicEditions(req: Request, res: Response, next: NextFunctio
 }
 
 async function getPublicEditionDetails(req: Request, res: Response, next: NextFunction) {
+    prepareViewerDependentResponse(res);
     const contextual = req.params.slug !== undefined;
     const paramsValidation = contextual
         ? publicEditionContextParamsSchema.safeParse(req.params)
@@ -363,22 +365,23 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
             })
         ]);
 
-        prepareViewerDependentResponse(res);
         if (!edition) {
             return res.status(404).json({ error: 'Edição não encontrada.' });
         }
 
         const total = edition._count.volumes;
         const publicEdition = mapPublicEditionDetails(edition);
+        const personal = await loadPersonalCatalogState(req, { editionId: edition.id });
         return res.status(200).json({
             edition: {
                 ...publicEdition,
+                ...personalSummaryFields(personal),
                 brazilPublicationStartYear: firstPublicationVolume?.releaseYear ?? null,
                 brazilPublicationEndYear: publicEdition.brazilPublicationStatus === 'Completa'
                     ? lastPublicationVolume?.releaseYear ?? null
                     : null
             },
-            volumes: volumes.map(mapPublicEditionVolume),
+            volumes: volumes.map(volume => ({ ...mapPublicEditionVolume(volume), ...personalVolumeFields(personal, volume.id) })),
             pagination: pagination(page, limit, total)
         });
     } catch (error) {
@@ -387,6 +390,7 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
 }
 
 async function getPublicVolumeDetails(req: Request, res: Response, next: NextFunction) {
+    prepareViewerDependentResponse(res);
     const contextual = req.params.slug !== undefined;
     const validation = contextual
         ? publicVolumeContextParamsSchema.safeParse(req.params)
@@ -418,12 +422,11 @@ async function getPublicVolumeDetails(req: Request, res: Response, next: NextFun
             select: publicVolumeDetailSelect
         });
 
-        prepareViewerDependentResponse(res);
         if (!volume) {
             return res.status(404).json({ error: 'Volume não encontrado.' });
         }
-
-        return res.status(200).json({ volume: mapPublicVolumeDetails(volume) });
+        const personal = await loadPersonalCatalogState(req, { volumeId: volume.id });
+        return res.status(200).json({ volume: { ...mapPublicVolumeDetails(volume), ...personalVolumeFields(personal, volume.id) } });
     } catch (error) {
         return next(error);
     }
