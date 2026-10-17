@@ -272,7 +272,7 @@ const publicEditionSelect = {
     }
 } satisfies Prisma.EditionSelect;
 
-const PUBLIC_VOLUME_PREVIEW_LIMIT = 3;
+const PUBLIC_VOLUME_PREVIEW_LIMIT = 5;
 
 const publicCoverAssetSelect = {
     objectKey: true,
@@ -320,7 +320,7 @@ const publicWorkDetailSelect = {
     },
     editions: {
         where: { visibility: PUBLIC_VISIBILITY },
-        orderBy: [{ chronologicalNumber: 'asc' }, { id: 'asc' }],
+        orderBy: [{ chronologicalNumber: 'desc' }, { id: 'desc' }],
         select: {
             id: true,
             chronologicalNumber: true,
