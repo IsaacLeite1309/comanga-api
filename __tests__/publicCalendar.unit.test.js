@@ -12,7 +12,7 @@ jest.mock('../src/prisma', () => ({
 
 const { listPublicCalendar } = require('../src/modules/public-catalog');
 const { publicCalendarQuerySchema } = require('../src/modules/public-catalog/schemas');
-const { buildPublicCalendarWhere } = require('../src/modules/public-catalog/queries');
+const { buildPublicCalendarWhere, publicCalendarOrderBy } = require('../src/modules/public-catalog/queries');
 
 function response() {
     const res = {
@@ -95,14 +95,19 @@ describe('calendário público', () => {
         expect(buildPublicCalendarWhere(query, true).edition.work).toEqual({ visibility: 'Público', OR: where.edition.work.OR });
     });
 
-    it('pagina com desempate estável e preserva data parcial e número zero', async () => {
+    it('pagina em ordem alfabética com desempate estável e preserva data parcial e número zero', async () => {
         mockFindMany.mockResolvedValue([fixture()]);
         mockCount.mockResolvedValue(25);
         const res = response();
         await listPublicCalendar({ query: { year: '2026', month: '10', page: '2' } }, res, jest.fn());
         expect(mockFindMany).toHaveBeenCalledWith(expect.objectContaining({
             skip: 12, take: 12,
-            orderBy: [{ releaseDay: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }]
+            orderBy: [
+                { edition: { work: { title: 'asc' } } },
+                { edition: { chronologicalNumber: 'asc' } },
+                { number: 'asc' },
+                { id: 'asc' }
+            ]
         }));
         expect(mockFindMany.mock.calls[0][0].where).toEqual(mockCount.mock.calls[0][0].where);
         const volume = fixture();
@@ -113,13 +118,22 @@ describe('calendário público', () => {
         });
     });
 
+    it('inverte título e desempates para Z-A antes de paginar', async () => {
+        await listPublicCalendar({ query: { year: '2026', month: '10', order: 'DESC', page: '2' } }, response(), jest.fn());
+        expect(mockFindMany.mock.calls[0][0]).toMatchObject({
+            skip: 12,
+            orderBy: publicCalendarOrderBy('DESC')
+        });
+        expect(mockFindMany.mock.calls[0][0].orderBy[0]).toEqual({ edition: { work: { title: 'desc' } } });
+    });
+
     it.each([
         ['month', '0'], ['month', '13'], ['month', '1.5'], ['month', 'abc'],
         ['year', '1899'], ['year', '2201'], ['year', ''], ['year', null],
         ['year', ['2026']], ['month', { value: 10 }], ['month', true],
         ['brazilianPublisherId', '0'], ['brazilianPublisherId', '2147483648'],
         ['page', '0'], ['page', '2147483647'], ['limit', '51'], ['limit', '-1'],
-        ['term', ['x', 'y']], ['term', 'x'.repeat(256)]
+        ['term', ['x', 'y']], ['term', 'x'.repeat(256)], ['order', 'INVALID']
     ])('rejeita %s inválido sem consultar o banco (%j)', async (key, value) => {
         const res = response();
         await listPublicCalendar({ query: { [key]: value } }, res, jest.fn());

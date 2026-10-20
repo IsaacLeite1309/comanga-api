@@ -78,6 +78,7 @@ const publicCalendarQuerySchema = z.object({
     month: calendarIntegerSchema(1, 12).optional(),
     term: z.string().trim().max(255).optional(),
     brazilianPublisherId: calendarIntegerSchema(1, 2147483647).optional(),
+    order: z.enum(['ASC', 'DESC']).default('ASC'),
     page: calendarIntegerSchema(1, 2147483647).default(1),
     limit: calendarIntegerSchema(1, 50).default(12)
 }).refine(({ page, limit }) => (page - 1) * limit <= 2147483647);

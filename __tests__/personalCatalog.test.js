@@ -118,7 +118,7 @@ it('consultas vazias e agrupamento mostram progresso público e isolamento',asyn
     await own();await read();await own(f.second,f.other);await wish(f.third);
     const response=await get('collection');
     expect(response.headers['cache-control']).toBe('private, no-store');expect(response.headers.vary).toContain('Cookie');
-    expect(response.body.works[0].editions[0].progress).toEqual({owned:1,total:3,read:1});
+    expect(response.body.works[0].editions[0].progress).toEqual({owned:1,total:3,read:1,wished:1});
     expect(response.body.works[0].editions[0].volumes).toHaveLength(1);
     expect((await get('wishlist')).body.volumes.map(v=>v.id)).toEqual([f.third]);
     const selection=(await get(`collection/editions/${f.editionId}`)).body;

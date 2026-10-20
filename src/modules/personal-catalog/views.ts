@@ -12,7 +12,7 @@ function mapWork(work: Edition['work']) {
     return { id: work.id, slug: work.slug, title: work.title, coverUrl: mapCoverUrl(work.coverAsset) };
 }
 function mapEdition(edition: Edition) {
-    return { id: edition.id, chronologicalNumber: edition.chronologicalNumber, brazilianPublisher: edition.brazilianPublisher };
+    return { id: edition.id, chronologicalNumber: edition.chronologicalNumber, brazilPublicationStatus: edition.brazilPublicationStatus, brazilianPublisher: edition.brazilianPublisher };
 }
 function mapVolume(volume: Volume) {
     return { id: volume.id, number: volume.number, singleVolume: volume.singleVolume, coverUrl: mapCoverUrl(volume.coverAsset) };

@@ -18,7 +18,7 @@ const workSelect = {
     id: true, slug: true, title: true, coverAsset: { select: coverSelect }
 } satisfies Prisma.WorkSelect;
 const editionSelect = {
-    id: true, chronologicalNumber: true,
+    id: true, chronologicalNumber: true, brazilPublicationStatus: true,
     brazilianPublisher: { select: { id: true, label: true } },
     work: { select: workSelect }
 } satisfies Prisma.EditionSelect;

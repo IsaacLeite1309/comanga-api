@@ -1063,7 +1063,7 @@ describe('módulos administrativos', () => {
 
         function mockValidDomainReferences() {
             prisma.domainOptionValue.count.mockImplementation(({ where }) => (
-                Promise.resolve(where.id?.in?.length || 1)
+                Promise.resolve(where.code?.in ? 0 : (where.id?.in?.length || 1))
             ));
             prisma.domainOptionValue.findMany.mockResolvedValue([]);
         }
@@ -1183,6 +1183,35 @@ describe('módulos administrativos', () => {
                     ]
                 })
             }));
+        });
+
+        it('descarta demografia no cadastro quando um gênero BL ou GL está selecionado', async () => {
+            prisma.work.findFirst.mockResolvedValue(null);
+            mockValidDomainReferences();
+            prisma.domainOptionValue.count.mockImplementation(({ where }) => (
+                Promise.resolve(where.code?.in ? 1 : (where.id?.in?.length || 1))
+            ));
+            prisma.work.create.mockResolvedValue(work);
+            prisma.work.findUniqueOrThrow.mockResolvedValue(work);
+            const res = makeRes();
+
+            await catalog.createWork(makeReq({
+                body: {
+                    title: 'Naruto',
+                    romanizedTitle: 'Naruto',
+                    synopsis: 'Um ninja busca reconhecimento na própria vila.',
+                    typeId: 1,
+                    country: 'Japão',
+                    coverAssetId: work.coverAssetId,
+                    originalPublicationStatus: 'Completa',
+                    authors: [{ authorId: 4, roles: ['História e Arte'] }],
+                    genreIds: [6],
+                    demographies: ['Shonen']
+                }
+            }), res, jest.fn());
+
+            expect(res.status).toHaveBeenCalledWith(201);
+            expect(prisma.work.create.mock.calls[0][0].data.demographics).toEqual({ createMany: { data: [] } });
         });
 
         it('consulta uma obra diretamente pelo slug sem executar listagem auxiliar', async () => {

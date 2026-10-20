@@ -4,6 +4,11 @@ import type { Prisma } from '@prisma/client';
 const WORK_TYPE_CATEGORY_SLUG = 'tipos-obra';
 const GENRE_CATEGORY_SLUG = 'generos';
 const HENTAI_GENRE_CODE = 'hentai';
+const GENRES_WITHOUT_DEMOGRAPHY_CODES = ['boys-love', 'girls-love'];
+const GENRES_WITHOUT_DEMOGRAPHY_FILTER = {
+    category: { slug: GENRE_CATEGORY_SLUG },
+    code: { in: GENRES_WITHOUT_DEMOGRAPHY_CODES }
+} satisfies Prisma.DomainOptionValueWhereInput;
 // O marcador preserva a restrição de aliases legados sem substituir seus IDs.
 const HENTAI_GENRE_FILTER = {
     category: { slug: GENRE_CATEGORY_SLUG },
@@ -21,6 +26,7 @@ function isOrderedOptionCategory(slug: string) {
 }
 export {
     WORK_TYPE_CATEGORY_SLUG, GENRE_CATEGORY_SLUG, HENTAI_GENRE_CODE, HENTAI_GENRE_FILTER,
+    GENRES_WITHOUT_DEMOGRAPHY_FILTER,
     SYSTEM_MANAGED_OPTION_CATEGORY_SLUGS, ORDERED_OPTION_CATEGORY_SLUGS,
     isSystemManagedOptionCategory, isOrderedOptionCategory
 };
