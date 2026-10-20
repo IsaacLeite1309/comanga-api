@@ -28,6 +28,7 @@ import {
     getOrderedIds,
     findDuplicatedNumbers,
     containsHentaiGenre,
+    containsGenreWithoutDemography,
     workHasHentaiGenre,
     validateOptionIdsByCategory,
     validateWorkDomainReferences,
@@ -212,6 +213,7 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
     try {
         const dependencyError = await getCreateWorkDependencyError(data, relations);
         if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
+        if (await containsGenreWithoutDemography(data.genreIds)) relations.demographies = [];
         const slug = await createUniqueWorkSlug(data.title, prisma.work);
         const adultContent = await normalizeAdultContentOnCreate(data);
         const workId = await persistCreatedWork({ ...data, adultContent }, relations, slug);
@@ -613,6 +615,8 @@ async function persistWorkUpdate(
         if (!existingWork) return { ok: false as const, error: { status: 404, error: 'Obra não encontrada.' } };
         const dependencyError = await getUpdateWorkDependencyError(workId, data, relations, existingWork, tx);
         if (dependencyError) return { ok: false as const, error: dependencyError };
+        const genreIds = data.genreIds ?? existingWork.genres?.map(({ genreId }) => genreId) ?? [];
+        if (await containsGenreWithoutDemography(genreIds, tx)) relations.demographies = [];
         const adultContent = await normalizeAdultContentOnUpdate(workId, data, tx);
         const operations = buildWorkUpdateOperations(
             workId,

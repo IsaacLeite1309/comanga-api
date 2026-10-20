@@ -4,6 +4,7 @@ import { EDITION_COVER_SOURCE_VOLUME_NUMBER, PUBLIC_VISIBILITY } from './constan
 import { buildAdultWorkRestriction } from './adultContentPolicy';
 import {
     publicAuthorWorksQuerySchema,
+    publicCalendarQuerySchema,
     publicEditionsQuerySchema,
     publicWorksQuerySchema
 } from './schemas';
@@ -11,6 +12,27 @@ import {
 type PublicWorksQuery = z.infer<typeof publicWorksQuerySchema>;
 type PublicEditionsQuery = z.infer<typeof publicEditionsQuerySchema>;
 type PublicAuthorWorksQuery = z.infer<typeof publicAuthorWorksQuerySchema>;
+type PublicCalendarQuery = z.infer<typeof publicCalendarQuerySchema> & { year: number; month: number };
+
+function buildPublicCalendarWhere(query: PublicCalendarQuery, canViewAdultContent: boolean): Prisma.VolumeWhereInput {
+    return {
+        visibility: PUBLIC_VISIBILITY,
+        releaseYear: query.year,
+        releaseMonth: query.month,
+        releaseDatePrecision: { in: ['Completa', 'Mes e ano'] },
+        edition: buildPublicEditionWhere(query, canViewAdultContent)
+    };
+}
+
+function publicCalendarOrderBy(order: PublicCalendarQuery['order']): Prisma.VolumeOrderByWithRelationInput[] {
+    const direction = order.toLowerCase() as Prisma.SortOrder;
+    return [
+        { edition: { work: { title: direction } } },
+        { edition: { chronologicalNumber: direction } },
+        { number: direction },
+        { id: direction }
+    ];
+}
 
 function buildIdentitySearch(term: string): Prisma.WorkWhereInput {
     return {
@@ -74,7 +96,7 @@ function buildPublicWorkWhere(
 }
 
 function buildPublicEditionWhere(
-    query: PublicEditionsQuery,
+    query: Omit<PublicEditionsQuery, 'page' | 'limit' | 'sortBy' | 'order'>,
     canViewAdultContent: boolean
 ): Prisma.EditionWhereInput {
     const workFilters: Prisma.WorkWhereInput = {
@@ -121,7 +143,8 @@ function buildPublicAuthorWorksWhere(
     return {
         visibility: PUBLIC_VISIBILITY,
         ...buildAdultWorkRestriction(canViewAdultContent),
-        authors: { some: { authorId } }
+        authors: { some: { authorId } },
+        editions: { some: { visibility: PUBLIC_VISIBILITY } }
     };
 }
 
@@ -206,7 +229,8 @@ const publicWorkSelect = {
         select: {
             author: {
                 select: { id: true, label: true, code: true }
-            }
+            },
+            roles: { select: { role: true }, orderBy: { role: 'asc' } }
         },
         orderBy: [
             { position: 'asc' as const },
@@ -272,7 +296,7 @@ const publicEditionSelect = {
     }
 } satisfies Prisma.EditionSelect;
 
-const PUBLIC_VOLUME_PREVIEW_LIMIT = 3;
+const PUBLIC_VOLUME_PREVIEW_LIMIT = 5;
 
 const publicCoverAssetSelect = {
     objectKey: true,
@@ -320,7 +344,7 @@ const publicWorkDetailSelect = {
     },
     editions: {
         where: { visibility: PUBLIC_VISIBILITY },
-        orderBy: [{ chronologicalNumber: 'asc' }, { id: 'asc' }],
+        orderBy: [{ chronologicalNumber: 'desc' }, { id: 'desc' }],
         select: {
             id: true,
             chronologicalNumber: true,
@@ -400,6 +424,27 @@ const publicEditionVolumeSelect = {
     coverAsset: { select: publicCoverAssetSelect }
 } satisfies Prisma.VolumeSelect;
 
+const publicCalendarVolumeSelect = {
+    id: true,
+    number: true,
+    singleVolume: true,
+    releaseDatePrecision: true,
+    releaseYear: true,
+    releaseMonth: true,
+    releaseDay: true,
+    coverAsset: { select: publicCoverAssetSelect },
+    edition: {
+        select: {
+            id: true,
+            chronologicalNumber: true,
+            brazilianPublisher: { select: { id: true, label: true } },
+            work: {
+                select: { id: true, slug: true, title: true, originalTitle: true }
+            }
+        }
+    }
+} satisfies Prisma.VolumeSelect;
+
 const publicVolumeDetailSelect = {
     id: true,
     number: true,
@@ -458,6 +503,9 @@ function buildPublicEditionCoverSourceWhere(editionIds: number[]): Prisma.Volume
 }
 
 export {
+    buildPublicCalendarWhere,
+    publicCalendarOrderBy,
+    publicCalendarVolumeSelect,
     buildIdentitySearch,
     buildPublicEditionCoverSourceWhere,
     publicEditionCoverSourceVolumeSelect,

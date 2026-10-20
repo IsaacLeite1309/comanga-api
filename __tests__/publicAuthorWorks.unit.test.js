@@ -37,7 +37,7 @@ function workFixture() {
         coverAsset: null,
         country: 'Japão',
         type: { id: 2, label: 'Mangá' },
-        authors: [{ author: { id: 5, label: 'Naoki Urasawa' } }]
+        authors: [{ author: { id: 5, label: 'Naoki Urasawa' }, roles: [{ role: 'História e Arte' }] }]
     };
 }
 
@@ -66,7 +66,8 @@ describe('Obras públicas por Autor', () => {
             visibility: 'Público',
             adultContent: false,
             ...HENTAI_RESTRICTION,
-            authors: { some: { authorId: 5 } }
+            authors: { some: { authorId: 5 } },
+            editions: { some: { visibility: 'Público' } }
         };
         expect(mockWorkFindMany).toHaveBeenCalledWith({
             where,
@@ -79,7 +80,7 @@ describe('Obras públicas por Autor', () => {
         expect(res.status).toHaveBeenCalledWith(200);
         expect(res.json).toHaveBeenCalledWith({
             author: { id: 5, label: 'Naoki Urasawa', slug: 'naoki-urasawa' },
-            works: [expect.objectContaining({ id: 8, slug: 'monster', title: 'Monster' })],
+            works: [expect.objectContaining({ id: 8, slug: 'monster', title: 'Monster', authorRoles: ['História e Arte'] })],
             pagination: { page: 2, limit: 12, total: 13, totalPages: 2 }
         });
         expect(res.vary).toHaveBeenCalledWith('Cookie');
@@ -99,7 +100,8 @@ describe('Obras públicas por Autor', () => {
 
         expect(mockWorkFindMany.mock.calls[0][0].where).toEqual({
             visibility: 'Público',
-            authors: { some: { authorId: 5 } }
+            authors: { some: { authorId: 5 } },
+            editions: { some: { visibility: 'Público' } }
         });
     });
 

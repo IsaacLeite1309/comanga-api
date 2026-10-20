@@ -123,6 +123,7 @@ class CoverImportService {
 }
 
 export { CoverImportService };
+
 export type {
     CoverImportDependencies,
     ImportCoverInput,
