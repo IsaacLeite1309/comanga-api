@@ -66,8 +66,7 @@ describe('Obras públicas por Autor', () => {
             visibility: 'Público',
             adultContent: false,
             ...HENTAI_RESTRICTION,
-            authors: { some: { authorId: 5 } },
-            editions: { some: { visibility: 'Público' } }
+            authors: { some: { authorId: 5 } }
         };
         expect(mockWorkFindMany).toHaveBeenCalledWith({
             where,
@@ -100,8 +99,7 @@ describe('Obras públicas por Autor', () => {
 
         expect(mockWorkFindMany.mock.calls[0][0].where).toEqual({
             visibility: 'Público',
-            authors: { some: { authorId: 5 } },
-            editions: { some: { visibility: 'Público' } }
+            authors: { some: { authorId: 5 } }
         });
     });
 

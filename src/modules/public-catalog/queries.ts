@@ -143,8 +143,7 @@ function buildPublicAuthorWorksWhere(
     return {
         visibility: PUBLIC_VISIBILITY,
         ...buildAdultWorkRestriction(canViewAdultContent),
-        authors: { some: { authorId } },
-        editions: { some: { visibility: PUBLIC_VISIBILITY } }
+        authors: { some: { authorId } }
     };
 }
 
