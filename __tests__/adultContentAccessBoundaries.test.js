@@ -107,6 +107,7 @@ describe('fronteiras de acesso a conteúdo adulto nas leituras públicas', () =>
 
         state.livre = await createWork('livre', false);
         state.adulta = await createWork('adulta', true);
+        state.livreEditionId = (await createEditionWithVolume(state.livre.id)).editionId;
         Object.assign(state, await createEditionWithVolume(state.adulta.id));
 
         state.cookies = {
@@ -223,9 +224,9 @@ describe('fronteiras de acesso a conteúdo adulto nas leituras públicas', () =>
             const anonimo = await get(`/api/public/editions?term=${prefix}`);
             const autorizado = await get(`/api/public/editions?term=${prefix}`, state.cookies.completou18Hoje);
 
-            expect(anonimo.body.editions).toEqual([]);
-            expect(anonimo.body.pagination).toMatchObject({ total: 0, totalPages: 0 });
-            expect(autorizado.body.editions.map((edition) => edition.id)).toEqual([state.editionId]);
+            expect(anonimo.body.editions.map((edition) => edition.id)).toEqual([state.livreEditionId]);
+            expect(anonimo.body.pagination).toMatchObject({ total: 1, totalPages: 1 });
+            expect(autorizado.body.editions.map((edition) => edition.id).sort()).toEqual([state.livreEditionId, state.editionId].sort());
         });
     });
 
