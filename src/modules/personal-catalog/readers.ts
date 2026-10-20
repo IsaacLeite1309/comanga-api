@@ -1,30 +1,33 @@
 import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
 import ApplicationError from '../../errors/ApplicationError';
-import { visibleEdition, visibleVolume, editionSelect, volumeSelect, volumeOrder } from './queries';
+import { visibleWork, visibleEdition, visibleVolume, editionSelect, volumeSelect, volumeOrder } from './queries';
 import { mapEdition, mapVolume, mapWork, pagination } from './views';
 
 type Page = { page: number; limit: number };
+type CollectionQuery = Page & { term?: string; status?: 'complete' | 'incomplete'; brazilianPublisherId?: number };
+type WishlistQuery = Page & { term?: string; brazilianPublisherId?: number };
 type Transaction = Prisma.TransactionClient;
 
 function readTransaction<T>(operation: (tx: Transaction) => Promise<T>) {
     return prisma.$transaction(operation, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });
 }
-type Progress = { owned: number; total: number; read: number };
+type Progress = { owned: number; total: number; read: number; wished: number };
 
 async function groupedProgress(tx: Transaction, userId: string, editionIds: number[]) {
     if (!editionIds.length) return new Map<number, Progress>();
     const rows = await tx.$queryRaw<Array<Progress & { editionId: number }>>(Prisma.sql`
         SELECT volume.edition_id AS "editionId", COUNT(*)::int AS total,
-               COUNT(personal.volume_id)::int AS owned,
-               COUNT(personal.volume_id) FILTER (WHERE personal.read = TRUE)::int AS read
+               COUNT(personal.volume_id) FILTER (WHERE personal.state = 'Owned')::int AS owned,
+               COUNT(personal.volume_id) FILTER (WHERE personal.state = 'Owned' AND personal.read = TRUE)::int AS read,
+               COUNT(personal.volume_id) FILTER (WHERE personal.state = 'Wanted')::int AS wished
         FROM volumes volume
         LEFT JOIN user_volumes personal ON personal.volume_id = volume.id
-            AND personal.user_id = ${userId}::uuid AND personal.state = 'Owned'
+            AND personal.user_id = ${userId}::uuid
         WHERE volume.edition_id IN (${Prisma.join(editionIds)}) AND volume.visibility = 'Público'
         GROUP BY volume.edition_id
     `);
-    return new Map(rows.map(row => [row.editionId, { owned: row.owned, total: row.total, read: row.read }]));
+    return new Map(rows.map(row => [row.editionId, { owned: row.owned, total: row.total, read: row.read, wished: row.wished }]));
 }
 function collectionEditionSelect(userId: string) {
     return {
@@ -44,11 +47,28 @@ function collectionEdition(edition: CollectionEdition, editionProgress: Progress
         volumesPagination: pagination(1, 50, editionProgress.owned)
     };
 }
-function listCollection(userId: string, adult: boolean, page: Page) {
+function listCollection(userId: string, adult: boolean, page: CollectionQuery) {
     return readTransaction(async tx => {
+        const ownedVolume: Prisma.VolumeWhereInput = { visibility: 'Público', userVolumes: { some: { userId, state: 'Owned' } } };
+        const missingVolume: Prisma.VolumeWhereInput = { visibility: 'Público', userVolumes: { none: { userId, state: 'Owned' } } };
         const where: Prisma.EditionWhereInput = {
             ...visibleEdition(adult),
-            volumes: { some: { visibility: 'Público', userVolumes: { some: { userId, state: 'Owned' } } } }
+            brazilianPublisherId: page.brazilianPublisherId,
+            volumes: { some: ownedVolume },
+            ...(page.status === 'complete' ? { brazilPublicationStatus: { in: ['Completa', 'Cancelada'] }, AND: [{ volumes: { none: missingVolume } }] } : {}),
+            ...(page.status === 'incomplete' ? { OR: [
+                { brazilPublicationStatus: { notIn: ['Completa', 'Cancelada'] } },
+                { volumes: { some: missingVolume } }
+            ] } : {}),
+            ...(page.term ? { work: {
+                ...visibleWork(adult),
+                OR: [
+                    { title: { contains: page.term, mode: 'insensitive' } },
+                    { originalTitle: { contains: page.term, mode: 'insensitive' } },
+                    { romanizedTitle: { contains: page.term, mode: 'insensitive' } },
+                    { authors: { some: { author: { label: { contains: page.term, mode: 'insensitive' } } } } }
+                ]
+            } } : {})
         };
         const [editions, total] = await Promise.all([
             tx.edition.findMany({ where, select: collectionEditionSelect(userId), skip: (page.page - 1) * page.limit, take: page.limit,
@@ -59,7 +79,7 @@ function listCollection(userId: string, adult: boolean, page: Page) {
         const groups = new Map<number, { work: ReturnType<typeof mapWork>; editions: ReturnType<typeof collectionEdition>[] }>();
         for (const edition of editions) {
             const group = groups.get(edition.work.id) || { work: mapWork(edition.work), editions: [] };
-            group.editions.push(collectionEdition(edition, progresses.get(edition.id) ?? { owned: 0, total: 0, read: 0 }));
+            group.editions.push(collectionEdition(edition, progresses.get(edition.id) ?? { owned: 0, total: 0, read: 0, wished: 0 }));
             groups.set(edition.work.id, group);
         }
         return { works: [...groups.values()], pagination: pagination(page.page, page.limit, total) };
@@ -75,7 +95,7 @@ function getEditionSelection(userId: string, editionId: number, adult: boolean, 
                 orderBy: volumeOrder, skip: (page.page - 1) * page.limit, take: page.limit }),
             groupedProgress(tx, userId, [editionId])
         ]);
-        const editionProgress = progresses.get(editionId) ?? { owned: 0, total: 0, read: 0 };
+        const editionProgress = progresses.get(editionId) ?? { owned: 0, total: 0, read: 0, wished: 0 };
         return {
             edition: { ...mapEdition(edition), work: mapWork(edition.work) },
             volumes: volumes.map(volume => ({ ...mapVolume(volume),
@@ -85,16 +105,31 @@ function getEditionSelection(userId: string, editionId: number, adult: boolean, 
         };
     });
 }
-function listWishlist(userId: string, adult: boolean, page: Page) {
+function listWishlist(userId: string, adult: boolean, page: WishlistQuery) {
     return readTransaction(async tx => {
-        const where = { userId, state: 'Wanted', volume: visibleVolume(adult) };
+        const where: Prisma.UserVolumeWhereInput = { userId, state: 'Wanted', volume: {
+            ...visibleVolume(adult),
+            edition: {
+                ...visibleEdition(adult),
+                brazilianPublisherId: page.brazilianPublisherId,
+                ...(page.term ? { work: {
+                    ...visibleWork(adult),
+                    OR: [
+                        { title: { contains: page.term, mode: 'insensitive' } },
+                        { originalTitle: { contains: page.term, mode: 'insensitive' } },
+                        { romanizedTitle: { contains: page.term, mode: 'insensitive' } },
+                        { authors: { some: { author: { label: { contains: page.term, mode: 'insensitive' } } } } }
+                    ]
+                } } : {})
+            }
+        } };
         const [items, total] = await Promise.all([
-            tx.userVolume.findMany({ where, select: { volume: { select: { ...volumeSelect, edition: { select: editionSelect } } } },
+            tx.userVolume.findMany({ where, select: { volume: { select: { ...volumeSelect, affiliateLink: true, edition: { select: editionSelect } } } },
                 orderBy: [{ createdAt: 'desc' }, { volumeId: 'asc' }], skip: (page.page - 1) * page.limit, take: page.limit }),
             tx.userVolume.count({ where })
         ]);
         return { volumes: items.map(({ volume }) => ({ ...mapVolume(volume),
-            work: mapWork(volume.edition.work), edition: mapEdition(volume.edition) })),
+            affiliateLink: volume.affiliateLink, work: mapWork(volume.edition.work), edition: mapEdition(volume.edition) })),
         pagination: pagination(page.page, page.limit, total) };
     });
 }

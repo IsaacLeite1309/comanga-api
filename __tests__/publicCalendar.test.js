@@ -112,14 +112,14 @@ describe('integração do calendário público', () => {
         await db.query('DELETE FROM media_assets WHERE object_key LIKE $1', [`${prefix}/%`]);
     });
 
-    it('retorna somente Volumes do período com toda a hierarquia pública, datas conhecidas e ordem estável', async () => {
+    it('retorna somente Volumes do mês em ordem de título, edição e número, sem separar por dia', async () => {
         const res = await calendar({ limit: 50 });
         expect(res.status).toBe(200);
         expect(res.body.volumes.map(({ id }) => id)).toEqual([
-            state.dayFirst, state.sameDay, state.otherVolume, state.dayLater, state.monthOnly
+            state.dayFirst, state.dayLater, state.sameDay, state.monthOnly, state.otherVolume
         ]);
         expect(res.body).toMatchObject({ year: 2035, month: 10, pagination: { total: 5, totalPages: 1 } });
-        const partial = res.body.volumes.at(-1);
+        const partial = res.body.volumes.find(({ id }) => id === state.monthOnly);
         expect(partial).toMatchObject({ releaseDatePrecision: 'Mes e ano', releaseDay: null });
         expect(partial.coverUrl).toMatch(/^https:\/\/media\.example\.test\//);
         expect(Object.keys(partial).sort()).toEqual([
@@ -145,10 +145,17 @@ describe('integração do calendário público', () => {
         const second = await calendar({ limit: 2, page: 2 });
         const outside = await calendar({ limit: 2, page: 4 });
         expect(first.body.pagination).toEqual({ page: 1, limit: 2, total: 5, totalPages: 3 });
-        expect(first.body.volumes.map(({ id }) => id)).toEqual([state.dayFirst, state.sameDay]);
-        expect(second.body.volumes.map(({ id }) => id)).toEqual([state.otherVolume, state.dayLater]);
+        expect(first.body.volumes.map(({ id }) => id)).toEqual([state.dayFirst, state.dayLater]);
+        expect(second.body.volumes.map(({ id }) => id)).toEqual([state.sameDay, state.monthOnly]);
         expect(outside.body.volumes).toEqual([]);
         expect(outside.body.pagination.total).toBe(5);
+    });
+
+    it('inverte os resultados do mês inteiro antes da paginação', async () => {
+        const first = await calendar({ limit: 2, order: 'DESC' });
+        const second = await calendar({ limit: 2, page: 2, order: 'DESC' });
+        expect(first.body.volumes.map(({ id }) => id)).toEqual([state.otherVolume, state.monthOnly]);
+        expect(second.body.volumes.map(({ id }) => id)).toEqual([state.sameDay, state.dayLater]);
     });
 
     it('consulta o mês vigente sem parâmetros e outro mês vazio', async () => {
@@ -172,7 +179,7 @@ describe('integração do calendário público', () => {
         expect(res.body.volumes.map(({ id }) => id)).toEqual(expect.arrayContaining([state.adultVolume, state.legacyVolume]));
     });
 
-    it.each([{ month: 13 }, { year: 1899 }, { page: 0 }, { limit: 51 }, { brazilianPublisherId: -1 }, { month: [1, 2] }])('rejeita parâmetros inválidos %j com erro público consistente', async (query) => {
+    it.each([{ month: 13 }, { year: 1899 }, { page: 0 }, { limit: 51 }, { brazilianPublisherId: -1 }, { month: [1, 2] }, { order: 'INVALID' }])('rejeita parâmetros inválidos %j com erro público consistente', async (query) => {
         const res = await calendar(query);
         expect(res.status).toBe(400);
         expect(res.body).toEqual({ error: 'Filtros de consulta inválidos.' });

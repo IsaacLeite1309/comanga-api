@@ -1,6 +1,10 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
-import { HENTAI_GENRE_FILTER, isSystemManagedOptionCategory } from '../../utils/domainOptionCodes';
+import {
+    GENRES_WITHOUT_DEMOGRAPHY_FILTER,
+    HENTAI_GENRE_FILTER,
+    isSystemManagedOptionCategory
+} from '../../utils/domainOptionCodes';
 import {
     COUNTRY_CATEGORY_SLUG,
     COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS,
@@ -170,6 +174,15 @@ async function containsHentaiGenre(genreIds: number[], client: Prisma.Transactio
     return hentaiCount > 0;
 }
 
+async function containsGenreWithoutDemography(genreIds: number[], client: Prisma.TransactionClient = prisma) {
+    const uniqueIds = [...new Set(genreIds.filter(Boolean))];
+    if (uniqueIds.length === 0) return false;
+
+    return (await client.domainOptionValue.count({
+        where: { id: { in: uniqueIds }, ...GENRES_WITHOUT_DEMOGRAPHY_FILTER }
+    })) > 0;
+}
+
 async function workHasHentaiGenre(workId: number, client: Prisma.TransactionClient = prisma) {
     const genre = await client.workGenre.findFirst({
         where: {
@@ -184,6 +197,7 @@ async function workHasHentaiGenre(workId: number, client: Prisma.TransactionClie
 
 export {
     containsHentaiGenre,
+    containsGenreWithoutDemography,
     workHasHentaiGenre,
     validateSelectedOptionsByCountry,
     validateOptionIdsByCategory,

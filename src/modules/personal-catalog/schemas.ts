@@ -13,9 +13,22 @@ const batchSchema = z.object({
     return ids.length <= 100 && new Set(ids).size === ids.length;
 });
 const pageInteger = z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().max(2147483647));
-const paginationSchema = z.object({
+const paginationFields = {
     page: pageInteger.default(1),
     limit: pageInteger.pipe(z.number().max(50)).default(12)
-}).strict().refine(({ page, limit }) => (page - 1) * limit <= 2147483647);
+};
+const validPage = ({ page, limit }: { page: number; limit: number }) => (page - 1) * limit <= 2147483647;
+const paginationSchema = z.object(paginationFields).strict().refine(validPage);
+const collectionQuerySchema = z.object({
+    ...paginationFields,
+    term: z.string().trim().min(1).max(255).optional(),
+    status: z.enum(['complete', 'incomplete']).optional(),
+    brazilianPublisherId: pageInteger.optional()
+}).strict().refine(validPage);
+const wishlistQuerySchema = z.object({
+    ...paginationFields,
+    term: z.string().trim().min(1).max(255).optional(),
+    brazilianPublisherId: pageInteger.optional()
+}).strict().refine(validPage);
 
-export { volumeParamsSchema, editionParamsSchema, readSchema, batchSchema, paginationSchema };
+export { volumeParamsSchema, editionParamsSchema, readSchema, batchSchema, paginationSchema, collectionQuerySchema, wishlistQuerySchema };

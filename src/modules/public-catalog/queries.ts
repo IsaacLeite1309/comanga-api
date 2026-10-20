@@ -24,10 +24,15 @@ function buildPublicCalendarWhere(query: PublicCalendarQuery, canViewAdultConten
     };
 }
 
-const publicCalendarOrderBy: Prisma.VolumeOrderByWithRelationInput[] = [
-    { releaseDay: { sort: 'asc', nulls: 'last' } },
-    { id: 'asc' }
-];
+function publicCalendarOrderBy(order: PublicCalendarQuery['order']): Prisma.VolumeOrderByWithRelationInput[] {
+    const direction = order.toLowerCase() as Prisma.SortOrder;
+    return [
+        { edition: { work: { title: direction } } },
+        { edition: { chronologicalNumber: direction } },
+        { number: direction },
+        { id: direction }
+    ];
+}
 
 function buildIdentitySearch(term: string): Prisma.WorkWhereInput {
     return {
@@ -138,7 +143,8 @@ function buildPublicAuthorWorksWhere(
     return {
         visibility: PUBLIC_VISIBILITY,
         ...buildAdultWorkRestriction(canViewAdultContent),
-        authors: { some: { authorId } }
+        authors: { some: { authorId } },
+        editions: { some: { visibility: PUBLIC_VISIBILITY } }
     };
 }
 
@@ -223,7 +229,8 @@ const publicWorkSelect = {
         select: {
             author: {
                 select: { id: true, label: true, code: true }
-            }
+            },
+            roles: { select: { role: true }, orderBy: { role: 'asc' } }
         },
         orderBy: [
             { position: 'asc' as const },

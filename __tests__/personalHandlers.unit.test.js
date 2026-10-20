@@ -25,8 +25,20 @@ it('sem contexto autenticado não consulta dados',async()=>{
     delete req.user;await handlers.getCollection(req,res,next);
     expect(next).toHaveBeenCalledWith(expect.objectContaining({statusCode:401}));expect(readers.listCollection).not.toHaveBeenCalled();
 });
+it('valida e encaminha os filtros da coleção',async()=>{
+    req.query={page:'2',term:'  Monster  ',status:'complete',brazilianPublisherId:'4'};
+    await handlers.getCollection(req,res,next);
+    expect(readers.listCollection).toHaveBeenCalledWith('own-account',false,{page:2,limit:12,term:'Monster',status:'complete',brazilianPublisherId:4});
+});
+it('valida e encaminha os filtros da lista de desejos',async()=>{
+    req.query={page:'2',term:'  Monster  ',brazilianPublisherId:'4'};
+    await handlers.getWishlist(req,res,next);
+    expect(readers.listWishlist).toHaveBeenCalledWith('own-account',false,{page:2,limit:12,term:'Monster',brazilianPublisherId:4});
+});
 it.each([
     ['putOwned','params',{volumeId:'invalid'}],['getSelection','params',{editionId:'0'}],['getCollection','query',{limit:'51'}],
+    ['getCollection','query',{status:'unknown'}],['getCollection','query',{brazilianPublisherId:'0'}],
+    ['getWishlist','query',{term:' '}],['getWishlist','query',{brazilianPublisherId:'0'}],
     ['patchRead','body',{read:'yes'}],['putEdition','body',{addVolumeIds:[3],removeVolumeIds:[3]}]
 ])('%s recusa entrada inválida sem operação parcial',async(name,field,value)=>{
     req[field]=value;await handlers[name](req,res,next);expect(next).toHaveBeenCalledWith(expect.objectContaining({statusCode:400,code:'INVALID_PERSONAL_INPUT'}));

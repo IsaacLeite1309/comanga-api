@@ -105,7 +105,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             typeof operation === 'function' ? operation(prisma) : Promise.all(operation)
         ));
         prisma.domainOptionValue.count.mockImplementation(({ where }) => (
-            Promise.resolve(where.id?.in?.length || 1)
+            Promise.resolve(where.code?.in ? 0 : (where.id?.in?.length || 1))
         ));
         prisma.domainOptionValue.findMany.mockResolvedValue([]);
         prisma.work.findFirst.mockResolvedValue(null);

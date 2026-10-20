@@ -170,7 +170,7 @@ async function listPublicCalendar(req: Request, res: Response, next: NextFunctio
             prisma.volume.findMany({
                 where,
                 select: publicCalendarVolumeSelect,
-                orderBy: publicCalendarOrderBy,
+                orderBy: publicCalendarOrderBy(query.order),
                 skip: (query.page - 1) * query.limit,
                 take: query.limit
             }),
@@ -221,7 +221,11 @@ async function listPublicAuthorWorks(req: Request, res: Response, next: NextFunc
         prepareViewerDependentResponse(res);
         return res.status(200).json({
             author: { ...mapOption(author), slug: author.code },
-            works: works.map(mapPublicWork),
+            works: works.map((work) => ({
+                ...mapPublicWork(work),
+                authorRoles: work.authors.find(({ author: creditedAuthor }) => creditedAuthor.id === author.id)
+                    ?.roles.map(({ role }) => role) ?? []
+            })),
             pagination: pagination(query.page, query.limit, total)
         });
     } catch (error) {

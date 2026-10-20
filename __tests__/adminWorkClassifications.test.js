@@ -79,6 +79,7 @@ function buildWorkPayload(overrides = {}) {
         coverAssetId: overrides.coverAssetId,
         authors: [{ authorId: fixture.author.id, roles: ['História e Arte'] }],
         genreIds: overrides.genreIds || [],
+        demographies: overrides.demographies || [],
         adultContent: overrides.adultContent === undefined ? false : overrides.adultContent,
         ...(overrides.typeId ? { typeId: overrides.typeId } : {}),
         ...(overrides.country ? { country: overrides.country } : {})
@@ -110,6 +111,8 @@ describe('classificações controladas na área administrativa de Obras', () => 
         fixture.mangaType = await findOfficialOption('tipos-obra', 'manga');
         fixture.manhwaType = await findOfficialOption('tipos-obra', 'manhwa');
         fixture.hentai = await findOfficialOption('generos', 'hentai');
+        fixture.boysLove = await findOfficialOption('generos', 'boys-love');
+        fixture.girlsLove = await findOfficialOption('generos', 'girls-love');
         fixture.drama = await findOfficialOption('generos', 'drama');
         fixture.author = await createFreeOption('autores', 'autor');
         fixture.legacyType = await createFreeOption('tipos-obra', 'tipo-legado');
@@ -201,6 +204,35 @@ describe('classificações controladas na área administrativa de Obras', () => 
 
         expect(response.status).toBe(201);
         expect(response.body.work.adultContent).toBe(false);
+    });
+
+    it.each([
+        ['boys-love', 'boysLove'],
+        ['girls-love', 'girlsLove']
+    ])('não guarda demografia para Obra com %s no cadastro ou na edição', async (code, key) => {
+        const created = await createWorkThroughApi(sessionCookie, {
+            suffix: `sem-demografia-${code}`,
+            genreIds: [fixture[key].id],
+            demographies: ['Shonen']
+        });
+        expect(created.status).toBe(201);
+        expect(created.body.work.demographics).toEqual([]);
+
+        const workId = created.body.work.id;
+        const attempted = await request(app).patch(`/api/admin/works/${workId}`)
+            .set('Cookie', sessionCookie).send({ demographies: ['Seinen'] });
+        expect(attempted.status).toBe(200);
+        expect(attempted.body.work.demographics).toEqual([]);
+
+        const removedGenre = await request(app).patch(`/api/admin/works/${workId}`)
+            .set('Cookie', sessionCookie).send({ genreIds: [fixture.drama.id], demographies: ['Josei'] });
+        expect(removedGenre.status).toBe(200);
+        expect(removedGenre.body.work.demographics).toEqual(['Josei']);
+
+        const addedGenre = await request(app).patch(`/api/admin/works/${workId}`)
+            .set('Cookie', sessionCookie).send({ genreIds: [fixture[key].id] });
+        expect(addedGenre.status).toBe(200);
+        expect(addedGenre.body.work.demographics).toEqual([]);
     });
 
     it('recusa tipo de Obra incompatível com o país de origem', async () => {
