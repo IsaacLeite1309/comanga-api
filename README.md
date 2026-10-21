@@ -17,7 +17,7 @@ Frontend React/Vercel -> API REST/Render -> Prisma -> PostgreSQL/Neon
                                          -> Resend HTTPS (e-mails de conta)
 ```
 
-O código é organizado por domínio em `src/modules`, com módulos de autenticação, usuários, catálogo, administração e catálogo público. A aplicação se inspira em Clean Architecture e Ports and Adapters de forma pragmática; módulos existentes ainda usam Prisma diretamente quando isso é adequado ao estágio atual do projeto.
+O código é organizado por domínio em `src/modules`, com módulos de autenticação, usuários, catálogo, administração e catálogo público. Os testes ficam em `__tests__/`, agrupados por domínio ou responsabilidade; auxiliares compartilhados ficam em `__tests__/helpers/`. A aplicação se inspira em Clean Architecture e Ports and Adapters de forma pragmática; módulos existentes ainda usam Prisma diretamente quando isso é adequado ao estágio atual do projeto.
 
 ### Fronteiras dos módulos
 

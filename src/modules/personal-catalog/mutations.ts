@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
 import ApplicationError from '../../errors/ApplicationError';
 import { visibleEdition, visibleVolume } from './queries';
@@ -78,7 +78,16 @@ function syncOwned(userId: string, editionId: number, batch: Batch, adult: boole
         const validCount = await tx.volume.count({ where: { id: { in: ids }, editionId, ...visibleVolume(adult) } });
         if (validCount !== ids.length) unavailable();
         await tx.userVolume.deleteMany({ where: { userId, volumeId: { in: batch.removeVolumeIds }, state: 'Owned' } });
-        for (const volumeId of batch.addVolumeIds) await ownVolume(tx, userId, volumeId);
+        if (batch.addVolumeIds.length) {
+            await tx.$executeRaw`
+                INSERT INTO user_volumes (user_id, volume_id, state, read)
+                SELECT ${userId}::uuid, ids.volume_id, 'Owned', false
+                FROM unnest(ARRAY[${Prisma.join(batch.addVolumeIds)}]::int[]) AS ids(volume_id)
+                ON CONFLICT (user_id, volume_id)
+                DO UPDATE SET state = 'Owned',
+                    read = CASE WHEN user_volumes.state = 'Owned' THEN user_volumes.read ELSE false END
+            `;
+        }
         return { editionId, addedVolumeIds: batch.addVolumeIds, removedVolumeIds: batch.removeVolumeIds };
     });
 }

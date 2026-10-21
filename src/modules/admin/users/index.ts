@@ -98,7 +98,7 @@ async function applyRoleChange(targetUserId: string, role: string): Promise<Role
 
         const updated = await tx.user.findUnique({ where: { id: targetUserId }, select: USER_SELECTION });
         return updated ? { user: normalizeUser(updated) } : { status: 404, error: 'Usuário não encontrado.' };
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
 }
 
 async function updateUserRole(req: Request, res: Response, next: NextFunction) {
