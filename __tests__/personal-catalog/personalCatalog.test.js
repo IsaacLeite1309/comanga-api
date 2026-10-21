@@ -114,7 +114,7 @@ it('política adulta aplica flag, preferência e nascimento',async()=>{
     await db.query("UPDATE users SET birth_date='1990-01-01',conteudo_adulto=false WHERE id=$1",[f.owner.id]);
 });
 it('consultas vazias e agrupamento mostram progresso público e isolamento',async()=>{
-    expect((await get('collection')).body).toEqual({works:[],pagination:{page:1,limit:12,total:0,totalPages:0}});
+    expect((await get('collection')).body).toEqual({works:[],totals:{editions:0,volumes:0},pagination:{page:1,limit:12,total:0,totalPages:0}});
     expect((await get('wishlist')).body.volumes).toEqual([]);
     await own();await read();await own(f.second,f.other);await wish(f.third);
     const response=await get('collection');

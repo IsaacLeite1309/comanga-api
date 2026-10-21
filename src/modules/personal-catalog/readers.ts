@@ -5,8 +5,8 @@ import { visibleWork, visibleEdition, visibleVolume, editionSelect, volumeSelect
 import { mapEdition, mapVolume, mapWork, pagination } from './views';
 
 type Page = { page: number; limit: number };
-type CollectionQuery = Page & { term?: string; status?: 'complete' | 'incomplete'; brazilianPublisherId?: number };
-type WishlistQuery = Page & { term?: string; brazilianPublisherId?: number };
+type CollectionQuery = Page & { term?: string; status?: 'complete' | 'incomplete'; brazilianPublisherId?: number; order?: 'ASC' | 'DESC' };
+type WishlistQuery = Page & { term?: string; brazilianPublisherId?: number; order?: 'ASC' | 'DESC' };
 type Transaction = Prisma.TransactionClient;
 
 function readTransaction<T>(operation: (tx: Transaction) => Promise<T>) {
@@ -70,10 +70,16 @@ function listCollection(userId: string, adult: boolean, page: CollectionQuery) {
                 ]
             } } : {})
         };
-        const [editions, total] = await Promise.all([
+        const allCollectionEditions: Prisma.EditionWhereInput = {
+            ...visibleEdition(adult),
+            volumes: { some: ownedVolume }
+        };
+        const [editions, total, totalEditions, totalVolumes] = await Promise.all([
             tx.edition.findMany({ where, select: collectionEditionSelect(userId), skip: (page.page - 1) * page.limit, take: page.limit,
-                orderBy: [{ work: { title: 'asc' } }, { workId: 'asc' }, { chronologicalNumber: 'asc' }, { id: 'asc' }] }),
-            tx.edition.count({ where })
+                orderBy: [{ work: { title: page.order === 'DESC' ? 'desc' : 'asc' } }, { workId: 'asc' }, { chronologicalNumber: 'asc' }, { id: 'asc' }] }),
+            tx.edition.count({ where }),
+            tx.edition.count({ where: allCollectionEditions }),
+            tx.userVolume.count({ where: { userId, state: 'Owned', volume: visibleVolume(adult) } })
         ]);
         const progresses = await groupedProgress(tx, userId, editions.map(edition => edition.id));
         const groups = new Map<number, { work: ReturnType<typeof mapWork>; editions: ReturnType<typeof collectionEdition>[] }>();
@@ -82,17 +88,21 @@ function listCollection(userId: string, adult: boolean, page: CollectionQuery) {
             group.editions.push(collectionEdition(edition, progresses.get(edition.id) ?? { owned: 0, total: 0, read: 0, wished: 0 }));
             groups.set(edition.work.id, group);
         }
-        return { works: [...groups.values()], pagination: pagination(page.page, page.limit, total) };
+        return {
+            works: [...groups.values()],
+            totals: { editions: totalEditions, volumes: totalVolumes },
+            pagination: pagination(page.page, page.limit, total)
+        };
     });
 }
-function getEditionSelection(userId: string, editionId: number, adult: boolean, page: Page) {
+function getEditionSelection(userId: string, editionId: number, adult: boolean, page: Page & { all?: boolean }) {
     return readTransaction(async tx => {
         const edition = await tx.edition.findFirst({ where: { id: editionId, ...visibleEdition(adult) }, select: editionSelect });
         if (!edition) throw new ApplicationError({ statusCode: 404, code: 'PERSONAL_ITEM_NOT_FOUND', message: 'Edição indisponível para seu acervo.' });
         const [volumes, progresses] = await Promise.all([
             tx.volume.findMany({ where: { editionId, visibility: 'Público' },
                 select: { ...volumeSelect, userVolumes: { where: { userId }, select: { state: true, read: true } } },
-                orderBy: volumeOrder, skip: (page.page - 1) * page.limit, take: page.limit }),
+                orderBy: volumeOrder, ...(!page.all ? { skip: (page.page - 1) * page.limit, take: page.limit } : {}) }),
             groupedProgress(tx, userId, [editionId])
         ]);
         const editionProgress = progresses.get(editionId) ?? { owned: 0, total: 0, read: 0, wished: 0 };
@@ -101,7 +111,9 @@ function getEditionSelection(userId: string, editionId: number, adult: boolean, 
             volumes: volumes.map(volume => ({ ...mapVolume(volume),
                 owned: volume.userVolumes[0]?.state === 'Owned', read: volume.userVolumes[0]?.read ?? null,
                 wished: volume.userVolumes[0]?.state === 'Wanted' })),
-            progress: editionProgress, pagination: pagination(page.page, page.limit, editionProgress.total)
+            progress: editionProgress, pagination: page.all
+                ? pagination(1, Math.max(editionProgress.total, 1), editionProgress.total)
+                : pagination(page.page, page.limit, editionProgress.total)
         };
     });
 }
@@ -123,13 +135,21 @@ function listWishlist(userId: string, adult: boolean, page: WishlistQuery) {
                 } } : {})
             }
         } };
-        const [items, total] = await Promise.all([
+        const [items, total, totalVolumes] = await Promise.all([
             tx.userVolume.findMany({ where, select: { volume: { select: { ...volumeSelect, affiliateLink: true, edition: { select: editionSelect } } } },
-                orderBy: [{ createdAt: 'desc' }, { volumeId: 'asc' }], skip: (page.page - 1) * page.limit, take: page.limit }),
-            tx.userVolume.count({ where })
+                orderBy: [
+                    { volume: { edition: { work: { title: page.order === 'DESC' ? 'desc' : 'asc' } } } },
+                    { volume: { edition: { workId: 'asc' } } },
+                    { volume: { edition: { chronologicalNumber: 'asc' } } },
+                    { volume: { number: 'asc' } },
+                    { volumeId: 'asc' }
+                ], skip: (page.page - 1) * page.limit, take: page.limit }),
+            tx.userVolume.count({ where }),
+            tx.userVolume.count({ where: { userId, state: 'Wanted', volume: visibleVolume(adult) } })
         ]);
         return { volumes: items.map(({ volume }) => ({ ...mapVolume(volume),
             affiliateLink: volume.affiliateLink, work: mapWork(volume.edition.work), edition: mapEdition(volume.edition) })),
+        totals: { volumes: totalVolumes },
         pagination: pagination(page.page, page.limit, total) };
     });
 }

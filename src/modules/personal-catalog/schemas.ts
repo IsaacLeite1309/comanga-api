@@ -19,16 +19,19 @@ const paginationFields = {
 };
 const validPage = ({ page, limit }: { page: number; limit: number }) => (page - 1) * limit <= 2147483647;
 const paginationSchema = z.object(paginationFields).strict().refine(validPage);
+const selectionQuerySchema = z.object({ ...paginationFields, all: z.literal('true').optional() }).strict().refine(validPage);
 const collectionQuerySchema = z.object({
     ...paginationFields,
     term: z.string().trim().min(1).max(255).optional(),
     status: z.enum(['complete', 'incomplete']).optional(),
-    brazilianPublisherId: pageInteger.optional()
+    brazilianPublisherId: pageInteger.optional(),
+    order: z.enum(['ASC', 'DESC']).optional()
 }).strict().refine(validPage);
 const wishlistQuerySchema = z.object({
     ...paginationFields,
     term: z.string().trim().min(1).max(255).optional(),
-    brazilianPublisherId: pageInteger.optional()
+    brazilianPublisherId: pageInteger.optional(),
+    order: z.enum(['ASC', 'DESC']).optional()
 }).strict().refine(validPage);
 
-export { volumeParamsSchema, editionParamsSchema, readSchema, batchSchema, paginationSchema, collectionQuerySchema, wishlistQuerySchema };
+export { volumeParamsSchema, editionParamsSchema, readSchema, batchSchema, paginationSchema, selectionQuerySchema, collectionQuerySchema, wishlistQuerySchema };

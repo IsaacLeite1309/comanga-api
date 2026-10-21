@@ -33,12 +33,12 @@ function countState(summary: PersonalSummary, state: PersonalVolumeState) {
 
 async function loadPersonalCatalogState(
     req: Request,
-    scope: { workId?: number; editionId?: number; volumeId?: number }
+    scope: { workId?: number; editionId?: number; volumeId?: number; volumeIds?: number[] }
 ): Promise<PersonalCatalogState | undefined> {
     const userId = req.publicCatalogViewer?.userId;
     if (!userId) return undefined;
     const volume: Prisma.VolumeWhereInput = {
-        ...(scope.volumeId !== undefined ? { id: scope.volumeId } : {}),
+        ...(scope.volumeId !== undefined ? { id: scope.volumeId } : scope.volumeIds !== undefined ? { id: { in: scope.volumeIds } } : {}),
         visibility: 'Público',
         edition: {
             ...(scope.editionId !== undefined ? { id: scope.editionId } : {}),

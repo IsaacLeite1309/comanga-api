@@ -203,16 +203,17 @@ describe('middlewares unitarios', () => {
             expect(next).toHaveBeenCalledTimes(1);
         });
 
-        it('retorna 401 quando ocorre erro inesperado na validacao', async () => {
-            prisma.session.findFirst.mockRejectedValue(new Error('db off'));
+        it('encaminha erro inesperado na validacao ao tratamento central', async () => {
+            const error = new Error('db off');
+            prisma.session.findFirst.mockRejectedValue(error);
             const req = { headers: { cookie: 'comanga_session=abc123' } };
             const res = makeRes();
             const next = jest.fn();
 
             await authMiddleware(req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(401);
-            expect(next).not.toHaveBeenCalled();
+            expect(res.status).not.toHaveBeenCalled();
+            expect(next).toHaveBeenCalledWith(error);
         });
     });
 

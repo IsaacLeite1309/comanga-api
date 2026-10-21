@@ -144,17 +144,18 @@ describe('regressões de segurança da sessão autenticada', () => {
         expect(next).not.toHaveBeenCalled();
     });
 
-    it('não devolve detalhes internos quando a validação da sessão falha no banco', async () => {
-        prisma.session.findFirst.mockRejectedValue(new Error('relation "sessions" does not exist'));
+    it('encaminha a falha inesperada de validação ao tratamento central', async () => {
+        const error = new Error('relation "sessions" does not exist');
+        prisma.session.findFirst.mockRejectedValue(error);
         jest.spyOn(console, 'error').mockImplementation(() => {});
         const res = makeRes();
+        const next = jest.fn();
 
-        await authMiddleware(sessionCookie('token-db-off'), res, jest.fn());
+        await authMiddleware(sessionCookie('token-db-off'), res, next);
 
-        expect(res.status).toHaveBeenCalledWith(401);
-        expect(res.json).toHaveBeenCalledWith({
-            error: 'Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.'
-        });
+        expect(res.status).not.toHaveBeenCalled();
+        expect(res.json).not.toHaveBeenCalled();
+        expect(next).toHaveBeenCalledWith(error);
         console.error.mockRestore();
     });
 });

@@ -17,7 +17,7 @@ beforeEach(()=>{
     prisma.$transaction.mockImplementation(operation=>operation(tx));
 });
 it('coleção vazia mantém paginação e não agrega catálogo sem edições',async()=>{
-    expect(await listCollection(userId,false,{page:2,limit:12})).toEqual({works:[],pagination:{page:2,limit:12,total:0,totalPages:0}});
+    expect(await listCollection(userId,false,{page:2,limit:12})).toEqual({works:[],totals:{editions:0,volumes:0},pagination:{page:2,limit:12,total:0,totalPages:0}});
     expect(tx.$queryRaw).not.toHaveBeenCalled();
 });
 it('filtra a coleção antes da paginação e usa os mesmos critérios na contagem',async()=>{
@@ -82,8 +82,15 @@ it('desejos só expõem dados públicos essenciais sem leitura ou identificaçã
 });
 it('filtra desejos por título ou autor e editora antes da paginação',async()=>{
     tx.userVolume.findMany.mockResolvedValue([{volume:{...volume,affiliateLink:'https://amazon.example.test/item',edition}}]);
-    const result=await listWishlist(userId,false,{page:2,limit:12,term:'Monster',brazilianPublisherId:4});
+    const result=await listWishlist(userId,false,{page:2,limit:12,term:'Monster',brazilianPublisherId:4,order:'DESC'});
     const query=tx.userVolume.findMany.mock.calls[0][0];
+    expect(query.orderBy[0]).toEqual({volume:{edition:{work:{title:'desc'}}}});
+    expect(query.orderBy.slice(1)).toEqual([
+        {volume:{edition:{workId:'asc'}}},
+        {volume:{edition:{chronologicalNumber:'asc'}}},
+        {volume:{number:'asc'}},
+        {volumeId:'asc'}
+    ]);
     expect(tx.userVolume.count).toHaveBeenCalledWith({where:query.where});
     expect(query.where.volume.edition.brazilianPublisherId).toBe(4);
     expect(query.where.volume.edition.work.OR).toContainEqual({title:{contains:'Monster',mode:'insensitive'}});
