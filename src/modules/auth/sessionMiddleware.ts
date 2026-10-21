@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
 import structuredLogger from '../../infrastructure/logging/structuredLogger';
 import { isAdult } from './accountRules';
@@ -6,6 +7,7 @@ import { ADMIN_PROFILE_CODE, ADMIN_PROFILE_NAME, resolveActiveProfileName, sortP
 import { hashSessionToken, readSessionToken } from './session';
 
 const INVALID_SESSION_MESSAGE = 'Sua sessão é inválida ou foi encerrada. Por favor, faça login novamente.';
+const SESSION_UNAVAILABLE_MESSAGE = 'Não foi possível verificar sua sessão no momento. Tente novamente em instantes.';
 const DEFAULT_SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 interface AssignedProfileRow { profile: { code: string; name: string } }
@@ -73,7 +75,11 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
         structuredLogger.error('auth.session.validation_failed', {
             requestId: req.requestId || 'not-provided'
         }, error);
-        return res.status(401).json({ error: INVALID_SESSION_MESSAGE });
+        if (error instanceof Prisma.PrismaClientInitializationError
+            || error instanceof Prisma.PrismaClientKnownRequestError && ['P1001', 'P1002', 'P1017'].includes(error.code)) {
+            return res.status(503).json({ error: SESSION_UNAVAILABLE_MESSAGE });
+        }
+        return next(error);
     }
 }
 

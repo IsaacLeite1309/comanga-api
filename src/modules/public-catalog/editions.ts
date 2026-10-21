@@ -102,7 +102,7 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
         return res.status(400).json({ error: INVALID_PUBLIC_PARAMETERS_MESSAGE });
     }
 
-    const { page, limit } = queryValidation.data;
+    const { page, limit, all } = queryValidation.data;
     const editionWhere: Prisma.EditionWhereInput = contextual
         ? {
             chronologicalNumber: Number(req.params.editionNumber),
@@ -128,8 +128,7 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
                 },
                 select: publicEditionVolumeSelect,
                 orderBy: [{ number: 'asc' }, { id: 'asc' }],
-                skip: (page - 1) * limit,
-                take: limit
+                ...(!all ? { skip: (page - 1) * limit, take: limit } : {})
             }),
             prisma.volume.findFirst({
                 where: {
@@ -166,7 +165,7 @@ async function getPublicEditionDetails(req: Request, res: Response, next: NextFu
                     : null
             },
             volumes: volumes.map(volume => ({ ...mapPublicEditionVolume(volume), ...personalVolumeFields(personal, volume.id) })),
-            pagination: pagination(page, limit, total)
+            pagination: all ? pagination(1, Math.max(total, 1), total) : pagination(page, limit, total)
         });
     } catch (error) {
         return next(error);

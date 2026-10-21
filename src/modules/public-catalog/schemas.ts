@@ -111,7 +111,8 @@ const publicVolumeContextParamsSchema = publicEditionContextParamsSchema.extend(
 });
 
 const publicDetailsQuerySchema = z.object({
-    ...paginationShape
+    ...paginationShape,
+    all: z.literal('true').optional()
 });
 
 export {

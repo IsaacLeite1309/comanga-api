@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import ApplicationError from '../../errors/ApplicationError';
 import { canViewAdultContent } from '../public-catalog';
-import { volumeParamsSchema, editionParamsSchema, paginationSchema, collectionQuerySchema, wishlistQuerySchema, readSchema, batchSchema } from './schemas';
+import { volumeParamsSchema, editionParamsSchema, selectionQuerySchema, collectionQuerySchema, wishlistQuerySchema, readSchema, batchSchema } from './schemas';
 import { addOwned, addWanted, removeItem, syncOwned, updateRead } from './mutations';
 import { listCollection, getEditionSelection, listWishlist } from './readers';
 
@@ -23,9 +23,9 @@ function editionId(req: Request) {
     return validation.data.editionId;
 }
 function pageInput(req: Request) {
-    const validation = paginationSchema.safeParse(req.query);
+    const validation = selectionQuerySchema.safeParse(req.query);
     if (!validation.success) invalidInput();
-    return validation.data;
+    return { ...validation.data, all: validation.data.all === 'true' };
 }
 function handler(operation: (req: Request) => Promise<unknown>, status = 200) {
     return async (req: Request, res: Response, next: NextFunction) => {

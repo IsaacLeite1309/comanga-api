@@ -4,6 +4,7 @@ import { canViewAdultContent } from './adultContentPolicy';
 import { mapPublicCalendarVolume } from './mappers';
 import { buildPublicCalendarWhere, publicCalendarOrderBy, publicCalendarVolumeSelect } from './queries';
 import { publicCalendarQuerySchema } from './schemas';
+import { loadPersonalCatalogState, personalVolumeFields } from './personalState';
 
 import { INVALID_PUBLIC_FILTERS_MESSAGE, pagination, prepareViewerDependentResponse } from './response';
 
@@ -34,12 +35,13 @@ async function listPublicCalendar(req: Request, res: Response, next: NextFunctio
             }),
             prisma.volume.count({ where })
         ]);
+        const personal = await loadPersonalCatalogState(req, { volumeIds: volumes.map(volume => volume.id) });
 
         prepareViewerDependentResponse(res);
         return res.status(200).json({
             year: query.year,
             month: query.month,
-            volumes: volumes.map(mapPublicCalendarVolume),
+            volumes: volumes.map(volume => ({ ...mapPublicCalendarVolume(volume), ...personalVolumeFields(personal, volume.id) })),
             pagination: pagination(query.page, query.limit, total)
         });
     } catch (error) {
