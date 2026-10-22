@@ -9,7 +9,7 @@ beforeEach(()=>{
         $executeRaw:jest.fn().mockResolvedValue(1),
         volume:{findFirst:jest.fn().mockResolvedValue({id:3}),count:jest.fn().mockResolvedValue(2)},
         edition:{findFirst:jest.fn().mockResolvedValue({id:2})},
-        userVolume:{findUnique:jest.fn().mockResolvedValue(null),upsert:jest.fn().mockResolvedValue({}),updateMany:jest.fn().mockResolvedValue({count:1}),deleteMany:jest.fn().mockResolvedValue({count:1})}
+        userVolume:{findUnique:jest.fn().mockResolvedValue(null),count:jest.fn().mockResolvedValue(0),upsert:jest.fn().mockResolvedValue({}),updateMany:jest.fn().mockResolvedValue({count:1}),deleteMany:jest.fn().mockResolvedValue({count:1})}
     };
     prisma.$transaction.mockImplementation(operation=>operation(tx));
 });
@@ -58,4 +58,25 @@ it('lote inválido não inicia alterações',async()=>{
 it('lote mantém contexto edição e confirma todos IDs da operação',async()=>{
     expect(await mutations.syncOwned(userId,2,{addVolumeIds:[3],removeVolumeIds:[4]},true)).toEqual({editionId:2,addedVolumeIds:[3],removedVolumeIds:[4]});
     expect(tx.volume.count.mock.calls[0][0].where).toMatchObject({editionId:2,id:{in:[3,4]}});
+});
+it('lote de desejos rejeita posse antes de remover itens e grava apenas desejos',async()=>{
+    const batch={addVolumeIds:[3],removeVolumeIds:[4]};
+    tx.userVolume.count.mockResolvedValueOnce(1);
+    await expect(mutations.syncEditionState(userId,2,batch,false,'Wanted')).rejects.toMatchObject({statusCode:409,code:'VOLUME_ALREADY_OWNED'});
+    expect(tx.userVolume.deleteMany).not.toHaveBeenCalled();
+    expect(tx.userVolume.upsert).not.toHaveBeenCalled();
+    tx.userVolume.count.mockResolvedValueOnce(0);
+    expect(await mutations.syncEditionState(userId,2,batch,false,'Wanted')).toEqual({editionId:2,addedVolumeIds:[3],removedVolumeIds:[4]});
+    expect(tx.userVolume.deleteMany).toHaveBeenCalledWith({where:{userId,volumeId:{in:[4]},state:'Wanted'}});
+    expect(tx.userVolume.upsert).toHaveBeenCalledWith(expect.objectContaining({create:{userId,volumeId:3,state:'Wanted',read:null}}));
+});
+it('lote de leitura só atualiza volumes adquiridos',async()=>{
+    const batch={addVolumeIds:[3],removeVolumeIds:[4]};
+    tx.userVolume.count.mockResolvedValueOnce(1);
+    await expect(mutations.syncEditionState(userId,2,batch,false,'Read')).rejects.toMatchObject({statusCode:404});
+    expect(tx.userVolume.updateMany).not.toHaveBeenCalled();
+    tx.userVolume.count.mockResolvedValueOnce(2);
+    expect(await mutations.syncEditionState(userId,2,batch,false,'Read')).toEqual({editionId:2,addedVolumeIds:[3],removedVolumeIds:[4]});
+    expect(tx.userVolume.updateMany).toHaveBeenCalledWith({where:{userId,volumeId:{in:[4]},state:'Owned'},data:{read:false}});
+    expect(tx.userVolume.updateMany).toHaveBeenCalledWith({where:{userId,volumeId:{in:[3]},state:'Owned'},data:{read:true}});
 });

@@ -1,4 +1,4 @@
-jest.mock('../../src/modules/personal-catalog/mutations',()=>({addOwned:jest.fn(),addWanted:jest.fn(),removeItem:jest.fn(),syncOwned:jest.fn(),updateRead:jest.fn()}));
+jest.mock('../../src/modules/personal-catalog/mutations',()=>({addOwned:jest.fn(),addWanted:jest.fn(),removeItem:jest.fn(),syncOwned:jest.fn(),syncEditionState:jest.fn(),updateRead:jest.fn()}));
 jest.mock('../../src/modules/personal-catalog/readers',()=>({listCollection:jest.fn(),getEditionSelection:jest.fn(),listWishlist:jest.fn()}));
 const mutations=require('../../src/modules/personal-catalog/mutations');
 const readers=require('../../src/modules/personal-catalog/readers');
@@ -20,6 +20,10 @@ it('update leitura e sincronização usam booleano e delta validados',async()=>{
     await handlers.patchRead(req,res,next);expect(mutations.updateRead).toHaveBeenCalledWith('own-account',3,true,false);
     req.body={addVolumeIds:[3],removeVolumeIds:[]};await handlers.putEdition(req,res,next);
     expect(mutations.syncOwned).toHaveBeenCalledWith('own-account',2,req.body,false);
+    await handlers.putWishlistEdition(req,res,next);
+    expect(mutations.syncEditionState).toHaveBeenCalledWith('own-account',2,req.body,false,'Wanted');
+    await handlers.putReadingEdition(req,res,next);
+    expect(mutations.syncEditionState).toHaveBeenCalledWith('own-account',2,req.body,false,'Read');
 });
 it('sem contexto autenticado não consulta dados',async()=>{
     delete req.user;await handlers.getCollection(req,res,next);
@@ -39,7 +43,8 @@ it.each([
     ['putOwned','params',{volumeId:'invalid'}],['getSelection','params',{editionId:'0'}],['getCollection','query',{limit:'51'}],
     ['getCollection','query',{status:'unknown'}],['getCollection','query',{brazilianPublisherId:'0'}],
     ['getWishlist','query',{term:' '}],['getWishlist','query',{brazilianPublisherId:'0'}],
-    ['patchRead','body',{read:'yes'}],['putEdition','body',{addVolumeIds:[3],removeVolumeIds:[3]}]
+    ['patchRead','body',{read:'yes'}],['putEdition','body',{addVolumeIds:[3],removeVolumeIds:[3]}],
+    ['putWishlistEdition','body',{addVolumeIds:[3],removeVolumeIds:[3]}],['putReadingEdition','body',{addVolumeIds:[3],removeVolumeIds:[3]}]
 ])('%s recusa entrada inválida sem operação parcial',async(name,field,value)=>{
     req[field]=value;await handlers[name](req,res,next);expect(next).toHaveBeenCalledWith(expect.objectContaining({statusCode:400,code:'INVALID_PERSONAL_INPUT'}));
 });
