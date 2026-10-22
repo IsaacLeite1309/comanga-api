@@ -12,13 +12,15 @@ function wish(id=f.first,user=f.owner) {return request(app).put(`${base}/wishlis
 function read(id=f.first,value=true,user=f.owner) {return request(app).patch(`${base}/collection/volumes/${id}`).set('Cookie',user.cookie).send({read:value});}
 function get(path,user=f.owner){return request(app).get(`${base}/${path}`).set('Cookie',user.cookie);}
 function sync(body){return request(app).put(`${base}/collection/editions/${f.editionId}`).set('Cookie',f.owner.cookie).send(body);}
+function syncWishlist(body){return request(app).put(`${base}/wishlist/editions/${f.editionId}`).set('Cookie',f.owner.cookie).send(body);}
+function syncReading(body){return request(app).put(`${base}/reading/editions/${f.editionId}`).set('Cookie',f.owner.cookie).send(body);}
 async function rows(user=f.owner){return (await db.query('SELECT volume_id,state,read FROM user_volumes WHERE user_id=$1 ORDER BY volume_id',[user.id])).rows;}
 
 beforeEach(async()=>{f=await fixture();});
 afterEach(async()=>{if(f)await f.cleanup();});
 
 it('exige sessão em todas operações pessoais e rejeita sessão revogada',async()=>{
-    const paths=[['get','collection'],['get','wishlist'],['get',`collection/editions/${f.editionId}`],['put',`collection/volumes/${f.first}`],['patch',`collection/volumes/${f.first}`],['delete',`collection/volumes/${f.first}`],['put',`wishlist/volumes/${f.first}`],['delete',`wishlist/volumes/${f.first}`],['put',`collection/editions/${f.editionId}`]];
+    const paths=[['get','collection'],['get','wishlist'],['get',`collection/editions/${f.editionId}`],['put',`collection/volumes/${f.first}`],['patch',`collection/volumes/${f.first}`],['delete',`collection/volumes/${f.first}`],['put',`wishlist/volumes/${f.first}`],['delete',`wishlist/volumes/${f.first}`],['put',`collection/editions/${f.editionId}`],['put',`wishlist/editions/${f.editionId}`],['put',`reading/editions/${f.editionId}`]];
     for(const [method,path]of paths)expect((await request(app)[method](`${base}/${path}`)).status).toBe(401);
     const expired=await f.user();
     await db.query('UPDATE sessions SET revoked_at=NOW() WHERE user_id=$1',[expired.id]);
@@ -60,6 +62,22 @@ it('sincroniza lote, remove desejos e preserva leitura já existente',async()=>{
     const response=await sync({addVolumeIds:[f.first,f.second],removeVolumeIds:[f.third]});
     expect(response.status).toBe(200);
     expect(await rows()).toEqual([{volume_id:f.first,state:'Owned',read:true},{volume_id:f.second,state:'Owned',read:false}]);
+});
+it('sincroniza desejos em lote e rejeita conflito sem alterar os vínculos',async()=>{
+    await wish();await own(f.second);
+    const prior=await rows();
+    expect((await syncWishlist({addVolumeIds:[f.second],removeVolumeIds:[f.first]})).status).toBe(409);
+    expect(await rows()).toEqual(prior);
+    expect((await syncWishlist({addVolumeIds:[f.third],removeVolumeIds:[f.first]})).status).toBe(200);
+    expect(await rows()).toEqual([{volume_id:f.second,state:'Owned',read:false},{volume_id:f.third,state:'Wanted',read:null}]);
+});
+it('sincroniza leitura em lote apenas para volumes adquiridos',async()=>{
+    await own();await read();await own(f.second);await wish(f.third);
+    const prior=await rows();
+    expect((await syncReading({addVolumeIds:[f.third],removeVolumeIds:[f.first]})).status).toBe(404);
+    expect(await rows()).toEqual(prior);
+    expect((await syncReading({addVolumeIds:[f.second],removeVolumeIds:[f.first]})).status).toBe(200);
+    expect(await rows()).toEqual([{volume_id:f.first,state:'Owned',read:false},{volume_id:f.second,state:'Owned',read:true},{volume_id:f.third,state:'Wanted',read:null}]);
 });
 it('falha validação do lote preserva acervo e não aceita edição alheia',async()=>{
     await own();await read();await wish(f.second);

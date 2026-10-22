@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import ApplicationError from '../../errors/ApplicationError';
 import { canViewAdultContent } from '../public-catalog';
 import { volumeParamsSchema, editionParamsSchema, selectionQuerySchema, collectionQuerySchema, wishlistQuerySchema, readSchema, batchSchema } from './schemas';
-import { addOwned, addWanted, removeItem, syncOwned, updateRead } from './mutations';
+import { addOwned, addWanted, removeItem, syncEditionState, syncOwned, updateRead } from './mutations';
 import { listCollection, getEditionSelection, listWishlist } from './readers';
 
 function authenticatedUser(req: Request) {
@@ -51,6 +51,16 @@ const putEdition = handler(req => {
     if (!validation.success) invalidInput();
     return syncOwned(authenticatedUser(req), editionId(req), validation.data, canViewAdultContent(req));
 });
+const putWishlistEdition = handler(req => {
+    const validation = batchSchema.safeParse(req.body);
+    if (!validation.success) invalidInput();
+    return syncEditionState(authenticatedUser(req), editionId(req), validation.data, canViewAdultContent(req), 'Wanted');
+});
+const putReadingEdition = handler(req => {
+    const validation = batchSchema.safeParse(req.body);
+    if (!validation.success) invalidInput();
+    return syncEditionState(authenticatedUser(req), editionId(req), validation.data, canViewAdultContent(req), 'Read');
+});
 const getCollection = handler(req => {
     const validation = collectionQuerySchema.safeParse(req.query);
     if (!validation.success) invalidInput();
@@ -63,4 +73,4 @@ const getWishlist = handler(req => {
 });
 const getSelection = handler(req => getEditionSelection(authenticatedUser(req), editionId(req), canViewAdultContent(req), pageInput(req)));
 
-export { putOwned, putWanted, deleteOwned, deleteWanted, patchRead, putEdition, getCollection, getWishlist, getSelection };
+export { putOwned, putWanted, deleteOwned, deleteWanted, patchRead, putEdition, putWishlistEdition, putReadingEdition, getCollection, getWishlist, getSelection };

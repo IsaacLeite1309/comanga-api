@@ -92,4 +92,34 @@ function syncOwned(userId: string, editionId: number, batch: Batch, adult: boole
     });
 }
 
-export { addOwned, addWanted, updateRead, removeItem, syncOwned };
+function syncEditionState(userId: string, editionId: number, batch: Batch, adult: boolean, state: 'Wanted' | 'Read') {
+    return personalTransaction(userId, async tx => {
+        const edition = await tx.edition.findFirst({ where: { id: editionId, ...visibleEdition(adult) }, select: { id: true } });
+        if (!edition) unavailable();
+        const ids = [...batch.addVolumeIds, ...batch.removeVolumeIds];
+        const validCount = await tx.volume.count({ where: { id: { in: ids }, editionId, ...visibleVolume(adult) } });
+        if (validCount !== ids.length) unavailable();
+        if (state === 'Wanted') {
+            const owned = await tx.userVolume.count({ where: { userId, volumeId: { in: batch.addVolumeIds }, state: 'Owned' } });
+            if (owned) throw new ApplicationError({ statusCode: 409, code: 'VOLUME_ALREADY_OWNED', message: 'Um Volume selecionado já pertence à sua Estante Digital.' });
+            await tx.userVolume.deleteMany({ where: { userId, volumeId: { in: batch.removeVolumeIds }, state: 'Wanted' } });
+            for (const volumeId of batch.addVolumeIds) {
+                await tx.userVolume.upsert({
+                    where: { userId_volumeId: { userId, volumeId } },
+                    create: { userId, volumeId, state: 'Wanted', read: null },
+                    update: {},
+                });
+            }
+        } else {
+            if (ids.length) {
+                const ownedCount = await tx.userVolume.count({ where: { userId, volumeId: { in: ids }, state: 'Owned' } });
+                if (ownedCount !== ids.length) unavailable();
+            }
+            await tx.userVolume.updateMany({ where: { userId, volumeId: { in: batch.removeVolumeIds }, state: 'Owned' }, data: { read: false } });
+            await tx.userVolume.updateMany({ where: { userId, volumeId: { in: batch.addVolumeIds }, state: 'Owned' }, data: { read: true } });
+        }
+        return { editionId, addedVolumeIds: batch.addVolumeIds, removedVolumeIds: batch.removeVolumeIds };
+    });
+}
+
+export { addOwned, addWanted, updateRead, removeItem, syncOwned, syncEditionState };
