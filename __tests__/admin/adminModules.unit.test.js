@@ -72,7 +72,9 @@ const prisma = {
     edition: {
         count: jest.fn(),
         create: jest.fn(),
+        updateMany: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
         delete: jest.fn()
@@ -1609,12 +1611,12 @@ describe('módulos administrativos', () => {
             expect(prisma.work.delete).not.toHaveBeenCalled();
         });
 
-        it('bloqueia rebaixamento para privado quando obra possui edições públicas', async () => {
+        it('torna edições e volumes privados junto com a obra', async () => {
             prisma.work.findUnique.mockResolvedValue({
                 id: 1,
                 visibility: 'Público'
             });
-            prisma.edition.count.mockResolvedValue(1);
+            prisma.work.update.mockResolvedValue({ id: 1, visibility: 'Privado' });
             const req = makeReq({
                 params: { id: '1' },
                 body: { visibility: 'Privado' }
@@ -1623,11 +1625,46 @@ describe('módulos administrativos', () => {
 
             await catalog.updateWorkVisibility(req, res);
 
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(prisma.volume.updateMany).toHaveBeenCalledWith({
+                where: { edition: { workId: 1 } }, data: { visibility: 'Privado' }
+            });
+            expect(prisma.edition.updateMany).toHaveBeenCalledWith({
+                where: { workId: 1 }, data: { visibility: 'Privado' }
+            });
+        });
+
+        it('recusa publicar obra com edição sem Volume 1', async () => {
+            prisma.work.findUnique.mockResolvedValue({ id: 1, visibility: 'Privado' });
+            prisma.edition.findFirst.mockResolvedValue({ chronologicalNumber: 2 });
+            const res = makeRes();
+
+            await catalog.updateWorkVisibility(makeReq({
+                params: { id: '1' }, body: { visibility: 'Público' }
+            }), res);
+
             expect(res.status).toHaveBeenCalledWith(409);
             expect(res.json).toHaveBeenCalledWith({
-                error: 'Essa Obra possui Edições públicas, não pode ser rebaixada para privada!'
+                error: 'A Edição 2 precisa ter o Volume 1 com capa antes de publicar a Obra.'
             });
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
+            expect(prisma.edition.updateMany).not.toHaveBeenCalled();
             expect(prisma.work.update).not.toHaveBeenCalled();
+        });
+
+        it('não publica edições privadas ao repetir Público em obra já pública', async () => {
+            prisma.work.findUnique.mockResolvedValue({ id: 1, visibility: 'Público' });
+            prisma.work.update.mockResolvedValue({ id: 1, visibility: 'Público' });
+            const res = makeRes();
+
+            await catalog.updateWorkVisibility(makeReq({
+                params: { id: '1' }, body: { visibility: 'Público' }
+            }), res);
+
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(prisma.edition.findFirst).not.toHaveBeenCalled();
+            expect(prisma.edition.updateMany).not.toHaveBeenCalled();
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
         });
 
         it('bloqueia exclusão de obra privada quando ainda possui edições vinculadas', async () => {
@@ -1695,7 +1732,7 @@ describe('módulos administrativos', () => {
         }
 
         it('cadastra edição privada vinculada a uma obra', async () => {
-            prisma.work.findUnique.mockResolvedValue({ id: 1 });
+            prisma.work.findUnique.mockResolvedValue({ id: 1, visibility: 'Privado' });
             mockValidEditionReferences();
             prisma.edition.create.mockResolvedValue(edition);
             const req = makeReq({
@@ -1723,6 +1760,20 @@ describe('módulos administrativos', () => {
                     visibility: 'Privado'
                 })
             });
+        });
+
+        it('cria edição privada mesmo quando a obra já está pública', async () => {
+            prisma.work.findUnique.mockResolvedValue({ id: 1, visibility: 'Público' });
+            mockValidEditionReferences();
+            prisma.edition.create.mockResolvedValue(edition);
+
+            await catalog.createEdition(makeReq({
+                params: { workId: '1' }, body: { ...editionBodyWithoutCover }
+            }), makeRes());
+
+            expect(prisma.edition.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ visibility: 'Privado' })
+            }));
         });
 
         it.each([
@@ -1971,7 +2022,7 @@ describe('módulos administrativos', () => {
         };
 
         it('cadastra volume herdando visibilidade da edição', async () => {
-            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado' });
+            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado', work: { visibility: 'Privado' } });
             prisma.volume.create.mockResolvedValue(volume);
             const req = makeReq({
                 params: { editionId: '20' },
@@ -2020,6 +2071,75 @@ describe('módulos administrativos', () => {
                     releaseDay: 10
                 })
             });
+        });
+
+        it('revalida a visibilidade da edição sob o lock ao criar volume', async () => {
+            prisma.edition.findUnique
+                .mockResolvedValueOnce({ id: 20, visibility: 'Privado' })
+                .mockResolvedValueOnce({ id: 20, visibility: 'Público' });
+            prisma.volume.create.mockResolvedValue({ ...volume, visibility: 'Público' });
+
+            const res = makeRes();
+            await catalog.createVolume(makeReq({
+                params: { editionId: '20' },
+                body: {
+                    number: 1,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    releaseDatePrecision: 'Ano',
+                    releaseYear: 2026
+                }
+            }), res);
+
+            expect(res.status).toHaveBeenCalledWith(201);
+            expect(prisma.volume.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ visibility: 'Público' })
+            }));
+        });
+
+        it('mantém edição privada ao cadastrar Volume 1 sob obra pública', async () => {
+            prisma.edition.findUnique.mockResolvedValue({
+                id: 20, visibility: 'Privado'
+            });
+            prisma.volume.create.mockResolvedValue(volume);
+            const res = makeRes();
+
+            await catalog.createVolume(makeReq({
+                params: { editionId: '20' },
+                body: {
+                    number: 1,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    releaseDatePrecision: 'Ano', releaseYear: 2026
+                }
+            }), res);
+
+            expect(res.status).toHaveBeenCalledWith(201);
+            expect(prisma.volume.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ visibility: 'Privado' })
+            }));
+            expect(prisma.edition.update).not.toHaveBeenCalled();
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
+        });
+
+        it('mantém privada a edição sob obra pública ao cadastrar Volume 2', async () => {
+            prisma.edition.findUnique.mockResolvedValue({
+                id: 20, visibility: 'Privado'
+            });
+            prisma.volume.create.mockResolvedValue(volume);
+
+            await catalog.createVolume(makeReq({
+                params: { editionId: '20' },
+                body: {
+                    number: 2,
+                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                    releaseDatePrecision: 'Ano', releaseYear: 2026
+                }
+            }), makeRes());
+
+            expect(prisma.volume.create).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ visibility: 'Privado' })
+            }));
+            expect(prisma.edition.update).not.toHaveBeenCalled();
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
         });
 
         it('impede cadastrar outro Volume em Edição com Volume único', async () => {
@@ -2092,7 +2212,7 @@ describe('módulos administrativos', () => {
                 id: 30,
                 number: currentNumber,
                 coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
-                edition: { visibility: editionVisibility }
+                edition: { visibility: editionVisibility, work: { visibility: editionVisibility } }
             });
             prisma.volume.update.mockResolvedValue({ ...volume, number: nextNumber });
             const res = makeRes();
@@ -2103,12 +2223,34 @@ describe('módulos administrativos', () => {
             expect(prisma.volume.update).toHaveBeenCalled();
         });
 
+        it('mantém edição privada sob obra pública quando um volume vira Volume 1', async () => {
+            prisma.volume.findUnique.mockResolvedValue({
+                id: 30,
+                editionId: 20,
+                number: 2,
+                coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
+                edition: { visibility: 'Privado' }
+            });
+            prisma.volume.update.mockResolvedValue({ ...volume, number: 1, visibility: 'Privado' });
+            const res = makeRes();
+
+            await catalog.updateVolume(makeReq({ params: { id: '30' }, body: { number: 1 } }), res);
+
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(prisma.volume.update).toHaveBeenCalledWith(expect.objectContaining({
+                data: expect.objectContaining({ number: 1 })
+            }));
+            expect(prisma.volume.update.mock.calls[0][0].data).not.toHaveProperty('visibility');
+            expect(prisma.edition.update).not.toHaveBeenCalled();
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
+        });
+
         it('preserva a capa atual do Volume quando a alteração não envia capa nova', async () => {
             prisma.volume.findUnique.mockResolvedValue({
                 id: 30,
                 number: 1,
                 coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
-                edition: { visibility: 'Privado' }
+                edition: { visibility: 'Privado', work: { visibility: 'Privado' } }
             });
             prisma.volume.update.mockResolvedValue(volume);
             const res = makeRes();
@@ -2121,7 +2263,7 @@ describe('módulos administrativos', () => {
         });
 
         it('bloqueia volume duplicado dentro da mesma edição', async () => {
-            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado' });
+            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado', work: { visibility: 'Privado' } });
             prisma.volume.create.mockRejectedValue({ code: 'P2002' });
             const req = makeReq({
                 params: { editionId: '20' },
@@ -2448,7 +2590,7 @@ describe('módulos administrativos', () => {
         });
 
         it('cria volume usando defaults e normaliza campos opcionais', async () => {
-            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado' });
+            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Privado', work: { visibility: 'Privado' } });
             prisma.volume.create.mockResolvedValue(volume);
             const res = makeRes();
 
@@ -2472,7 +2614,7 @@ describe('módulos administrativos', () => {
             ['Mes e ano', { releaseYear: 2025, releaseMonth: 7, releaseDay: 20 }, 7, null],
             ['Ano', { releaseYear: 2024, releaseMonth: 7, releaseDay: 20 }, null, null]
         ])('atualiza volume com precisao %s', async (precision, releaseFields, expectedMonth, expectedDay) => {
-            prisma.volume.findUnique.mockResolvedValue({ id: 30 });
+            prisma.volume.findUnique.mockResolvedValue({ id: 30, edition: { visibility: 'Privado', work: { visibility: 'Privado' } } });
             prisma.volume.update.mockResolvedValue({
                 ...volume,
                 releaseDatePrecision: precision,
@@ -2516,7 +2658,7 @@ describe('módulos administrativos', () => {
                 prisma.edition.update.mockRejectedValue({ code: 'P2002' });
             }],
             ['P2002', 'updateVolume', { params: { id: '30' }, body: { number: 2 } }, () => {
-                prisma.volume.findUnique.mockResolvedValue({ id: 30 });
+                prisma.volume.findUnique.mockResolvedValue({ id: 30, edition: { visibility: 'Privado', work: { visibility: 'Privado' } } });
                 prisma.volume.update.mockRejectedValue({ code: 'P2002' });
             }],
             ['P2025', 'deleteOption', { params: { id: '10' } }, () => {
@@ -2751,11 +2893,10 @@ describe('módulos administrativos', () => {
         });
 
         it.each([
-            ['Público', 'Privado', 0],
-            ['Privado', 'Público', 0]
-        ])('altera visibilidade da obra de %s para %s', async (currentVisibility, visibility, publicEditions) => {
+            ['Público', 'Privado'],
+            ['Privado', 'Público']
+        ])('altera visibilidade da obra de %s para %s', async (currentVisibility, visibility) => {
             prisma.work.findUnique.mockResolvedValue({ id: 1, visibility: currentVisibility });
-            prisma.edition.count.mockResolvedValue(publicEditions);
             prisma.work.update.mockResolvedValue({
                 id: 1,
                 title: 'Obra',
@@ -2782,6 +2923,12 @@ describe('módulos administrativos', () => {
             }), res);
 
             expect(res.status).toHaveBeenCalledWith(200);
+            expect(prisma.volume.updateMany).toHaveBeenCalledWith({
+                where: { edition: { workId: 1 } }, data: { visibility }
+            });
+            expect(prisma.edition.updateMany).toHaveBeenCalledWith({
+                where: { workId: 1 }, data: { visibility }
+            });
         });
 
         it('atualiza campos isolados de data do volume', async () => {
@@ -2790,7 +2937,8 @@ describe('módulos administrativos', () => {
                 releaseDatePrecision: 'Completa',
                 releaseYear: 2023,
                 releaseMonth: 1,
-                releaseDay: 10
+                releaseDay: 10,
+                edition: { visibility: 'Privado', work: { visibility: 'Privado' } }
             });
             prisma.volume.update.mockResolvedValue(volume);
             const res = makeRes();

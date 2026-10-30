@@ -97,11 +97,11 @@ async function createVolume(req: Request, res: Response, next: NextFunction) {
             return res.status(400).json({ error: 'A capa interna informada é inválida ou já está em uso.' });
         }
 
-        const createVolumeRecord = (client: typeof prisma) => client.volume.create({
+        const createVolumeRecord = (client: typeof prisma, visibility: string) => client.volume.create({
                 data: {
                     editionId,
                     ...buildVolumeData(validation.data),
-                    visibility: edition.visibility
+                    visibility
                 } as Prisma.VolumeUncheckedCreateInput,
                 include: {
                     coverAsset: {
@@ -114,6 +114,11 @@ async function createVolume(req: Request, res: Response, next: NextFunction) {
                 }
             });
         const result = await withCatalogWriteLock(async tx => {
+            const currentEdition = await tx.edition.findUnique({
+                where: { id: editionId },
+                select: { id: true, visibility: true }
+            });
+            if (!currentEdition) return { notFound: true } as const;
             const existingVolume = await tx.volume.findFirst({
                 where: { editionId, ...(validation.data.singleVolume ? {} : { singleVolume: true }) },
                 select: { id: true }
@@ -121,12 +126,13 @@ async function createVolume(req: Request, res: Response, next: NextFunction) {
             if (existingVolume) {
                 return { error: 'Esta Edição não pode ter outros Volumes enquanto houver um Volume único.' } as const;
             }
-            const volume = await createVolumeRecord(tx as typeof prisma);
+            const volume = await createVolumeRecord(tx as typeof prisma, currentEdition.visibility);
             if (validation.data.coverAssetId) {
                 await activateCoverAsset(tx, validation.data.coverAssetId);
             }
             return { volume } as const;
         });
+        if ('notFound' in result) return res.status(404).json({ error: 'Edição não encontrada.' });
         if ('error' in result) return res.status(409).json({ error: result.error });
         const { volume } = result;
 

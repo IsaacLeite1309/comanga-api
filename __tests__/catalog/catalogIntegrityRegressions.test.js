@@ -154,11 +154,30 @@ describe('integridade de Volumes e publicação concorrente', () => {
         const statuses = publishFirst
             ? await concurrent(() => editionVisibility('Público'), () => workVisibility('Privado'))
             : await concurrent(() => workVisibility('Privado'), () => editionVisibility('Público'));
-        expect(statuses).toEqual([200, 409]);
+        expect(statuses).toEqual(publishFirst ? [200, 200] : [200, 409]);
         const stored = (await db.query(`SELECT w.visibility AS work,e.visibility AS edition,v.visibility AS volume
             FROM works w JOIN editions e ON e.work_id=w.id JOIN volumes v ON v.edition_id=e.id WHERE w.id=$1`, [work])).rows[0];
-        expect(stored).toEqual(publishFirst
-            ? { work: 'Público', edition: 'Público', volume: 'Público' }
-            : { work: 'Privado', edition: 'Privado', volume: 'Privado' });
+        expect(stored).toEqual({ work: 'Privado', edition: 'Privado', volume: 'Privado' });
+    });
+
+    it('recusa publicar a Obra se uma Edição não possui o Volume 1', async () => {
+        await db.query("UPDATE works SET visibility='Privado' WHERE id=$1", [work]);
+        await db.query('DELETE FROM volumes WHERE id=$1', [volume]);
+
+        const response = await workVisibility('Público');
+        expect(response.status).toBe(409);
+        expect(response.body.error).toMatch(/Edição 1.*Volume 1 com capa/);
+        const stored = (await db.query('SELECT visibility FROM works WHERE id=$1', [work])).rows[0];
+        expect(stored.visibility).toBe('Privado');
+    });
+
+    it('publica Edição e Volume junto com a Obra na transição de privado para público', async () => {
+        expect((await workVisibility('Privado')).status).toBe(200);
+
+        const response = await workVisibility('Público');
+        expect(response.status).toBe(200);
+        const stored = (await db.query(`SELECT w.visibility AS work,e.visibility AS edition,v.visibility AS volume
+            FROM works w JOIN editions e ON e.work_id=w.id JOIN volumes v ON v.edition_id=e.id WHERE w.id=$1`, [work])).rows[0];
+        expect(stored).toEqual({ work: 'Público', edition: 'Público', volume: 'Público' });
     });
 });

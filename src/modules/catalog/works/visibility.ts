@@ -6,10 +6,31 @@ export { updateWorkVisibility };
 
 async function persistWorkVisibility(workId: number, visibility: string) {
     return withCatalogWriteLock(async tx => {
-        const work = await tx.work.findUnique({ where: { id: workId }, select: { id: true } });
+        const work = await tx.work.findUnique({ where: { id: workId }, select: { id: true, visibility: true } });
         if (!work) return { status: 404, error: 'Obra não encontrada.' } as const;
-        if (visibility === 'Privado' && await tx.edition.count({ where: { workId, visibility: 'Público' } }) > 0) {
-            return { status: 409, error: 'Essa Obra possui Edições públicas, não pode ser rebaixada para privada!' } as const;
+        const isPublishing = work.visibility !== 'Público' && visibility === 'Público';
+        if (isPublishing) {
+            const incompleteEdition = await tx.edition.findFirst({
+                where: { workId, volumes: { none: { number: 1 } } },
+                orderBy: { chronologicalNumber: 'asc' },
+                select: { chronologicalNumber: true }
+            });
+            if (incompleteEdition) {
+                return {
+                    status: 409,
+                    error: `A Edição ${incompleteEdition.chronologicalNumber} precisa ter o Volume 1 com capa antes de publicar a Obra.`
+                } as const;
+            }
+        }
+        if (work.visibility !== visibility) {
+            await tx.volume.updateMany({
+                where: { edition: { workId } },
+                data: { visibility }
+            });
+            await tx.edition.updateMany({
+                where: { workId },
+                data: { visibility }
+            });
         }
         const updatedWork = await tx.work.update({
             where: { id: workId }, data: { visibility }, include: getWorkDetailInclude()
