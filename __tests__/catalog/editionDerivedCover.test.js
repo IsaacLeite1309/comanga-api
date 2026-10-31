@@ -91,6 +91,31 @@ function publish(editionId) {
 }
 
 describe('capas derivadas da Edição com banco real', () => {
+it('mantém Edição nova privada até a publicação individual, mesmo após o Volume 1', async () => {
+    const edition = await request(app)
+        .post(`/api/admin/works/${workId}/editions`)
+        .set('Cookie', adminCookie)
+        .send({
+            brazilianPublisherId: editionOptionIds.brazilianPublishers,
+            coverTypeId: editionOptionIds.coverTypes,
+            formatId: editionOptionIds.formats,
+            paperIds: [editionOptionIds.papers],
+            chronologicalNumber: 121,
+            brazilPublicationStatus: 'Completa'
+        });
+    expect(edition.status).toBe(201);
+    expect(edition.body.edition.visibility).toBe('Privado');
+    const volumeOne = await createVolume(edition.body.edition.id, 1);
+    expect(volumeOne.status).toBe(201);
+    expect(volumeOne.body.volume.visibility).toBe('Privado');
+    const pending = await request(app)
+        .get(`/api/admin/editions/${edition.body.edition.id}`)
+        .set('Cookie', adminCookie);
+    expect(pending.body.edition.visibility).toBe('Privado');
+    const published = await publish(edition.body.edition.id);
+    expect(published.status).toBe(200);
+    expect(published.body.edition.visibility).toBe('Público');
+});
 it('resolve Edição e Volume administrativos pelos números dentro da Obra', async () => {
     const edition = (await createEdition(123)).body.edition;
     const volume = (await createVolume(edition.id, 1)).body.volume;

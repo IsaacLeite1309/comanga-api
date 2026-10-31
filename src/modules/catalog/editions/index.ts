@@ -58,21 +58,32 @@ async function createEdition(req: Request, res: Response, next: NextFunction) {
             return res.status(400).json({ error: INVALID_DOMAIN_REFERENCE_MESSAGE });
         }
 
-        const createData = {
-            workId,
-            brazilianPublisherId: data.brazilianPublisherId,
-            coverTypeId: data.coverTypeId,
-            formatId: data.formatId,
-            ...(data.paperIds.length > 0 ? { papers: {
-                createMany: {
-                    data: data.paperIds.map((paperId, position) => ({ paperId, position }))
-                }
-            } } : {}),
-            chronologicalNumber: data.chronologicalNumber,
-            brazilPublicationStatus: data.brazilPublicationStatus,
-            visibility: 'Privado'
-        };
-        const edition = await prisma.edition.create({ data: createData, include: getEditionInclude() });
+        const result = await withCatalogWriteLock(async tx => {
+            const currentWork = await tx.work.findUnique({
+                where: { id: workId }, select: { id: true }
+            });
+            if (!currentWork) return { notFound: true } as const;
+            const edition = await tx.edition.create({
+                data: {
+                    workId,
+                    brazilianPublisherId: data.brazilianPublisherId,
+                    coverTypeId: data.coverTypeId,
+                    formatId: data.formatId,
+                    ...(data.paperIds.length > 0 ? { papers: {
+                        createMany: {
+                            data: data.paperIds.map((paperId, position) => ({ paperId, position }))
+                        }
+                    } } : {}),
+                    chronologicalNumber: data.chronologicalNumber,
+                    brazilPublicationStatus: data.brazilPublicationStatus,
+                    visibility: 'Privado'
+                },
+                include: getEditionInclude()
+            });
+            return { edition } as const;
+        });
+        if ('notFound' in result) return res.status(404).json({ error: 'Obra não encontrada.' });
+        const { edition } = result;
 
         return res.status(201).json({
             edition: normalizeEdition(edition as unknown as EditionInput)
