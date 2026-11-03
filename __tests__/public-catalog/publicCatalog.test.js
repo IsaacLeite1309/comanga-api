@@ -562,6 +562,30 @@ describe('catálogo público', () => {
         expect(byRomanizedTitle.body.works.map((work) => work.id)).toEqual([fixture.works.complete.id]);
     });
 
+    it('encontra obra e edição pelo título sem digitar o acento', async () => {
+        try {
+            await db.query('UPDATE works SET title = $1 WHERE id = $2', [
+                `${fixturePrefix}_Música`,
+                fixture.works.complete.id
+            ]);
+
+            const [works, editions] = await Promise.all([
+                request(app).get('/api/public/works').query({ term: 'musica' }),
+                request(app).get('/api/public/editions').query({ term: 'musica' })
+            ]);
+
+            expect(works.status).toBe(200);
+            expect(works.body.works.map((work) => work.id)).toEqual([fixture.works.complete.id]);
+            expect(editions.status).toBe(200);
+            expect(editions.body.editions.map((edition) => edition.id)).toEqual([fixture.editions.complete.id]);
+        } finally {
+            await db.query('UPDATE works SET title = $1 WHERE id = $2', [
+                fixture.works.complete.title,
+                fixture.works.complete.id
+            ]);
+        }
+    });
+
     it('combina grupos com E e exige todos os G\u00eaneros e Demografias selecionados', async () => {
         const response = await request(app)
             .get('/api/public/works')

@@ -1,4 +1,5 @@
 const {
+    buildIdentitySearch,
     buildPublicEditionOrderBy,
     buildPublicEditionWhere,
     buildPublicWorkOrderBy,
@@ -16,6 +17,20 @@ const {
 const HENTAI_RESTRICTION = { genres: { none: { genre: { OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' } } } } };
 
 describe('contratos unitários do catálogo público', () => {
+    it('busca títulos de obras e edições sem distinguir acentos', () => {
+        const expectedTitle = { searchTitle: { contains: 'musica' } };
+        expect(buildIdentitySearch('Música').OR).toContainEqual(expectedTitle);
+        expect(buildIdentitySearch('musica').OR).toContainEqual(expectedTitle);
+
+        const workQuery = publicWorksQuerySchema.parse({ term: 'musica' });
+        expect(buildPublicWorkWhere(workQuery, false).AND).toContainEqual(
+            expect.objectContaining({ OR: expect.arrayContaining([expectedTitle]) })
+        );
+
+        const editionQuery = publicEditionsQuerySchema.parse({ term: 'musica' });
+        expect(buildPublicEditionWhere(editionQuery, false).work.OR).toContainEqual(expectedTitle);
+    });
+
     it('normaliza filtros combináveis repetidos e separados por vírgula', () => {
         const result = publicWorksQuerySchema.parse({
             genreIds: ['10,20', '20'],

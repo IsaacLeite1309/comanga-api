@@ -1,8 +1,35 @@
 /* global Buffer */
 const sharp = require('sharp');
+const bmp = require('bmp-js');
 const { processCoverImage } = require('../../src/infrastructure/media/CoverImageProcessor');
 
 describe('processamento interno de capas', () => {
+    it('converte BMP em capa e variantes WebP', async () => {
+        const source = bmp.encode({
+            data: Buffer.from([0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 255, 255, 255]),
+            width: 2,
+            height: 2
+        }).data;
+        const result = await processCoverImage(source);
+
+        expect(result.format).toBe('webp');
+        expect(result.master.contentType).toBe('image/webp');
+        expect((await sharp(result.master.body).metadata()).width).toBe(1200);
+        expect(result.variants).toHaveLength(2);
+    });
+
+    it('rejeita cabeçalho BMP com dimensões excessivas antes da decodificação', async () => {
+        const source = Buffer.alloc(54);
+        source.write('BM');
+        source.writeInt32LE(20_000, 18);
+        source.writeInt32LE(20_000, 22);
+        source.writeUInt16LE(24, 28);
+        await expect(processCoverImage(source)).rejects.toMatchObject({
+            code: 'MEDIA_DIMENSIONS_EXCEEDED',
+            statusCode: 413
+        });
+    });
+
     it('decodifica a imagem real e gera variantes WebP 2:3 previsíveis', async () => {
         const source = await sharp({
             create: { width: 900, height: 900, channels: 3, background: '#336699' }

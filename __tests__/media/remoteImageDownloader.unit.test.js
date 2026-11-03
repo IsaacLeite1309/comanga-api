@@ -107,6 +107,17 @@ describe('download seguro da capa remota', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it.each(['image/bmp', 'image/x-bmp', 'image/x-ms-bmp'])('aceita capa BMP com Content-Type %s', async (contentType) => {
+        const bytes = Buffer.from('BMtest');
+        await expect(downloadRemoteImage('https://example.com/cover.bmp', {
+            fetchImpl: jest.fn().mockResolvedValue(response({
+                headers: { 'content-type': contentType },
+                chunks: [bytes]
+            })),
+            lookupImpl: publicLookup
+        })).resolves.toMatchObject({ bytes, contentType });
+    });
+
     it('rejeita conteúdo acima do limite mesmo sem Content-Length confiável', async () => {
         const fetchImpl = jest.fn().mockResolvedValue(response({
             headers: { 'content-type': 'image/png' },

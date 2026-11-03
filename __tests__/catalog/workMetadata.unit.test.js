@@ -148,7 +148,7 @@ describe('contrato dos metadados próprios da Obra', () => {
         const search = buildIdentitySearch('kozure');
 
         expect(search.OR).toEqual(expect.arrayContaining([
-            { romanizedTitle: { contains: 'kozure', mode: 'insensitive' } }
+            { searchRomanizedTitle: { contains: 'kozure' } }
         ]));
         expect(search.OR).toHaveLength(4);
     });
