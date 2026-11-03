@@ -85,6 +85,7 @@ describe('migration dos metadados da Obra e da ordem dos Autores', () => {
             const workId = await createLegacyWork(client, typeId, 'backfill');
 
             // Reproduz o estado anterior à migration para a Obra existente.
+            await client.query('DROP TRIGGER works_search_titles_before_write ON works');
             await client.query('ALTER TABLE works ALTER COLUMN romanized_title DROP NOT NULL');
             await client.query('ALTER TABLE works ALTER COLUMN synopsis DROP NOT NULL');
             await client.query(
