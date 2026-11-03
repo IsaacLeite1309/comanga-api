@@ -6,9 +6,12 @@ import ApplicationError from '../../errors/ApplicationError';
 
 const ALLOWED_CONTENT_TYPES = new Set([
     'image/avif',
+    'image/bmp',
     'image/jpeg',
     'image/png',
-    'image/webp'
+    'image/webp',
+    'image/x-bmp',
+    'image/x-ms-bmp'
 ]);
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -199,7 +202,7 @@ function validateImageResponse(response: Response, maxBytes: number): string {
 
     const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
     if (!contentType || !ALLOWED_CONTENT_TYPES.has(contentType)) {
-        throw mediaError(415, 'MEDIA_FORMAT_NOT_ALLOWED', 'A capa deve estar nos formatos JPG, PNG, WebP ou AVIF.');
+        throw mediaError(415, 'MEDIA_FORMAT_NOT_ALLOWED', 'A capa deve estar nos formatos JPG, PNG, WebP, AVIF ou BMP.');
     }
 
     const declaredLength = Number(response.headers.get('content-length'));
@@ -225,7 +228,7 @@ async function downloadRemoteImage(sourceUrl: string, options: DownloadOptions =
                 method: 'GET',
                 redirect: 'manual',
                 signal: AbortSignal.timeout(timeoutMs),
-                headers: { Accept: 'image/jpeg,image/png;q=0.9,image/webp;q=0.8' }
+                headers: { Accept: 'image/jpeg,image/png;q=0.9,image/webp;q=0.8,image/avif;q=0.7,image/bmp;q=0.6,image/x-ms-bmp;q=0.6' }
             };
             response = fetchImpl
                 ? await fetchImpl(currentUrl, requestInit)

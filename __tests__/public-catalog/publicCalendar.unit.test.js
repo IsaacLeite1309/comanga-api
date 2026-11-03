@@ -84,9 +84,9 @@ describe('calendário público', () => {
                         OR: [{ code: 'hentai' }, { adultOnly: true }], category: { slug: 'generos' }
                     } } },
                     OR: [
-                        { title: { contains: 'Urasawa', mode: 'insensitive' } },
-                        { originalTitle: { contains: 'Urasawa', mode: 'insensitive' } },
-                        { romanizedTitle: { contains: 'Urasawa', mode: 'insensitive' } },
+                        { searchTitle: { contains: 'urasawa' } },
+                        { searchOriginalTitle: { contains: 'urasawa' } },
+                        { searchRomanizedTitle: { contains: 'urasawa' } },
                         { authors: { some: { author: { label: { contains: 'Urasawa', mode: 'insensitive' } } } } }
                     ]
                 }

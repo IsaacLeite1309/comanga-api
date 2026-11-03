@@ -35,11 +35,12 @@ function publicCalendarOrderBy(order: PublicCalendarQuery['order']): Prisma.Volu
 }
 
 function buildIdentitySearch(term: string): Prisma.WorkWhereInput {
+    const normalizedTerm = term.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
     return {
         OR: [
-            { title: { contains: term, mode: 'insensitive' } },
-            { originalTitle: { contains: term, mode: 'insensitive' } },
-            { romanizedTitle: { contains: term, mode: 'insensitive' } },
+            { searchTitle: { contains: normalizedTerm } },
+            { searchOriginalTitle: { contains: normalizedTerm } },
+            { searchRomanizedTitle: { contains: normalizedTerm } },
             {
                 authors: {
                     some: {

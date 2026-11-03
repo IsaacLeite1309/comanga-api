@@ -144,6 +144,9 @@ model Work {
   title                        String                      @db.VarChar(255)
   originalTitle                String?                     @map("original_title") @db.VarChar(255)
   romanizedTitle               String                      @map("romanized_title") @db.VarChar(255)
+  searchTitle                  String                      @default("") @map("search_title") @db.Text
+  searchOriginalTitle          String?                     @map("search_original_title") @db.Text
+  searchRomanizedTitle         String                      @default("") @map("search_romanized_title") @db.Text
   synopsis                     String                      @db.Text
   originalPublicationStartYear Int?                        @map("original_publication_start_year")
   originalPublicationEndYear   Int?                        @map("original_publication_end_year")
@@ -169,6 +172,9 @@ model Work {
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_title_trgm")
   @@index([originalTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_original_title_trgm")
   @@index([romanizedTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_romanized_title_trgm")
+  @@index([searchTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_search_title_trgm")
+  @@index([searchOriginalTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_search_original_title_trgm")
+  @@index([searchRomanizedTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_search_romanized_title_trgm")
   @@index([typeId], map: "idx_works_type")
   @@index([country], map: "idx_works_country")
   @@index([originalPublicationStatus], map: "idx_works_original_publication_status")
