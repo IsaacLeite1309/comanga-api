@@ -12,7 +12,7 @@ import type {
 } from './types';
 import { mediaPublicUrlResolverFromEnvironment, resolveCoverUrl } from '../../infrastructure/media/mediaPublicUrl';
 
-const AUTHOR_ROLE_PRIORITY = ['Criador Original', 'História Original', 'História e Arte', 'História', 'Arte', 'Ilustrador', 'Design de Personagens'];
+const AUTHOR_ROLE_PRIORITY = ['Criador Original', 'História Original', 'História e Arte', 'História', 'Arte', 'História e ilustrações', 'Ilustrador', 'Design de Personagens'];
 
 function authorPriority(roles: Array<{ role: string }>) {
     return Math.min(...roles.map(({ role }) => {

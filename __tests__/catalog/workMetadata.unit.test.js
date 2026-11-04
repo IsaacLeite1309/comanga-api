@@ -46,6 +46,15 @@ function validWorkPayload(overrides = {}) {
 }
 
 describe('contrato dos metadados próprios da Obra', () => {
+    it('aceita História e ilustrações como papel de autoria', () => {
+        const author = workAuthorSchema.safeParse({
+            authorId: 4,
+            roles: ['História e ilustrações']
+        });
+
+        expect(author.success).toBe(true);
+    });
+
     it('impede créditos redundantes de História e Arte para o mesmo autor', () => {
         const combinedAndSeparateCredit = workAuthorSchema.safeParse({
             authorId: 4,
