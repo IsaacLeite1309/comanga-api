@@ -14,7 +14,7 @@ describe('slugs de Obras', () => {
         expect(buildWorkSlugBase(' 漫画 ')).toBe('obra');
     });
 
-    it('resolve colisoes com sufixo numerico sem alterar o slug base', async () => {
+    it('acrescenta o tipo e usa número apenas se esse slug também existir', async () => {
         const repository = {
             findUnique: jest
                 .fn()
@@ -23,15 +23,20 @@ describe('slugs de Obras', () => {
                 .mockResolvedValueOnce(null)
         };
 
-        await expect(createUniqueWorkSlug('Pluto', repository)).resolves.toBe('pluto-3');
+        await expect(createUniqueWorkSlug('Pluto', 'light-novel', repository)).resolves.toBe('pluto-light-novel-2');
         expect(repository.findUnique).toHaveBeenNthCalledWith(1, {
             where: { slug: 'pluto' },
             select: { id: true }
         });
         expect(repository.findUnique).toHaveBeenNthCalledWith(3, {
-            where: { slug: 'pluto-3' },
+            where: { slug: 'pluto-light-novel-2' },
             select: { id: true }
         });
+    });
+
+    it('mantém o slug simples quando o título ainda não foi usado', async () => {
+        const repository = { findUnique: jest.fn().mockResolvedValue(null) };
+        await expect(createUniqueWorkSlug('Música', 'manga', repository)).resolves.toBe('musica');
     });
 
     it('limita o slug ao tamanho aceito pelo banco', () => {

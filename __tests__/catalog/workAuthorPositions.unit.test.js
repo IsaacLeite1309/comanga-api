@@ -1,6 +1,7 @@
 const prisma = {
     domainOptionValue: {
         findMany: jest.fn(),
+        findUnique: jest.fn(),
         count: jest.fn()
     },
     workAuthor: {
@@ -108,6 +109,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             Promise.resolve(where.code?.in ? 0 : (where.id?.in?.length || 1))
         ));
         prisma.domainOptionValue.findMany.mockResolvedValue([]);
+        prisma.domainOptionValue.findUnique.mockResolvedValue({ code: 'manga', label: 'Mangá' });
         prisma.work.findFirst.mockResolvedValue(null);
         prisma.work.create.mockResolvedValue({ id: 1 });
     });

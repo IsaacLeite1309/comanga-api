@@ -1073,6 +1073,7 @@ describe('módulos administrativos', () => {
         function mockExistingWorkForUpdate(overrides = {}) {
             return {
                 id: 1,
+                title: 'Naruto',
                 country: 'Japão',
                 typeId: 1,
                 authors: [{ authorId: 4 }, { authorId: 11 }],
@@ -1421,12 +1422,39 @@ describe('módulos administrativos', () => {
                 data: { title: 'Naruto - Edicao Revisada' }
             }));
             expect(prisma.work.update.mock.calls[0][0].data).not.toHaveProperty('slug');
+            expect(prisma.work.findFirst).toHaveBeenCalledWith({
+                where: {
+                    id: { not: 1 },
+                    title: { equals: 'Naruto - Edicao Revisada', mode: 'insensitive' },
+                    typeId: 1
+                },
+                select: { id: true }
+            });
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
                     title: 'Naruto - Edicao Revisada'
                 })
             }));
+        });
+
+        it('verifica título repetido no tipo de destino ao mudar apenas o tipo', async () => {
+            prisma.work.findUnique.mockResolvedValueOnce(mockExistingWorkForUpdate());
+            prisma.work.findFirst.mockResolvedValue({ id: 99 });
+            const res = makeRes();
+
+            await catalog.updateWork(makeReq({ params: { id: '1' }, body: { typeId: 2 } }), res);
+
+            expect(prisma.work.findFirst).toHaveBeenCalledWith({
+                where: {
+                    id: { not: 1 },
+                    title: { equals: 'Naruto', mode: 'insensitive' },
+                    typeId: 2
+                },
+                select: { id: true }
+            });
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(prisma.work.update).not.toHaveBeenCalled();
         });
 
         it('altera campos nativos e multiplos papeis de autoria em uma obra existente', async () => {
@@ -2877,6 +2905,10 @@ describe('módulos administrativos', () => {
             }), res);
 
             expect(res.status).toHaveBeenCalledWith(409);
+            expect(prisma.work.findFirst).toHaveBeenCalledWith({
+                where: { title: { equals: 'Repetida', mode: 'insensitive' }, typeId: 1 },
+                select: { id: true }
+            });
         });
 
         it('exclui obra privada sem edicoes', async () => {
