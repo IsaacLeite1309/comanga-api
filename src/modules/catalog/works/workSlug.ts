@@ -1,4 +1,5 @@
 const WORK_SLUG_BASE_MAX_LENGTH = 240;
+const WORK_SLUG_MAX_LENGTH = 255;
 
 interface WorkSlugRepository {
     findUnique(args: {
@@ -20,16 +21,21 @@ function buildWorkSlugBase(title: string) {
     return normalized || 'obra';
 }
 
-async function createUniqueWorkSlug(title: string, repository: WorkSlugRepository) {
+async function createUniqueWorkSlug(title: string, typeCode: string, repository: WorkSlugRepository) {
     const baseSlug = buildWorkSlugBase(title);
-    let candidate = baseSlug;
-    let collisionNumber = 2;
-
-    while (await repository.findUnique({
-        where: { slug: candidate },
+    const existingBase = await repository.findUnique({
+        where: { slug: baseSlug },
         select: { id: true }
-    })) {
-        candidate = `${baseSlug}-${collisionNumber}`;
+    });
+    if (!existingBase) return baseSlug;
+
+    const typeSuffix = buildWorkSlugBase(typeCode);
+    const typedBase = `${baseSlug.slice(0, WORK_SLUG_MAX_LENGTH - typeSuffix.length - 1).replace(/-+$/g, '')}-${typeSuffix}`;
+    let candidate = typedBase;
+    let collisionNumber = 2;
+    while (await repository.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+        const numericSuffix = `-${collisionNumber}`;
+        candidate = `${typedBase.slice(0, WORK_SLUG_MAX_LENGTH - numericSuffix.length).replace(/-+$/g, '')}${numericSuffix}`;
         collisionNumber += 1;
     }
 

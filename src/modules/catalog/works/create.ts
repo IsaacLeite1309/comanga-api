@@ -44,7 +44,7 @@ async function getCreateWorkDependencyError(
     relations: ReturnType<typeof prepareCreateWorkRelations>
 ) {
     const duplicatedWork = await prisma.work.findFirst({
-        where: { title: { equals: data.title, mode: 'insensitive' } },
+        where: { title: { equals: data.title, mode: 'insensitive' }, typeId: data.typeId },
         select: { id: true }
     });
     if (duplicatedWork) return { status: 409, error: WORK_DUPLICATED_MESSAGE };
@@ -141,7 +141,15 @@ async function createWork(req: Request, res: Response, next: NextFunction) {
         const dependencyError = await getCreateWorkDependencyError(data, relations);
         if (dependencyError) return res.status(dependencyError.status).json({ error: dependencyError.error });
         if (await containsGenreWithoutDemography(data.genreIds)) relations.demographies = [];
-        const slug = await createUniqueWorkSlug(data.title, prisma.work);
+        const workType = await prisma.domainOptionValue.findUnique({
+            where: { id: data.typeId },
+            select: { code: true, label: true }
+        });
+        const slug = await createUniqueWorkSlug(
+            data.title,
+            workType?.code || workType?.label || `tipo-${data.typeId}`,
+            prisma.work
+        );
         const adultContent = await normalizeAdultContentOnCreate(data);
         const workId = await persistCreatedWork({ ...data, adultContent }, relations, slug);
         const work = await prisma.work.findUniqueOrThrow({

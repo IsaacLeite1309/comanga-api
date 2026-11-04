@@ -145,6 +145,7 @@ async function findWorkForUpdate(workId: number, client: Prisma.TransactionClien
         where: { id: workId },
         select: {
             id: true,
+            title: true,
             coverAssetId: true,
             originalPublicationStartYear: true,
             originalPublicationEndYear: true,
@@ -173,9 +174,13 @@ async function getUpdateWorkDependencyError(
     if (data.coverAssetId && !await isCoverAssetAttachable(data.coverAssetId, existingWork.coverAssetId, client)) {
         return { status: 400, error: 'A capa interna informada é inválida ou já está em uso.' };
     }
-    if (data.title) {
+    if (data.title !== undefined || data.typeId !== undefined) {
         const duplicatedWork = await client.work.findFirst({
-            where: { id: { not: workId }, title: { equals: data.title, mode: 'insensitive' } },
+            where: {
+                id: { not: workId },
+                title: { equals: data.title ?? existingWork.title, mode: 'insensitive' },
+                typeId: data.typeId ?? existingWork.typeId
+            },
             select: { id: true }
         });
         if (duplicatedWork) return { status: 409, error: WORK_DUPLICATED_MESSAGE };
