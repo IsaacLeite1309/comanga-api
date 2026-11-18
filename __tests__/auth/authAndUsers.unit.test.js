@@ -81,17 +81,28 @@ describe('autenticação e usuários', () => {
             email: 'usuario@teste.local',
             password: 'SenhaForte123!',
             birthDate: '2000-01-01',
-            confirmPassword: 'SenhaForte123!'
+            confirmPassword: 'SenhaForte123!',
+            acceptedTerms: true,
+            termsVersion: '2026-11-18'
         };
 
-        it('rejeita payload invalido antes de consultar o banco', async () => {
-            const req = makeReq({ body: { ...validBody, username: 'x' } });
+        it.each([
+            ['username', 'x'],
+            ['acceptedTerms', false],
+            ['termsVersion', '2026-11-17']
+        ])('rejeita %s inválido antes de consultar o banco ou calcular o hash', async (field, value) => {
+            const req = makeReq({ body: { ...validBody, [field]: value } });
             const res = makeRes();
+            const hash = jest.spyOn(bcrypt, 'hash');
 
             await auth.registerUser(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ field }));
             expect(prisma.user.findFirst).not.toHaveBeenCalled();
+            expect(prisma.user.create).not.toHaveBeenCalled();
+            expect(hash).not.toHaveBeenCalled();
+            expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
         });
 
         it('rejeita e-mail duplicado', async () => {
@@ -125,7 +136,12 @@ describe('autenticação e usuários', () => {
 
             await auth.registerUser(req, res);
 
-            expect(prisma.user.create).toHaveBeenCalled();
+            expect(prisma.user.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    termsVersion: validBody.termsVersion,
+                    termsAcceptedAt: expect.any(Date)
+                })
+            });
             expect(res.status).toHaveBeenCalledWith(201);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ email_sent: false }));
         });
