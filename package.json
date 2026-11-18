@@ -12,6 +12,7 @@
     "test:coverage:unit": "npm run test:unit -- --coverage",
     "lint": "eslint . --max-warnings=0",
     "load:test": "node scripts/load-test.js",
+    "load:test:all": "node scripts/load-test-all.js",
     "migrate": "prisma migrate deploy",
     "migrate:test": "node scripts/migrate-test-db.js",
     "migrate:dev": "prisma migrate dev",
