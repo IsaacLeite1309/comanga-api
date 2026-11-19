@@ -32,7 +32,7 @@ async function deleteTestUsers() {
     );
 }
 
-describe('POST /api/auth/register', () => {
+describe.each(['/api/auth/register', '/api/auth/register/v1'])('POST %s', (route) => {
     beforeAll(async () => {
         await deleteTestUsers();
     });
@@ -51,7 +51,7 @@ describe('POST /api/auth/register', () => {
         const beforeRequest = Date.now();
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(payload);
         const afterResponse = Date.now();
 
@@ -105,7 +105,7 @@ describe('POST /api/auth/register', () => {
         ['termsVersion', 20261118]
     ])('rejeita %s com valor %p sem gravar usuário ou enviar e-mail', async (field, value) => {
         const payload = makePayload({ [field]: value });
-        const response = await request(app).post('/api/auth/register').send(payload);
+        const response = await request(app).post(route).send(payload);
 
         expect(response.status).toBe(400);
         expect(response.body).toEqual({ field, error: expect.any(String) });
@@ -116,7 +116,7 @@ describe('POST /api/auth/register', () => {
 
     it('rejeita nome de usuario fora do padrao RN0001 antes de inserir', async () => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({ username: 'User Inválido!' }));
 
         expect(response.status).toBe(400);
@@ -132,7 +132,7 @@ describe('POST /api/auth/register', () => {
 
     it('rejeita senha fraca RN0002 antes de inserir', async () => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({
                 password: 'fraca12',
                 birthDate: '2000-01-01',
@@ -147,7 +147,7 @@ describe('POST /api/auth/register', () => {
     });
 
     it.each(['A1!' + 'a'.repeat(70), 'Aa1!' + 'é'.repeat(35)])('recusa senha acima de 72 bytes antes de criar conta', async password => {
-        const response = await request(app).post('/api/auth/register').send(makePayload({ password, confirmPassword: password }));
+        const response = await request(app).post(route).send(makePayload({ password, confirmPassword: password }));
         expect(response.status).toBe(400);
         expect(response.body.field).toBe('password');
         expect(response.body.error).toContain('72 bytes');
@@ -165,7 +165,7 @@ describe('POST /api/auth/register', () => {
         );
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({
                 username: `outro_${runId}`.slice(0, 20),
                 email: payload.email
@@ -188,7 +188,7 @@ describe('POST /api/auth/register', () => {
         );
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({
                 username: payload.username,
                 email: `outro_${runId}@${testEmailDomain}`
@@ -204,7 +204,7 @@ describe('POST /api/auth/register', () => {
 
     it('rejeita divergencia de confirmacao de senha RN0020 antes de inserir', async () => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({ confirmPassword: 'SenhaDiferente123!' }));
 
         expect(response.status).toBe(400);

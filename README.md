@@ -75,7 +75,7 @@ A limpeza de capas está em `src/commands/cleanupDiscardedCovers.ts`, usa a API 
 | Grupo | Exemplos |
 | --- | --- |
 | Saúde | `GET /health/live`, `GET /health/ready`, `GET /ping` |
-| Autenticação | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
+| Autenticação | `POST /api/auth/register/v1`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` |
 | Recuperação | `POST /api/auth/forgot-password`, `POST /api/auth/reset-password` |
 | Usuário | `GET /api/users/me`, `PATCH /api/users/me/adult-content`, `DELETE /api/users/me` |
 | Administração | `GET /api/admin/users`, `GET/POST/PATCH/DELETE /api/admin/options`, CRUD de Obras, Edições e Volumes |
@@ -90,6 +90,8 @@ O contrato completo é definido nas rotas, schemas Zod e testes de integração.
   "code": "CODIGO_ESTAVEL"
 }
 ```
+
+O formulário deve enviar `acceptedTerms: true` e `termsVersion: "2026-11-18"` para `POST /api/auth/register/v1`. Essa rota existe a partir da versão que grava o aceite. Se ela estiver indisponível, o cliente deve interromper o cadastro, sem repetir o pedido em `/api/auth/register`. Aplique a migration antes de publicar a API e atualize o formulário em seguida.
 
 ## E-mail e recuperação de senha
 
