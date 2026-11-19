@@ -11,7 +11,7 @@ const standard = 'Usuário Padrão';
 const administrator = 'Administrador';
 const missingToken = '0'.repeat(64);
 const missingEmail = 'nao-cadastrado@fixture.invalid';
-const termsVersion = '2026-11-18';
+const termsVersion = '2026-11-19';
 
 function route(method, path, auth, parameters = [], dependencies = [pg]) {
     return { method, path, auth, parameters, dependencies };

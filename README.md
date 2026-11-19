@@ -91,7 +91,7 @@ O contrato completo é definido nas rotas, schemas Zod e testes de integração.
 }
 ```
 
-O formulário deve enviar `acceptedTerms: true` e `termsVersion: "2026-11-18"` para `POST /api/auth/register/v1`. Essa rota existe a partir da versão que grava o aceite. Se ela estiver indisponível, o cliente deve interromper o cadastro, sem repetir o pedido em `/api/auth/register`. Aplique a migration antes de publicar a API e atualize o formulário em seguida.
+O formulário deve enviar `acceptedTerms: true` e `termsVersion: "2026-11-19"` para `POST /api/auth/register/v1`. Essa rota existe a partir da versão que grava o aceite. Se ela estiver indisponível, o cliente deve interromper o cadastro, sem repetir o pedido em `/api/auth/register`. Aplique a migration antes de publicar a API e atualize o formulário em seguida.
 
 ## E-mail e recuperação de senha
 
