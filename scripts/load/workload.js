@@ -20,6 +20,7 @@ function httpFailure(error, startedAt, endpoint) {
     const details = error instanceof LoadRequestError ? error : { status: 0, responseBytes: 0, type: 'transport' };
     return {
         endpoint,
+        completedAtMs: performance.now(),
         durationMs: performance.now() - startedAt,
         statusCode: details.status,
         responseBytes: details.responseBytes,
@@ -50,6 +51,7 @@ function createMeasuredRequest({ origin, timeoutMs, signal, waitForSlot, matchRo
         const errorCode = result.body?.code;
         samples.push({
             endpoint,
+            completedAtMs: performance.now(),
             durationMs: result.durationMs,
             statusCode: result.status,
             responseBytes: result.responseBytes,
@@ -151,7 +153,7 @@ async function runStage(scenarios, execution, configuration, state, virtualUsers
     const monitorAbort = new globalThis.AbortController();
 
     async function worker(workerId) {
-        while (performance.now() < deadline && failures.length < 10) {
+        while (performance.now() < deadline && failures.length < 10 && samples.length < (configuration.maxSamples ?? Infinity)) {
             execution.signal.throwIfAborted();
             const { index, iteration } = state;
             const scenario = scenarios[index % scenarios.length];
@@ -197,9 +199,35 @@ async function runStage(scenarios, execution, configuration, state, virtualUsers
         endpoints: summarizeByEndpoint(samples, elapsedMs),
         failures,
         stoppedOnFailures: failures.length >= 10,
+        ...(configuration.maxSamples ? { stoppedOnSampleLimit: samples.length >= configuration.maxSamples } : {}),
+        ...(configuration.windowSeconds ? {
+            timeWindows: summarizeTimeWindows(samples, startedAt, elapsedMs, configuration.windowSeconds),
+            resourceTimeline: metrics.map(sample => ({
+                seconds: (sample.sampledAtMs - metrics[0].sampledAtMs) / 1000,
+                rssBytes: sample.process.rssBytes,
+                heapUsedBytes: sample.process.heapUsedBytes,
+                cpuUserMicros: sample.process.cpuUserMicros,
+                cpuSystemMicros: sample.process.cpuSystemMicros,
+                databaseConnections: sample.database.connections
+            }))
+        } : {}),
         serverMetrics,
         ...(configuration.capacityRead ? { requirements: capacityRequirements(summary) } : {})
     };
 }
 
-module.exports = { capacityRequirements, createRateLimit, runCoverage, runStage };
+function summarizeTimeWindows(samples, startedAt, elapsedMs, seconds) {
+    const width = seconds * 1000;
+    const groups = Array.from({ length: Math.max(1, Math.ceil(elapsedMs / width)) }, () => []);
+    for (const sample of samples) {
+        const index = Math.min(groups.length - 1, Math.max(0, Math.floor((sample.completedAtMs - startedAt) / width)));
+        groups[index].push(sample);
+    }
+    return groups.map((group, index) => ({
+        fromSeconds: index * seconds,
+        toSeconds: Math.min(elapsedMs / 1000, (index + 1) * seconds),
+        ...summarizeSamples(group, Math.max(1, Math.min(width, elapsedMs - index * width)))
+    }));
+}
+
+module.exports = { capacityRequirements, createRateLimit, runCoverage, runStage, summarizeTimeWindows };

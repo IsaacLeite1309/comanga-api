@@ -1,16 +1,24 @@
 const { join } = require('node:path');
+const { readFileSync } = require('node:fs');
 const { URL } = require('node:url');
 const express = require('express');
 const sharp = require('sharp');
 
 const coverUrl = 'https://fixture.invalid/capa.png';
 
+function fixtureDimension(value, fallback) {
+    const dimension = Number(value ?? fallback);
+    if (!Number.isInteger(dimension) || dimension < 16 || dimension > 2000) throw new Error('Dimensão da capa sintética inválida.');
+    return dimension;
+}
+
 function isolateExternalAdapters(build) {
     const container = require(join(build, 'infrastructure/container'));
     const downloader = require(join(build, 'infrastructure/media/RemoteImageDownloader'));
     const ApplicationError = require(join(build, 'errors/ApplicationError')).default;
     const image = sharp({
-        create: { width: 60, height: 90, channels: 3, background: '#557188' }
+        create: { width: fixtureDimension(process.env.LOAD_TEST_FIXTURE_COVER_WIDTH, 60),
+            height: fixtureDimension(process.env.LOAD_TEST_FIXTURE_COVER_HEIGHT, 90), channels: 3, background: '#557188' }
     }).png().toBuffer();
 
     const objects = new Set();
@@ -71,12 +79,26 @@ function loadApplication(build) {
     }
 }
 
+function usesTemporaryDatabase(database) {
+    if (process.platform !== 'win32') {
+        return database.hostname === 'localhost' && database.port === '5432'
+            && database.searchParams.get('host') === process.cwd();
+    }
+    try {
+        const password = readFileSync(join(process.cwd(), 'pg-password'), 'utf8');
+        const pid = readFileSync(join(process.cwd(), 'db/postmaster.pid'), 'utf8').split(/\r?\n/);
+        return database.hostname === '127.0.0.1' && database.username === 'comanga_load'
+            && decodeURIComponent(database.password) === password && password.length > 0
+            && database.port === pid[3] && Number(database.port) > 0;
+    } catch { return false; }
+}
+
 function assertIsolatedEnvironment() {
     const { NODE_ENV, DATABASE_URL, DATABASE_URL_TEST } = process.env;
     const database = DATABASE_URL && new URL(DATABASE_URL);
     if (!process.connected || NODE_ENV !== 'test' || !database || DATABASE_URL !== DATABASE_URL_TEST
-        || database.protocol !== 'postgresql:' || database.hostname !== 'localhost' || database.port !== '5432'
-        || database.pathname !== '/test_comanga_load' || database.searchParams.get('host') !== process.cwd()) {
+        || database.protocol !== 'postgresql:' || database.pathname !== '/test_comanga_load'
+        || !usesTemporaryDatabase(database)) {
         throw new Error('Inicie a API com o banco temporário pelo runner local.');
     }
 }
