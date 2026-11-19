@@ -5,53 +5,78 @@ function round(value, decimals = 2) {
     return Math.round(value * factor) / factor;
 }
 
-function percentile(values, percentileValue) {
-    if (values.length === 0) return 0;
-    const sorted = [...values].sort((left, right) => left - right);
+function percentile(sorted, percentileValue) {
+    if (sorted.length === 0) return 0;
     const index = Math.max(0, Math.ceil(percentileValue * sorted.length) - 1);
-    return sorted[index];
+    return round(sorted[index]);
+}
+
+function median(sorted) {
+    if (sorted.length === 0) return 0;
+    const middle = Math.floor(sorted.length / 2);
+    return round(sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2);
+}
+
+function summarizeOutcomes(samples) {
+    const statusCodes = {};
+    let serverErrors = 0;
+    let transportErrors = 0;
+    let failedRequests = 0;
+    let expectedClientErrors = 0;
+
+    for (const { statusCode, expectedStatus, failure } of samples) {
+        const statusKey = String(statusCode || 'network_error');
+        statusCodes[statusKey] = (statusCodes[statusKey] || 0) + 1;
+        if (statusCode >= 500) serverErrors += 1;
+        if (statusCode === 0) transportErrors += 1;
+        if (expectedStatus === true && statusCode >= 400 && statusCode < 500) expectedClientErrors += 1;
+        if (failure || (expectedStatus !== true && (statusCode === 0 || statusCode >= 400))) failedRequests += 1;
+    }
+    const total = samples.length;
+    return {
+        statusCodes,
+        serverErrors,
+        serverErrorRate: total > 0 ? round(serverErrors / total, 4) : 0,
+        transportErrors,
+        expectedClientErrors,
+        expectedRateLimited: samples.filter((sample) => sample.expectedStatus === true && sample.statusCode === 429).length,
+        failedRequests,
+        failureRate: total > 0 ? round(failedRequests / total, 4) : 0
+    };
 }
 
 function summarizeSamples(samples, elapsedMs) {
-    const durations = samples.map((sample) => sample.durationMs);
-    const serverErrors = samples.filter((sample) => sample.statusCode >= 500).length;
-    const failedRequests = samples.filter((sample) => sample.statusCode === 0 || sample.statusCode >= 400).length;
+    const durations = samples.map((sample) => sample.durationMs).sort((left, right) => left - right);
     const totalRequests = samples.length;
+    let maxResponseBytes = 0;
+    let maxItemsPerResponse = null;
 
+    for (const { responseBytes, itemCount } of samples) {
+        maxResponseBytes = Math.max(maxResponseBytes, responseBytes || 0);
+        if (Number.isInteger(itemCount)) maxItemsPerResponse = Math.max(maxItemsPerResponse ?? 0, itemCount);
+    }
     return {
         totalRequests,
         elapsedMs,
         rps: elapsedMs > 0 ? round(totalRequests / (elapsedMs / 1000)) : 0,
-        serverErrors,
-        serverErrorRate: totalRequests > 0 ? round(serverErrors / totalRequests, 4) : 0,
-        failedRequests,
-        failureRate: totalRequests > 0 ? round(failedRequests / totalRequests, 4) : 0,
+        ...summarizeOutcomes(samples),
         latencyMs: {
-            min: durations.length > 0 ? Math.min(...durations) : 0,
-            average: durations.length > 0
-                ? round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length)
-                : 0,
-            p50: percentile(durations, 0.5),
+            min: round(durations[0] ?? 0),
+            average: totalRequests ? round(durations.reduce((sum, value) => sum + value, 0) / totalRequests) : 0,
+            p50: median(durations),
             p95: percentile(durations, 0.95),
-            max: durations.length > 0 ? Math.max(...durations) : 0
+            p99: percentile(durations, 0.99),
+            max: round(durations.at(-1) ?? 0)
         },
-        maxResponseBytes: samples.length > 0
-            ? Math.max(...samples.map((sample) => sample.responseBytes || 0))
-            : 0,
-        maxItemsPerResponse: samples.some((sample) => Number.isInteger(sample.itemCount))
-            ? Math.max(...samples
-                .filter((sample) => Number.isInteger(sample.itemCount))
-                .map((sample) => sample.itemCount))
-            : null,
-        statusCodes: samples.reduce((counts, sample) => {
-            const key = String(sample.statusCode || 'network_error');
-            counts[key] = (counts[key] || 0) + 1;
-            return counts;
-        }, {})
+        maxResponseBytes,
+        maxItemsPerResponse
     };
 }
 
 function evaluateRequirements(summary) {
+    if (summary.totalRequests === 0) {
+        return { RNF01: 'not_evaluated', RNF02: 'not_evaluated', RNF03: 'not_evaluated' };
+    }
     const paginationStatus = summary.maxResponseBytes > MAX_RESPONSE_BYTES
         || (summary.maxItemsPerResponse !== null && summary.maxItemsPerResponse > 50)
         ? 'failed'
