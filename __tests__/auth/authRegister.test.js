@@ -19,6 +19,8 @@ function makePayload(overrides = {}) {
         password: 'SenhaForte123!',
         birthDate: '2000-01-01',
         confirmPassword: 'SenhaForte123!',
+        acceptedTerms: true,
+        termsVersion: '2026-11-19',
         ...overrides
     };
 }
@@ -30,7 +32,7 @@ async function deleteTestUsers() {
     );
 }
 
-describe('POST /api/auth/register', () => {
+describe.each(['/api/auth/register', '/api/auth/register/v1'])('POST %s', (route) => {
     beforeAll(async () => {
         await deleteTestUsers();
     });
@@ -43,20 +45,23 @@ describe('POST /api/auth/register', () => {
         await deleteTestUsers();
     });
 
-    it('cria usuario pendente, salva senha com bcrypt, gera token e dispara e-mail', async () => {
+    it('cria usuário pendente, grava o aceite com horário do servidor e envia e-mail', async () => {
         mailer.sendActivationEmail.mockResolvedValueOnce();
-        const payload = makePayload();
+        const payload = makePayload({ termsAcceptedAt: '2000-01-01T00:00:00.000Z' });
+        const beforeRequest = Date.now();
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(payload);
+        const afterResponse = Date.now();
 
         expect(response.status).toBe(201);
         expect(response.body).toEqual({ message: 'Conta criada com sucesso! Enviamos o e-mail de ativação.' });
 
         const userResult = await db.query(
             `SELECT username, email, password_hash, status, nivel_acesso,
-                    conteudo_adulto, activation_token, activation_expires_at
+                    conteudo_adulto, activation_token, activation_expires_at,
+                    terms_version, terms_accepted_at
              FROM users
              WHERE email = $1`,
             [payload.email]
@@ -75,6 +80,10 @@ describe('POST /api/auth/register', () => {
         expect(user.activation_token).toEqual(expect.any(String));
         expect(user.activation_token).toHaveLength(64);
         expect(user.activation_expires_at).toBeInstanceOf(Date);
+        expect(user.terms_version).toBe(payload.termsVersion);
+        expect(user.terms_accepted_at).toBeInstanceOf(Date);
+        expect(user.terms_accepted_at.getTime()).toBeGreaterThanOrEqual(beforeRequest);
+        expect(user.terms_accepted_at.getTime()).toBeLessThanOrEqual(afterResponse);
 
         expect(mailer.sendActivationEmail).toHaveBeenCalledWith(
             payload.email,
@@ -83,9 +92,32 @@ describe('POST /api/auth/register', () => {
         );
     });
 
+    it.each([
+        ['acceptedTerms', undefined],
+        ['acceptedTerms', false],
+        ['acceptedTerms', 'true'],
+        ['acceptedTerms', 1],
+        ['acceptedTerms', null],
+        ['termsVersion', undefined],
+        ['termsVersion', '2026-11-17'],
+        ['termsVersion', '2026-11-18'],
+        ['termsVersion', '2026-11-20'],
+        ['termsVersion', ' 2026-11-19 '],
+        ['termsVersion', 20261118]
+    ])('rejeita %s com valor %p sem gravar usuário ou enviar e-mail', async (field, value) => {
+        const payload = makePayload({ [field]: value });
+        const response = await request(app).post(route).send(payload);
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({ field, error: expect.any(String) });
+        const users = await db.query('SELECT id FROM users WHERE email = $1', [payload.email]);
+        expect(users.rows).toHaveLength(0);
+        expect(mailer.sendActivationEmail).not.toHaveBeenCalled();
+    });
+
     it('rejeita nome de usuario fora do padrao RN0001 antes de inserir', async () => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({ username: 'User Inválido!' }));
 
         expect(response.status).toBe(400);
@@ -101,7 +133,7 @@ describe('POST /api/auth/register', () => {
 
     it('rejeita senha fraca RN0002 antes de inserir', async () => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({
                 password: 'fraca12',
                 birthDate: '2000-01-01',
@@ -116,7 +148,7 @@ describe('POST /api/auth/register', () => {
     });
 
     it.each(['A1!' + 'a'.repeat(70), 'Aa1!' + 'é'.repeat(35)])('recusa senha acima de 72 bytes antes de criar conta', async password => {
-        const response = await request(app).post('/api/auth/register').send(makePayload({ password, confirmPassword: password }));
+        const response = await request(app).post(route).send(makePayload({ password, confirmPassword: password }));
         expect(response.status).toBe(400);
         expect(response.body.field).toBe('password');
         expect(response.body.error).toContain('72 bytes');
@@ -134,7 +166,7 @@ describe('POST /api/auth/register', () => {
         );
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({
                 username: `outro_${runId}`.slice(0, 20),
                 email: payload.email
@@ -157,7 +189,7 @@ describe('POST /api/auth/register', () => {
         );
 
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({
                 username: payload.username,
                 email: `outro_${runId}@${testEmailDomain}`
@@ -173,7 +205,7 @@ describe('POST /api/auth/register', () => {
 
     it('rejeita divergencia de confirmacao de senha RN0020 antes de inserir', async () => {
         const response = await request(app)
-            .post('/api/auth/register')
+            .post(route)
             .send(makePayload({ confirmPassword: 'SenhaDiferente123!' }));
 
         expect(response.status).toBe(400);

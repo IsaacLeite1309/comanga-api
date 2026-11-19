@@ -24,6 +24,30 @@ describe('metricas do teste de capacidade', () => {
         expect(summary.maxItemsPerResponse).toBe(20);
     });
 
+    it('reporta mediana e P99 e separa os erros HTTP esperados das falhas', () => {
+        const samples = Array.from({ length: 20 }, (_, index) => ({
+            durationMs: (index + 1) * 10,
+            statusCode: 200,
+            expectedStatus: true
+        }));
+        Object.assign(samples[0], { statusCode: 400 });
+        Object.assign(samples[1], { statusCode: 429 });
+        Object.assign(samples[2], { expectedStatus: false, failure: 'unexpected_status' });
+        Object.assign(samples[3], { statusCode: 0, expectedStatus: false, failure: 'transport' });
+        Object.assign(samples[4], { statusCode: 500, expectedStatus: false, failure: 'unexpected_status' });
+
+        expect(summarizeSamples(samples, 2000)).toMatchObject({
+            latencyMs: { min: 10, p50: 105, p95: 190, p99: 200 },
+            rps: 10,
+            serverErrors: 1,
+            transportErrors: 1,
+            expectedClientErrors: 2,
+            expectedRateLimited: 1,
+            failedRequests: 3,
+            failureRate: 0.15
+        });
+    });
+
     it('compara o resultado com RNF01, RNF02 e RNF03', () => {
         expect(evaluateRequirements({
             latencyMs: { p95: 499 },

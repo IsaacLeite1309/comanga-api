@@ -7,6 +7,7 @@ router.post('/forgot-password', authModule.createRecoveryRateLimiter(), authModu
 router.post('/reset-password', authModule.createRecoveryRateLimiter(), authModule.resetPassword);
 
 router.post('/register', authModule.registerUser);
+router.post('/register/v1', authModule.registerUser);
 router.get('/activate/:token', authModule.activateAccount);
 router.post('/resend-activation', authModule.resendActivation);
 router.post('/login', authModule.loginRateLimiter, authModule.loginUser);

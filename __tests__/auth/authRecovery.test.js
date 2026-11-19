@@ -58,8 +58,17 @@ afterAll(async () => {
 
 describe('senha e idade com banco real', () => {
     it.each([undefined, '', '2026-02-30', '2999-01-01'])('cadastro rejeita nascimento inválido %s', async birthDate => {
-        const res = await request(app).post('/api/auth/register').send({ username: 'new_user', email: `${prefix}_invalid@test.local`, password: pass, confirmPassword: pass, birthDate });
+        const res = await request(app).post('/api/auth/register').send({
+            username: 'new_user',
+            email: `${prefix}_invalid@test.local`,
+            password: pass,
+            confirmPassword: pass,
+            birthDate,
+            acceptedTerms: true,
+            termsVersion: '2026-11-19'
+        });
         expect(res.status).toBe(400);
+        expect(res.body.field).toBe('birthDate');
     });
 
     it('invalida token anterior, permite uma única redefinição concorrente e revoga login antigo', async () => {
