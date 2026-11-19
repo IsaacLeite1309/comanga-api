@@ -12,9 +12,7 @@ const admin = require('./load/admin');
 const catalog = require('./load/catalog');
 const operations = require('./load/operations');
 
-const modules = [operations, account, catalog, admin];
-
-async function makeScenarios(fixtures) {
+async function makeScenarios(fixtures, modules) {
     fixtures.catalog = await createCatalogFixture(fixtures.prisma);
     await seedPersonalCatalog(fixtures.prisma, fixtures.users.member, fixtures.catalog);
     const groups = await Promise.all(modules.map((module) => module.createScenarios(fixtures)));
@@ -34,15 +32,17 @@ function summarizeStage(stage) {
 }
 
 async function executeSuite(config, environment, fixtures, signal) {
+    const modules = [operations, account.forEndpoints(environment.endpoints), catalog, admin];
     const routes = modules.flatMap((module) => module.routes);
     validateManifest(environment.endpoints, routes);
-    const scenarios = await makeScenarios(fixtures);
+    const scenarios = await makeScenarios(fixtures, modules);
     const matchRoute = createRouteMatcher(routes, environment.origin);
     const report = {
         generatedAt: new Date().toISOString(),
         target: environment.origin,
         environment: 'local',
         configuration: {
+            readPath: config.readPath,
             stages: config.stages,
             durationSeconds: config.durationSeconds,
             timeoutMs: config.timeoutMs,

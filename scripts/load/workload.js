@@ -133,6 +133,14 @@ async function readMetrics({ origin, opsToken, timeoutMs, signal, waitForSlot })
     }
 }
 
+function capacityRequirements(summary) {
+    const ratings = evaluateRequirements(summary);
+    if (summary.maxItemsPerResponse >= 50 && summary.failedRequests === 0) return ratings;
+    return Object.fromEntries(Object.entries(ratings).map(([name, result]) => [
+        name, result === 'failed' ? 'failed' : 'not_evaluated'
+    ]));
+}
+
 async function runStage(scenarios, execution, configuration, state, virtualUsers) {
     const samples = [];
     const failures = [];
@@ -190,8 +198,8 @@ async function runStage(scenarios, execution, configuration, state, virtualUsers
         failures,
         stoppedOnFailures: failures.length >= 10,
         serverMetrics,
-        ...(configuration.readPath ? { requirements: evaluateRequirements(summary) } : {})
+        ...(configuration.capacityRead ? { requirements: capacityRequirements(summary) } : {})
     };
 }
 
-module.exports = { createRateLimit, runCoverage, runStage };
+module.exports = { capacityRequirements, createRateLimit, runCoverage, runStage };

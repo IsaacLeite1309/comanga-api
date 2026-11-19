@@ -1,4 +1,5 @@
 const { getRunConfiguration } = require('../../scripts/load/config');
+const { capacityRequirements } = require('../../scripts/load/workload');
 const { getPassword } = require('../../scripts/load/fixtures');
 
 describe('configuração da suíte de carga isolada', () => {
@@ -21,6 +22,28 @@ describe('configuração da suíte de carga isolada', () => {
             timeoutMs: 2000,
             maxRps: 50
         });
+    });
+
+    it.each([
+        ['/health/live', false],
+        ['/ping?limit=50', false],
+        ['/api/public/works?limit=5', false],
+        ['/api/public/works/uma-obra?limit=50', false],
+        ['/api/public/works?term=manga&limit=50', true],
+        ['/api/public/editions/?limit=50', true]
+    ])('classifica a leitura de capacidade %s', (path, expected) => {
+        expect(getRunConfiguration([`--url=http://127.0.0.1:0${path}`]).capacityRead).toBe(expected);
+    });
+
+    it('condiciona os requisitos de capacidade à medição da página completa', () => {
+        const sample = { totalRequests: 42, failedRequests: 0, rps: 23, serverErrorRate: 0,
+            latencyMs: { p95: 100 }, maxItemsPerResponse: 50, maxResponseBytes: 1024 };
+        expect(capacityRequirements(sample)).toEqual({ RNF01: 'passed', RNF02: 'passed', RNF03: 'passed' });
+        expect(capacityRequirements({ ...sample, maxItemsPerResponse: 25 }).RNF02).toBe('not_evaluated');
+        expect(capacityRequirements({ ...sample, serverErrorRate: 0.05 }).RNF02).toBe('failed');
+        expect(capacityRequirements({ ...sample, failedRequests: 1 }).RNF02).toBe('not_evaluated');
+        expect(capacityRequirements({ ...sample, maxItemsPerResponse: 25, maxResponseBytes: 3_000_000 }).RNF03).toBe('failed');
+        expect(capacityRequirements({ ...sample, maxItemsPerResponse: 51 }).RNF03).toBe('failed');
     });
 
     it.each([

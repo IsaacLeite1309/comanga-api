@@ -56,6 +56,8 @@ function getRunConfiguration(argv = [], env = {}) {
         stages,
         port: Number(url.port || 80),
         readPath: url.pathname === '/' && !url.search ? null : `${url.pathname}${url.search}`,
+        capacityRead: ['/api/public/works', '/api/public/editions'].includes(url.pathname.replace(/\/$/, ''))
+            && url.searchParams.get('limit') === '50',
         durationSeconds: boundedInteger(args.duration ?? env.LOAD_TEST_DURATION_SECONDS, 8, 1, 120, 'Duração'),
         timeoutMs: boundedInteger(args.timeout ?? env.LOAD_TEST_TIMEOUT_MS, 5000, 100, 15000, 'Timeout'),
         maxRps: boundedInteger(args.rps ?? env.LOAD_TEST_MAX_RPS, 40, 1, 100, 'Limite HTTP'),

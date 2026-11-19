@@ -86,7 +86,7 @@ async function createCatalogFixture(prisma) {
     const main = await createCatalogWork(prisma, options, { slug: workSlug, title: 'Carga CoMangá principal', count: 8 });
     const adultWorkSlug = 'carga-comanga-restrita';
     await createCatalogWork(prisma, options, { slug: adultWorkSlug, title: 'Carga CoMangá restrita', adultContent: true });
-    for (let number = 1; number <= 24; number++) {
+    for (let number = 1; number <= 50; number++) {
         await createCatalogWork(prisma, options, { slug: `carga-comanga-serie-${number}`, title: `Carga CoMangá série ${number}` });
     }
     const [edition] = main.editions;

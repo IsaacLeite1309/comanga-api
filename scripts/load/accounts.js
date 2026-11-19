@@ -91,9 +91,9 @@ async function mailboxToken(fixtures, email, kind) {
     throw new Error('E-mail simulado não foi recebido no prazo.');
 }
 
-function registerCases(fixtures) {
+function registerCases(fixtures, register = authRoutes.register) {
     return [
-        scenario(authRoutes.register, 'auth.cadastro.sucesso', async ({ phase }, request) => {
+        scenario(register, 'auth.cadastro.sucesso', async ({ phase }, request) => {
             const body = registration(fixtures.password);
             const response = await request({ body, expectedStatus: 201 });
             if (response.status !== 201) return;
@@ -105,10 +105,10 @@ function registerCases(fixtures) {
                 assert.ok(user.activationToken === token, 'Token de ativação divergente entre mensagem e banco');
             }
         }),
-        simple(authRoutes.register, 'auth.cadastro.nascimento-invalido', {
+        simple(register, 'auth.cadastro.nascimento-invalido', {
             body: registration(fixtures.password, { birthDate: '2000-02-30' }), expectedStatus: 400
         }),
-        simple(authRoutes.register, 'auth.cadastro.e-mail-duplicado', {
+        simple(register, 'auth.cadastro.e-mail-duplicado', {
             body: registration(fixtures.password, { email: fixtures.users.member.email }), expectedStatus: 409
         })
     ];
@@ -361,4 +361,19 @@ function createScenarios(fixtures) {
     ];
 }
 
-module.exports = { routes: [...Object.values(authRoutes), ...Object.values(userRoutes)], createScenarios };
+function forEndpoints(endpoints) {
+    const routes = [...Object.values(authRoutes), ...Object.values(userRoutes)];
+    const registerV1 = { ...authRoutes.register, path: '/api/auth/register/v1' };
+    if (!endpoints.includes(`POST ${registerV1.path}`)) return { routes, createScenarios };
+    return {
+        routes: [...routes, registerV1],
+        createScenarios(fixtures) {
+            const versionedCases = registerCases(fixtures, registerV1).map(entry => ({
+                ...entry, name: entry.name.replace('auth.cadastro.', 'auth.cadastro.v1.')
+            }));
+            return [...createScenarios(fixtures), ...versionedCases];
+        }
+    };
+}
+
+module.exports = { forEndpoints };

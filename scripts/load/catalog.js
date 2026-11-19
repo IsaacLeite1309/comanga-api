@@ -202,35 +202,46 @@ function batch(addVolumeIds = [], removeVolumeIds = []) {
     return { addVolumeIds, removeVolumeIds };
 }
 
-function personalBatchCases(catalog, cookie) {
+function personalBatchCases(fixtures, cookie) {
+    const { catalog } = fixtures;
     const [owned, , newOwned, , , , newWanted, unowned] = catalog.volumeIds;
     const edition = { params: { editionId: catalog.editionId }, cookie };
     return [
-        scenario(personalRoutes.syncOwned, 'pessoal.edicao.adicionar-a-estante', { ...edition, body: batch([newOwned]) }),
+        scenario(personalRoutes.syncOwned, 'pessoal.edicao.adicionar-a-estante', { ...edition, body: batch([newOwned]), prepare: prepareVolume(fixtures, newOwned) }),
         scenario(personalRoutes.syncOwned, 'pessoal.edicao.lote-duplicado', { ...edition, body: batch([owned], [owned]), status: 400 }),
-        scenario(personalRoutes.syncWanted, 'pessoal.edicao.adicionar-aos-desejos', { ...edition, body: batch([newWanted]) }),
+        scenario(personalRoutes.syncWanted, 'pessoal.edicao.adicionar-aos-desejos', { ...edition, body: batch([newWanted]), prepare: prepareVolume(fixtures, newWanted) }),
         scenario(personalRoutes.syncWanted, 'pessoal.edicao.desejar-volume-proprio', { ...edition, body: batch([owned]), status: 409 }),
-        scenario(personalRoutes.syncRead, 'pessoal.edicao.marcar-como-lido', { ...edition, body: batch([owned]) }),
+        scenario(personalRoutes.syncRead, 'pessoal.edicao.marcar-como-lido', { ...edition, body: batch([owned]), prepare: prepareVolume(fixtures, owned, 'Owned') }),
         scenario(personalRoutes.syncRead, 'pessoal.edicao.ler-volume-fora-da-estante', { ...edition, body: batch([unowned]), status: 404 })
     ];
 }
 
-function deleteVolumeCase(route, name, fixtures, volumeId, state) {
+function prepareVolume(fixtures, volumeId, state) {
     const usersByWorker = new Map();
-    return scenario(route, name, {
-        params: { volumeId }, status: 204,
-        async prepare({ workerId }) {
-            if (!usersByWorker.has(workerId)) usersByWorker.set(workerId, await fixtures.createUser());
-            const { id: userId, cookie } = usersByWorker.get(workerId);
+    return async function prepare(context) {
+        const { workerId } = context;
+        if (!usersByWorker.has(workerId)) usersByWorker.set(workerId, await fixtures.createUser());
+        const { id: userId, cookie } = usersByWorker.get(workerId);
+        if (state) {
+            const data = { state, read: state === 'Owned' ? false : null };
             await fixtures.prisma.userVolume.upsert({
-                where: { userId_volumeId: { userId, volumeId } }, update: {},
-                create: { userId, volumeId, state, read: state === 'Owned' ? false : null }
+                where: { userId_volumeId: { userId, volumeId } }, update: data,
+                create: { userId, volumeId, ...data }
             });
-            return cookie;
-        },
-        async verify(_body, { phase, workerId }) {
+        } else {
+            await fixtures.prisma.userVolume.deleteMany({ where: { userId, volumeId } });
+        }
+        context.userId = userId;
+        return cookie;
+    };
+}
+
+function deleteVolumeCase(route, name, fixtures, volumeId, state) {
+    const prepare = prepareVolume(fixtures, volumeId, state);
+    return scenario(route, name, {
+        params: { volumeId }, status: 204, prepare,
+        async verify(_body, { phase, userId }) {
             if (phase !== 'coverage') return;
-            const userId = usersByWorker.get(workerId).id;
             const remaining = await fixtures.prisma.userVolume.count({ where: { userId, volumeId } });
             assert.equal(remaining, 0);
         }
@@ -240,14 +251,14 @@ function deleteVolumeCase(route, name, fixtures, volumeId, state) {
 function personalVolumeCases(fixtures, cookie) {
     const [owned, , newOwned, newWanted, removeOwned, removeWanted, , unowned] = fixtures.catalog.volumeIds;
     return [
-        scenario(personalRoutes.putOwned, 'pessoal.volume.adicionar-a-estante', { params: { volumeId: newOwned }, cookie, verify: body => assert.equal(body.owned, true) }),
+        scenario(personalRoutes.putOwned, 'pessoal.volume.adicionar-a-estante', { params: { volumeId: newOwned }, prepare: prepareVolume(fixtures, newOwned), verify: body => assert.equal(body.owned, true) }),
         scenario(personalRoutes.putOwned, 'pessoal.volume.inexistente', { params: { volumeId: absentId }, cookie, status: 404 }),
-        scenario(personalRoutes.patchRead, 'pessoal.volume.marcar-como-lido', { params: { volumeId: owned }, body: { read: true }, cookie, verify: body => assert.equal(body.read, true) }),
+        scenario(personalRoutes.patchRead, 'pessoal.volume.marcar-como-lido', { params: { volumeId: owned }, body: { read: true }, prepare: prepareVolume(fixtures, owned, 'Owned'), verify: body => assert.equal(body.read, true) }),
         scenario(personalRoutes.patchRead, 'pessoal.volume.marcar-fora-da-estante', { params: { volumeId: unowned }, body: { read: true }, cookie, status: 404 }),
         scenario(personalRoutes.patchRead, 'pessoal.volume.leitura-invalida', { params: { volumeId: owned }, body: { read: 'true' }, cookie, status: 400 }),
         deleteVolumeCase(personalRoutes.deleteOwned, 'pessoal.volume.remover-da-estante', fixtures, removeOwned, 'Owned'),
         scenario(personalRoutes.deleteOwned, 'pessoal.volume.remover-id-invalido-da-estante', { params: { volumeId: 0 }, cookie, status: 400 }),
-        scenario(personalRoutes.putWanted, 'pessoal.volume.adicionar-aos-desejos', { params: { volumeId: newWanted }, cookie, verify: body => assert.equal(body.wished, true) }),
+        scenario(personalRoutes.putWanted, 'pessoal.volume.adicionar-aos-desejos', { params: { volumeId: newWanted }, prepare: prepareVolume(fixtures, newWanted), verify: body => assert.equal(body.wished, true) }),
         scenario(personalRoutes.putWanted, 'pessoal.volume.desejar-volume-proprio', { params: { volumeId: owned }, cookie, status: 409 }),
         deleteVolumeCase(personalRoutes.deleteWanted, 'pessoal.volume.remover-dos-desejos', fixtures, removeWanted, 'Wanted'),
         scenario(personalRoutes.deleteWanted, 'pessoal.volume.remover-id-invalido-dos-desejos', { params: { volumeId: 0 }, cookie, status: 400 })
@@ -263,7 +274,7 @@ function createScenarios(fixtures) {
         ...publicListCases(catalog, users.member),
         ...publicDetailCases(catalog, users),
         ...personalReadCases(catalog, users.member.cookie),
-        ...personalBatchCases(catalog, users.member.cookie),
+        ...personalBatchCases(fixtures, users.member.cookie),
         ...personalVolumeCases(fixtures, users.member.cookie),
         ...unauthorized
     ];
