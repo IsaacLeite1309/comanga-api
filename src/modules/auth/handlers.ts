@@ -17,6 +17,8 @@ interface PrismaKnownError {
     meta?: { target?: unknown };
 }
 
+const CURRENT_TERMS_VERSION = '2026-11-19';
+
 function getUniqueConflictField(error: PrismaKnownError): 'email' | 'username' | undefined {
     if (error.code !== 'P2002') return undefined;
     const target = Array.isArray(error.meta?.target)
@@ -45,7 +47,10 @@ const registerSchema = z.object({
     email: z.string().email('E-mail com formato inválido.'),
     birthDate: birthDateSchema,
     password: passwordSchema,
-    confirmPassword: z.string()
+    confirmPassword: z.string(),
+    acceptedTerms: z.literal(true, 'Aceite os Termos de Uso para criar sua conta.'),
+    termsVersion: z.literal(CURRENT_TERMS_VERSION,
+        'Recarregue a página de cadastro para consultar e aceitar a versão atual dos Termos de Uso.')
 }).refine((data) => data.password === data.confirmPassword, {
     message: 'Divergência nos valores da senha e confirmação de senha!',
     path: ['confirmPassword']
@@ -63,7 +68,7 @@ function createRegisterUserHandler(notifications: AuthNotifications) {
                 });
             }
 
-            const { username, email, password, birthDate } = validation.data;
+            const { username, email, password, birthDate, termsVersion } = validation.data;
             const conflict = await prisma.user.findFirst({
                 where: { OR: [{ email }, { username }] },
                 select: { email: true, username: true }
@@ -73,14 +78,17 @@ function createRegisterUserHandler(notifications: AuthNotifications) {
 
             const passwordHash = await bcrypt.hash(password, 10);
             const activationToken = crypto.randomBytes(32).toString('hex');
+            const termsAcceptedAt = new Date();
             await prisma.user.create({
                 data: {
                     username,
                     email,
                     passwordHash,
                     birthDate: parseBirthDate(birthDate),
+                    termsVersion,
+                    termsAcceptedAt,
                     activationToken,
-                    activationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                    activationExpiresAt: new Date(termsAcceptedAt.getTime() + 24 * 60 * 60 * 1000)
                 }
             });
 

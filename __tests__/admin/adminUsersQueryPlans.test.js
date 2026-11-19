@@ -6,18 +6,21 @@ const EXPECTED_INDEXES = [
     'idx_users_username_sort'
 ];
 
-function collectIndexNames(node, names = new Set()) {
+function collectIndexNames(node, names = new Set(), nodeTypes = new Set()) {
     if (!node || typeof node !== 'object') return names;
 
     if (typeof node['Index Name'] === 'string') {
         names.add(node['Index Name']);
     }
+    if (typeof node['Node Type'] === 'string') {
+        nodeTypes.add(node['Node Type']);
+    }
 
     for (const value of Object.values(node)) {
         if (Array.isArray(value)) {
-            for (const child of value) collectIndexNames(child, names);
+            for (const child of value) collectIndexNames(child, names, nodeTypes);
         } else if (value && typeof value === 'object') {
-            collectIndexNames(value, names);
+            collectIndexNames(value, names, nodeTypes);
         }
     }
 
@@ -37,7 +40,9 @@ async function explainAnalyze(sql, params = [], { forceBitmap = false } = {}) {
         const result = await client.query(`EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`, params);
         await client.query('ROLLBACK');
 
-        return [...collectIndexNames(result.rows[0]['QUERY PLAN'][0])];
+        const nodeTypes = new Set();
+        const indexes = [...collectIndexNames(result.rows[0]['QUERY PLAN'][0], new Set(), nodeTypes)];
+        return { indexes, nodeTypes: [...nodeTypes] };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -74,7 +79,7 @@ describe('planos de consulta da administracao de usuarios', () => {
             { forceBitmap: true }
         );
 
-        expect(plan).toContain(indexName);
+        expect(plan.indexes).toContain(indexName);
     });
 
     it('usa o indice B-Tree ao ordenar username de forma decrescente', async () => {
@@ -85,7 +90,10 @@ describe('planos de consulta da administracao de usuarios', () => {
              LIMIT 8`
         );
 
-        expect(plan).toContain('idx_users_username_sort');
+        // O índice UNIQUE de username também é B-tree e atende à mesma ordenação.
+        expect(plan.indexes.some(name => ['idx_users_username_sort', 'users_username_key'].includes(name))).toBe(true);
+        expect(plan.nodeTypes).not.toContain('Sort');
+        expect(plan.nodeTypes).not.toContain('Incremental Sort');
     });
 
     it('mantem filtros combinados na consulta administrativa', async () => {
@@ -101,6 +109,6 @@ describe('planos de consulta da administracao de usuarios', () => {
             { forceBitmap: true }
         );
 
-        expect(plan).toContain('idx_users_username_trgm');
+        expect(plan.indexes).toContain('idx_users_username_trgm');
     });
 });
