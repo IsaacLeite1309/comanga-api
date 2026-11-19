@@ -17,7 +17,7 @@ interface PrismaKnownError {
     meta?: { target?: unknown };
 }
 
-const CURRENT_TERMS_VERSION = '2026-11-18';
+const CURRENT_TERMS_VERSION = '2026-11-19';
 
 function getUniqueConflictField(error: PrismaKnownError): 'email' | 'username' | undefined {
     if (error.code !== 'P2002') return undefined;

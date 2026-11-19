@@ -65,7 +65,7 @@ describe('senha e idade com banco real', () => {
             confirmPassword: pass,
             birthDate,
             acceptedTerms: true,
-            termsVersion: '2026-11-18'
+            termsVersion: '2026-11-19'
         });
         expect(res.status).toBe(400);
         expect(res.body.field).toBe('birthDate');

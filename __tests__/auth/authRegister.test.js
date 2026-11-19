@@ -20,7 +20,7 @@ function makePayload(overrides = {}) {
         birthDate: '2000-01-01',
         confirmPassword: 'SenhaForte123!',
         acceptedTerms: true,
-        termsVersion: '2026-11-18',
+        termsVersion: '2026-11-19',
         ...overrides
     };
 }
@@ -100,8 +100,9 @@ describe.each(['/api/auth/register', '/api/auth/register/v1'])('POST %s', (route
         ['acceptedTerms', null],
         ['termsVersion', undefined],
         ['termsVersion', '2026-11-17'],
-        ['termsVersion', '2026-11-19'],
-        ['termsVersion', ' 2026-11-18 '],
+        ['termsVersion', '2026-11-18'],
+        ['termsVersion', '2026-11-20'],
+        ['termsVersion', ' 2026-11-19 '],
         ['termsVersion', 20261118]
     ])('rejeita %s com valor %p sem gravar usuário ou enviar e-mail', async (field, value) => {
         const payload = makePayload({ [field]: value });

@@ -83,12 +83,13 @@ describe('autenticação e usuários', () => {
             birthDate: '2000-01-01',
             confirmPassword: 'SenhaForte123!',
             acceptedTerms: true,
-            termsVersion: '2026-11-18'
+            termsVersion: '2026-11-19'
         };
 
         it.each([
             ['username', 'x'],
             ['acceptedTerms', false],
+            ['termsVersion', '2026-11-18'],
             ['termsVersion', '2026-11-17']
         ])('rejeita %s inválido antes de consultar o banco ou calcular o hash', async (field, value) => {
             const req = makeReq({ body: { ...validBody, [field]: value } });
