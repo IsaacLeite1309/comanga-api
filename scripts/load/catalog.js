@@ -26,7 +26,7 @@ function personalRoute(method, path, parameters, dependencies = [pg]) {
 const publicRoutes = {
     options: publicRoute('/catalog-options', null, [pg]),
     calendar: publicRoute('/calendar', `${pagination}, year, month, term, brazilianPublisherId, order (consulta)`),
-    works: publicRoute('/works', `${listOrder}, term, typeId, country, demographics, genreIds, originalPublisherId, serializationMagazineId, originalPublicationStatus, originalPublicationStartYear, originalPublicationEndYear (consulta)`),
+    works: publicRoute('/works', `${listOrder}, term, typeId, demographics, genreIds, originalPublisherId, serializationMagazineId, originalPublicationStatus, originalPublicationStartYear, originalPublicationEndYear (consulta)`),
     work: publicRoute('/works/:slug', 'slug (caminho)'),
     author: publicRoute('/authors/:authorId/works', `authorId, slug do autor (caminho). ${listOrder} (consulta)`),
     editions: publicRoute('/editions', `${listOrder}, term, brazilianPublisherId, formatId, coverTypeId, chronologicalNumber, brazilPublicationStatus, brazilPublicationStartYear, brazilPublicationEndYear (consulta)`),
@@ -97,7 +97,7 @@ function publicListCases(catalog, member) {
         }),
         scenario(publicRoutes.calendar, 'public.calendario.mes-invalido', { query: { month: 13 }, status: 400 }),
         scenario(publicRoutes.works, 'public.obras.busca-e-filtros', {
-            query: { ...page, term: 'Carga CoManga', typeId: catalog.typeId, country: 'Japão', genreIds: [catalog.genreId, catalog.otherGenreId], demographics: 'Shonen' },
+            query: { ...page, term: 'Carga CoManga', typeId: catalog.typeId, genreIds: [catalog.genreId, catalog.otherGenreId], demographics: 'Shonen' },
             verify: body => checkPage(body, 'works', 5)
         }),
         scenario(publicRoutes.works, 'public.obras.limite-invalido', { query: { limit: 51 }, status: 400 }),

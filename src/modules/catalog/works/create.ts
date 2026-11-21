@@ -76,7 +76,6 @@ function buildCreateWorkData(
         originalPublicationEndYear: data.originalPublicationEndYear || null,
         directRelease: data.directRelease,
         typeId: data.typeId,
-        country: data.country,
         originalPublicationStatus: data.originalPublicationStatus,
         coverAssetId: data.coverAssetId,
         adultContent: data.adultContent,

@@ -29,10 +29,10 @@ it('sem contexto autenticado não consulta dados',async()=>{
     delete req.user;await handlers.getCollection(req,res,next);
     expect(next).toHaveBeenCalledWith(expect.objectContaining({statusCode:401}));expect(readers.listCollection).not.toHaveBeenCalled();
 });
-it('valida e encaminha os filtros da coleção',async()=>{
-    req.query={page:'2',term:'  Monster  ',status:'complete',brazilianPublisherId:'4'};
+it.each(['complete','incomplete','up-to-date'])('valida e encaminha os filtros da coleção com status %s',async status=>{
+    req.query={page:'2',term:'  Monster  ',status,brazilianPublisherId:'4'};
     await handlers.getCollection(req,res,next);
-    expect(readers.listCollection).toHaveBeenCalledWith('own-account',false,{page:2,limit:12,term:'Monster',status:'complete',brazilianPublisherId:4});
+    expect(readers.listCollection).toHaveBeenCalledWith('own-account',false,{page:2,limit:12,term:'Monster',status,brazilianPublisherId:4});
 });
 it('valida e encaminha os filtros da lista de desejos',async()=>{
     req.query={page:'2',term:'  Monster  ',brazilianPublisherId:'4'};

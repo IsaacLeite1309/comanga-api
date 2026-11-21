@@ -1,13 +1,8 @@
 import prisma from '../../../prisma';
 import {
-    COUNTRY_DEPENDENCY_REQUIRED_MESSAGE,
     LISTABLE_OPTION_CATEGORY_SLUGS,
     MANAGEABLE_OPTION_CATEGORY_SLUGS
 } from './constants';
-import {
-    COUNTRY_CATEGORY_SLUG,
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS
-} from '../../catalog';
 
 
 function isManageableOptionCategory(slug: string) {
@@ -112,35 +107,6 @@ function formatExistingDuplicateMessage(labels: string[]) {
     return `Essa lista já tem esses valores cadastrados: ${labels.join(', ')}.`;
 }
 
-async function validateCountryDependencies(categorySlug: string, dependsOnValueIds: number[]) {
-    const uniqueIds = [...new Set(dependsOnValueIds)];
-
-    if (!COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(categorySlug)) {
-        return [];
-    }
-
-    if (uniqueIds.length === 0) {
-        return { error: COUNTRY_DEPENDENCY_REQUIRED_MESSAGE };
-    }
-
-    const countries = await prisma.domainOptionValue.findMany({
-        where: {
-            id: { in: uniqueIds },
-            active: true,
-            category: {
-                slug: COUNTRY_CATEGORY_SLUG
-            }
-        },
-        select: { id: true }
-    });
-
-    if (countries.length !== uniqueIds.length) {
-        return { error: 'País de origem relacionado inválido.' };
-    }
-
-    return uniqueIds;
-}
-
 export {
     isManageableOptionCategory,
     isListableOptionCategory,
@@ -152,6 +118,5 @@ export {
     findDuplicateSubmittedLabels,
     findExistingOptionLabels,
     formatSubmittedDuplicateMessage,
-    formatExistingDuplicateMessage,
-    validateCountryDependencies
+    formatExistingDuplicateMessage
 };

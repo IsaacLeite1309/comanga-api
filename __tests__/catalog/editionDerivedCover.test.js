@@ -48,8 +48,7 @@ async function createOption(categorySlug = 'tipos-obra') {
 
 async function createWork(visibility = 'Público') {
     const result = await db.query(
-        `INSERT INTO works (slug, title, romanized_title, synopsis, type_id, country, original_publication_status, cover_asset_id, visibility, atualizado_em)
-         VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Japão', 'Completa', $3, $4, NOW()) RETURNING id`,
+        `INSERT INTO works (slug, title, romanized_title, synopsis, type_id, original_publication_status, cover_asset_id, visibility, atualizado_em) VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Completa', $3, $4, NOW()) RETURNING id`,
         [prefix, optionId, await createTestCover(db, prefix), visibility]
     );
     return result.rows[0].id;
@@ -361,7 +360,7 @@ describe('capa da Edição derivada do Volume 1', () => {
         expect(claimed).toEqual(expect.objectContaining({ id: assetId, attached: true }));
         expect(persisted.rows[0].status).toBe('Ativo');
         await expect(db.query('DELETE FROM media_assets WHERE id = $1', [assetId]))
-            .rejects.toMatchObject({ code: '23503' });
+            .rejects.toMatchObject({ code: expect.stringMatching(/^(23503|23001)$/) });
     });
 });
 

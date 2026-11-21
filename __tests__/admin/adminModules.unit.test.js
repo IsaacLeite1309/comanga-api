@@ -479,7 +479,6 @@ describe('módulos administrativos', () => {
                             slug: 'tipos-capa',
                             name: 'Tipos de capa'
                         },
-                        depends_on: []
                     }
                 ],
                 pagination: {
@@ -554,9 +553,6 @@ describe('módulos administrativos', () => {
                         expect.objectContaining({
                             id: 9,
                             label: 'Manga',
-                            depends_on: [
-                                expect.objectContaining({ id: 5, label: 'Japao' })
-                            ]
                         })
                     ]
                 })
@@ -637,142 +633,23 @@ describe('módulos administrativos', () => {
             expect(res.status).toHaveBeenCalledWith(201);
         });
 
-        it('bloqueia cadastro de valor dependente sem pais relacionado', async () => {
-            prisma.domainOptionCategory.findUnique.mockResolvedValue({
-                id: 2,
-                slug: 'revistas-serializacao',
-                name: 'Revista de serialização'
-            });
-            prisma.domainOptionValue.findFirst.mockResolvedValue(null);
-            prisma.domainOptionValue.findMany.mockResolvedValue([]);
-            const req = makeReq({
-                body: {
-                    category: 'revistas-serializacao',
-                    label: 'Shonen Jump'
-                }
-            });
-            const res = makeRes();
+        it('cadastra pré-publicação sem exigir países', async () => {
+   const category={id:2,slug:'revistas-serializacao',name:'Pré-publicação'};
+   prisma.domainOptionCategory.findUnique.mockResolvedValue(category); prisma.domainOptionValue.findMany.mockResolvedValue([]);
+   prisma.domainOptionValue.create.mockResolvedValue({id:12,label:'Shonen Jump',category});
+   const res=makeRes(),next=jest.fn(); await adminOptions.createOption(makeReq({body:{category:category.slug,label:'Shonen Jump'}}),res,next);
+   expect(next).not.toHaveBeenCalled(); expect(res.status).toHaveBeenCalledWith(201);
+   expect(prisma.domainOptionValueDependency.createMany).not.toHaveBeenCalled();
+ });
 
-            await adminOptions.createOption(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith({
-                error: 'Selecione ao menos um país de origem relacionado.'
-            });
-            expect(prisma.domainOptionValue.create).not.toHaveBeenCalled();
-        });
-
-        it('cadastra valor dependente vinculando aos paises relacionados', async () => {
-            const dependentCategory = {
-                id: 2,
-                slug: 'revistas-serializacao',
-                name: 'Revista de serialização'
-            };
-            const countryCategory = {
-                slug: 'paises-origem',
-                name: 'País de Origem'
-            };
-            prisma.domainOptionCategory.findUnique.mockResolvedValue(dependentCategory);
-            prisma.domainOptionValue.findFirst.mockResolvedValue(null);
-            prisma.domainOptionValue.findMany
-                .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([{ id: 20 }, { id: 21 }]);
-            const txDomainOptionValue = {
-                create: jest.fn().mockResolvedValue({
-                    id: 12,
-                    label: 'Novel',
-                    category: dependentCategory
-                }),
-                findUniqueOrThrow: jest.fn().mockResolvedValue({
-                    id: 12,
-                    label: 'Novel Club',
-                    category: dependentCategory,
-                    dependencies: [
-                        {
-                            dependsOnValue: {
-                                id: 20,
-                                label: 'Japão',
-                                category: countryCategory
-                            }
-                        },
-                        {
-                            dependsOnValue: {
-                                id: 21,
-                                label: 'Coreia do Sul',
-                                category: countryCategory
-                            }
-                        }
-                    ]
-                })
-            };
-            const txDomainOptionValueDependency = {
-                createMany: jest.fn()
-            };
-            prisma.$transaction.mockImplementation(async (callback) => callback({
-                domainOptionValue: txDomainOptionValue,
-                domainOptionValueDependency: txDomainOptionValueDependency
-            }));
-            const req = makeReq({
-                body: {
-                    category: 'revistas-serializacao',
-                    label: 'Novel Club',
-                    dependsOnValueIds: [20, 21, 20]
-                }
-            });
-            const res = makeRes();
-
-            await adminOptions.createOption(req, res);
-
-            expect(prisma.domainOptionValue.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
-                where: expect.objectContaining({
-                    id: { in: [20, 21] },
-                    active: true,
-                    category: {
-                        slug: 'paises-origem'
-                    }
-                }),
-                select: { id: true }
-            }));
-            expect(txDomainOptionValue.create).toHaveBeenCalledWith(expect.objectContaining({
-                data: expect.objectContaining({
-                    categoryId: 2,
-                    label: 'Novel Club'
-                })
-            }));
-            expect(txDomainOptionValueDependency.createMany).toHaveBeenCalledWith({
-                data: [
-                    { dependentValueId: 12, dependsOnValueId: 20 },
-                    { dependentValueId: 12, dependsOnValueId: 21 }
-                ]
-            });
-            expect(res.status).toHaveBeenCalledWith(201);
-            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-                value: {
-                    id: 12,
-                    label: 'Novel Club',
-                    code: null,
-                    systemManaged: false,
-                    position: 0,
-                    active: true,
-                    category: {
-                        slug: 'revistas-serializacao',
-                        name: 'Revista de serialização'
-                    },
-                    depends_on: [
-                        {
-                            id: 20,
-                            label: 'Japão',
-                            category: countryCategory
-                        },
-                        {
-                            id: 21,
-                            label: 'Coreia do Sul',
-                            category: countryCategory
-                        }
-                    ]
-                }
-            }));
-        });
+        it('ignora relações por país de clientes antigos sem criar dependências', async () => {
+   const category={id:2,slug:'revistas-serializacao',name:'Pré-publicação'};
+   prisma.domainOptionCategory.findUnique.mockResolvedValue(category); prisma.domainOptionValue.findMany.mockResolvedValue([]);
+   prisma.domainOptionValue.create.mockResolvedValue({id:12,label:'Novel Club',category});
+   const res=makeRes();await adminOptions.createOption(makeReq({body:{category:category.slug,label:'Novel Club',dependsOnValueIds:[20,21]}}),res,jest.fn());
+   expect(res.status).toHaveBeenCalledWith(201);expect(prisma.domainOptionValueDependency.createMany).not.toHaveBeenCalled();
+   expect(res.json.mock.calls[0][0].value).not.toHaveProperty('depends_on');
+ });
 
         it('cadastra multiplos valores separados por virgula em uma unica transacao', async () => {
             prisma.domainOptionCategory.findUnique.mockResolvedValue(category);
@@ -972,31 +849,10 @@ describe('módulos administrativos', () => {
             });
         });
 
-        it('permite listar paises como referencia e recusa cadastrar categorias internas', async () => {
-            const listRes = makeRes();
-            const createRes = makeRes();
-            prisma.domainOptionCategory.findUnique.mockResolvedValueOnce({
-                id: 4,
-                slug: 'paises-origem',
-                name: 'País de origem'
-            });
-            prisma.$transaction.mockResolvedValueOnce([[], 0]);
-
-            await adminOptions.listOptions(makeReq({
-                params: { category: 'paises-origem' },
-                query: {}
-            }), listRes);
-            await adminOptions.createOption(makeReq({
-                body: { category: 'demografias', label: 'Seinen' }
-            }), createRes);
-
-            expect(listRes.status).toHaveBeenCalledWith(200);
-            expect(createRes.status).toHaveBeenCalledWith(404);
-            expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledTimes(1);
-            expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledWith({
-                where: { slug: 'paises-origem' }
-            });
-        });
+        it('não lista nem cadastra país de origem', async () => {
+   const res=makeRes();await adminOptions.listOptions(makeReq({params:{category:'paises-origem'},query:{}}),res,jest.fn());
+   expect(res.status).toHaveBeenCalledWith(404);expect(prisma.domainOptionCategory.findUnique).not.toHaveBeenCalled();
+ });
 
         it('recusa alterar ou excluir um valor de categoria interna', async () => {
             prisma.domainOptionValue.findUnique.mockResolvedValue({
@@ -1035,7 +891,6 @@ describe('módulos administrativos', () => {
             visibility: 'Privado',
             adultContent: false,
             type: { id: 1, label: 'Mangá' },
-            country: 'Japão',
             originalPublishers: [
                 { position: 0, publisher: { id: 9, label: 'Shueisha' } },
                 { position: 1, publisher: { id: 10, label: 'Shogakukan' } }
@@ -1074,7 +929,6 @@ describe('módulos administrativos', () => {
             return {
                 id: 1,
                 title: 'Naruto',
-                country: 'Japão',
                 typeId: 1,
                 authors: [{ authorId: 4 }, { authorId: 11 }],
                 originalPublishers: [{ publisherId: 9 }, { publisherId: 10 }],
@@ -1108,7 +962,6 @@ describe('módulos administrativos', () => {
                     originalPublicationEndYear: 2014,
                     directRelease: false,
                     typeId: 1,
-                    country: 'Japão',
                     originalPublisherIds: [{ id: 10, position: 0 }, { id: 9, position: 1 }],
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completa',
@@ -1133,7 +986,6 @@ describe('módulos administrativos', () => {
                     romanizedTitle: 'Naruto',
                     synopsis: 'Um ninja busca reconhecimento na própria vila.',
                     visibility: 'Privado',
-                    country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completa',
                     originalPublishers: {
@@ -1171,7 +1023,6 @@ describe('módulos administrativos', () => {
                 work: expect.objectContaining({
                     title: 'Naruto',
                     visibility: 'Privado',
-                    country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completa',
                     authors: [
@@ -1204,7 +1055,6 @@ describe('módulos administrativos', () => {
                     romanizedTitle: 'Naruto',
                     synopsis: 'Um ninja busca reconhecimento na própria vila.',
                     typeId: 1,
-                    country: 'Japão',
                     coverAssetId: work.coverAssetId,
                     originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 4, roles: ['História e Arte'] }],
@@ -1252,7 +1102,6 @@ describe('módulos administrativos', () => {
                     romanizedTitle: 'Naruto',
                     synopsis: 'Sinopse da Obra.',
                     typeId: 1,
-                    country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completa',
                     authors: [
@@ -1270,50 +1119,17 @@ describe('módulos administrativos', () => {
             expect(prisma.work.findFirst).not.toHaveBeenCalled();
         });
 
-        it('bloqueia autor relacionado a outro pais de origem', async () => {
-            prisma.work.findFirst.mockResolvedValue(null);
-            mockValidDomainReferences();
-            prisma.domainOptionValue.findMany.mockResolvedValue([
-                {
-                    id: 4,
-                    dependencies: [
-                        {
-                            dependsOnValue: {
-                                label: 'Coreia do Sul',
-                                category: { slug: 'paises-origem' }
-                            }
-                        }
-                    ]
-                }
-            ]);
-            const req = makeReq({
-                body: {
-                    title: 'Naruto',
-                    romanizedTitle: 'Naruto',
-                    synopsis: 'Sinopse da Obra.',
-                    typeId: 1,
-                    country: 'Japão',
-                    coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
-                    originalPublicationStatus: 'Completa',
-                    authors: [{ authorId: 4, roles: ['História'] }],
-                    genreIds: [6]
-                }
-            });
-            const res = makeRes();
-
-            await catalog.createWork(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith({ error: 'Um ou mais valores selecionados são inválidos.' });
-            expect(prisma.work.create).not.toHaveBeenCalled();
-        });
+        it('aceita os vínculos de autoria sem validar país', async () => {
+   mockValidDomainReferences();prisma.work.findFirst.mockResolvedValue(null);prisma.work.create.mockResolvedValue(work);prisma.work.findUniqueOrThrow.mockResolvedValue(work);
+   const res=makeRes(),next=jest.fn();await catalog.createWork(makeReq({body:{title:'Naruto',romanizedTitle:'Naruto',synopsis:'Sinopse',typeId:1,coverAssetId:'7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',originalPublicationStatus:'Completa',authors:[{authorId:4,roles:['História']}],genreIds:[]}}),res,next);
+   expect(next).not.toHaveBeenCalled();expect(res.status).toHaveBeenCalledWith(201);expect(res.json.mock.calls[0][0].work).not.toHaveProperty('country');
+ });
 
         it('rejeita valores nativos inválidos ao cadastrar obra', async () => {
             const req = makeReq({
                 body: {
                     title: 'Naruto',
                     typeId: 1,
-                    country: 'Estados Unidos',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
@@ -1334,7 +1150,6 @@ describe('módulos administrativos', () => {
                 body: {
                     title: 'Naruto',
                     typeId: 1,
-                    country: 'Japão',
                     originalPublisherId: 9,
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completa',
@@ -1355,9 +1170,9 @@ describe('módulos administrativos', () => {
                 query: {
                     term: 'nar',
                     typeId: '1',
-                    country: 'Japão',
+                    demography: 'Seinen',
                     visibility: 'Privado',
-                    sortBy: 'country',
+                    sortBy: 'title',
                     order: 'DESC',
                     page: '2',
                     limit: '50'
@@ -1370,10 +1185,10 @@ describe('módulos administrativos', () => {
             expect(prisma.work.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
                     typeId: 1,
-                    country: 'Japão',
+                    demographics: { some: { demography: 'Seinen' } },
                     visibility: 'Privado'
                 }),
-                orderBy: { country: 'desc' },
+                orderBy: { title: 'desc' },
                 skip: 50,
                 take: 50
             }));
@@ -1462,7 +1277,6 @@ describe('módulos administrativos', () => {
                 .mockResolvedValueOnce(mockExistingWorkForUpdate())
                 .mockResolvedValueOnce({
                     ...work,
-                    country: 'Coreia do Sul',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
@@ -1484,7 +1298,6 @@ describe('módulos administrativos', () => {
             const req = makeReq({
                 params: { id: '1' },
                 body: {
-                    country: 'Coreia do Sul',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
@@ -1501,7 +1314,6 @@ describe('módulos administrativos', () => {
             expect(prisma.work.update).toHaveBeenCalledWith(expect.objectContaining({
                 where: { id: 1 },
                 data: {
-                    country: 'Coreia do Sul',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento'
                 }
@@ -1525,7 +1337,6 @@ describe('módulos administrativos', () => {
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
                 work: expect.objectContaining({
-                    country: 'Coreia do Sul',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Em andamento',
                     authors: [
@@ -1607,7 +1418,6 @@ describe('módulos administrativos', () => {
             const req = makeReq({
                 params: { id: '1' },
                 body: {
-                    country: 'Brasil',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Publicado',
                     authors: [{ authorId: 4, roles: ['Editor'] }],
@@ -2481,6 +2291,7 @@ describe('módulos administrativos', () => {
 
         it.each([
             ['listWorks', { query: { limit: '51' } }],
+            ['listWorks', { query: { demography: 'Adulto' } }],
             ['createEdition', { params: { workId: '1' }, body: {} }],
             ['listEditionsByWork', { params: { workId: '1' }, query: { page: '0' } }],
             ['updateEdition', { params: { id: '20' }, body: {} }],
@@ -2712,7 +2523,6 @@ describe('módulos administrativos', () => {
                 visibility: 'Privado',
                 adultContent: false,
                 type: null,
-                country: 'Japão',
                 originalPublicationStatus: null,
                 authors: [
                     { position: 1, author: { id: 2, label: 'Zeta' } },
@@ -2766,7 +2576,6 @@ describe('módulos administrativos', () => {
                 visibility: 'Privado',
                 adultContent: false,
                 type: { id: 1, label: 'Mangá' },
-                country: 'Japão',
                 editionsCount,
                 authors: authorLabel ? [{ author: { id, label: authorLabel }, roles: [] }] : []
             });
@@ -2811,7 +2620,6 @@ describe('módulos administrativos', () => {
 
             expect(prisma.domainOptionValue.findMany).toHaveBeenCalledWith(expect.objectContaining({
                 where: expect.objectContaining({
-                    dependencies: { some: { dependsOnValueId: 8 } },
                     label: { contains: 'ura', mode: 'insensitive' }
                 }),
                 orderBy: [{ label: 'desc' }, { id: 'asc' }]
@@ -2819,18 +2627,11 @@ describe('módulos administrativos', () => {
             expect(res.status).toHaveBeenCalledWith(200);
         });
 
-        it('rejeita pais relacionado inexistente ao cadastrar opcao', async () => {
-            prisma.domainOptionCategory.findUnique.mockResolvedValue({ id: 1, slug: 'autores', name: 'Autor' });
-            prisma.domainOptionValue.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-            const res = makeRes();
-
-            await adminOptions.createOption(makeReq({
-                body: { category: 'autores', label: 'Autor novo', dependsOnValueIds: [999] }
-            }), res);
-
-            expect(res.status).toHaveBeenCalledWith(400);
-            expect(res.json).toHaveBeenCalledWith({ error: 'País de origem relacionado inválido.' });
-        });
+        it('não consulta países ao cadastrar autor', async () => {
+   const category={id:1,slug:'autores',name:'Autor'};prisma.domainOptionCategory.findUnique.mockResolvedValue(category);prisma.domainOptionValue.findMany.mockResolvedValue([]);prisma.domainOptionValue.findFirst.mockResolvedValue(null);prisma.domainOptionValue.create.mockResolvedValue({id:12,label:'Autor novo',category});
+   const res=makeRes();await adminOptions.createOption(makeReq({body:{category:'autores',label:'Autor novo'}}),res,jest.fn());
+   expect(res.status).toHaveBeenCalledWith(201);expect(prisma.domainOptionValueDependency.createMany).not.toHaveBeenCalled();
+ });
 
         it('informa todos os valores existentes no cadastro em lote', async () => {
             prisma.domainOptionCategory.findUnique.mockResolvedValue({ id: 1, slug: 'tipos-capa', name: 'Tipos de capa' });
@@ -2867,7 +2668,6 @@ describe('módulos administrativos', () => {
                 romanizedTitle: 'Teste',
                 synopsis: 'Sinopse da Obra.',
                 typeId: 1,
-                country: 'Japão',
                 originalPublicationStatus: 'Completa',
                 authors: [{ authorId: 1, roles: ['História'] }]
             };
@@ -2897,7 +2697,6 @@ describe('módulos administrativos', () => {
                     romanizedTitle: 'Repetida',
                     synopsis: 'Sinopse da Obra.',
                     typeId: 1,
-                    country: 'Japão',
                     coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
                     originalPublicationStatus: 'Completa',
                     authors: [{ authorId: 1, roles: ['História'] }]
@@ -2939,7 +2738,6 @@ describe('módulos administrativos', () => {
                 visibility,
                 adultContent: false,
                 type: { id: 1, label: 'Mangá' },
-                country: 'Japão',
                 originalPublicationStatus: 'Completa',
                 authors: [],
                 genres: [],

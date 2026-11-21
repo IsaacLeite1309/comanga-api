@@ -43,7 +43,7 @@ function workFixture() {
         originalPublicationStartYear: 1970,
         originalPublicationEndYear: 1976,
         directRelease: false,
-        country: 'Japão',
+
         originalPublicationStatus: 'Finalizada',
         coverAsset: cover('work'),
         type: { id: 1, label: 'Mangá' },

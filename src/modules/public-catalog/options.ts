@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../../prisma';
-import { PUBLIC_CATALOG_OPTION_CATEGORIES, PUBLIC_COUNTRY_CATEGORY, PUBLIC_PUBLICATION_STATUSES, PUBLIC_WORK_COUNTRIES, PUBLIC_WORK_DEMOGRAPHICS } from './constants';
+import { PUBLIC_CATALOG_OPTION_CATEGORIES, PUBLIC_PUBLICATION_STATUSES, PUBLIC_WORK_DEMOGRAPHICS } from './constants';
 import { canViewAdultContent, isRestrictedAdultOption } from './adultContentPolicy';
 import { mapOption } from './mappers';
 
@@ -15,25 +15,7 @@ const publicCatalogOptionSelect = {
     code: true,
     adultOnly: true,
     category: { select: { slug: true } },
-    dependencies: {
-        where: { dependsOnValue: { category: { slug: PUBLIC_COUNTRY_CATEGORY } } },
-        select: { dependsOnValue: { select: { id: true, label: true } } },
-        orderBy: { dependsOnValue: { label: 'asc' as const } }
-    }
 } satisfies Prisma.DomainOptionValueSelect;
-
-type PublicCatalogOptionValue = Prisma.DomainOptionValueGetPayload<{
-    select: typeof publicCatalogOptionSelect;
-}>;
-
-// O cliente precisa da relação tipo→país para restringir os tipos ao país escolhido.
-function mapWorkTypeOption(value: PublicCatalogOptionValue) {
-    return {
-        ...mapOption(value),
-        countryIds: value.dependencies.map(({ dependsOnValue }) => dependsOnValue.id),
-        countries: value.dependencies.map(({ dependsOnValue }) => dependsOnValue.label)
-    };
-}
 
 async function getPublicCatalogOptions(req: Request, res: Response, next: NextFunction) {
     const categorySlugs = Object.values(PUBLIC_CATALOG_OPTION_CATEGORIES);
@@ -67,8 +49,7 @@ async function getPublicCatalogOptions(req: Request, res: Response, next: NextFu
         prepareViewerDependentResponse(res);
         return res.status(200).json({
             options: {
-                workTypes: valuesOf(PUBLIC_CATALOG_OPTION_CATEGORIES.workTypes).map(mapWorkTypeOption),
-                countries: [...PUBLIC_WORK_COUNTRIES],
+                workTypes: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.workTypes),
                 demographics: [...PUBLIC_WORK_DEMOGRAPHICS],
                 genres: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.genres),
                 originalPublishers: valuesFor(PUBLIC_CATALOG_OPTION_CATEGORIES.originalPublishers),

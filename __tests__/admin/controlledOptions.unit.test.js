@@ -125,7 +125,7 @@ describe('bloqueios administrativos dos valores controlados', () => {
         );
 
         expect(renameRes.status).toHaveBeenCalledWith(403);
-        expect(dependencyRes.status).toHaveBeenCalledWith(403);
+        expect(dependencyRes.status).toHaveBeenCalledWith(400);
         expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 

@@ -144,6 +144,24 @@ it('consultas vazias e agrupamento mostram progresso público e isolamento',asyn
     expect(selection.volumes.find(v=>v.id===f.second)).toMatchObject({owned:false,read:null,wished:false});
     expect(selection.volumes.find(v=>v.id===f.third)).toMatchObject({owned:false,read:null,wished:true});
 });
+it.each(['Completa','Cancelada','Em andamento','Em hiato'])('separa os três filtros de coleção para edição %s',async status=>{
+    await db.query('UPDATE editions SET brazil_publication_status=$1 WHERE id=$2',[status,f.editionId]);
+    for(const id of [f.first,f.second,f.third])expect((await own(id)).status).toBe(200);
+    const expectedStatus=['Completa','Cancelada'].includes(status)?'complete':'up-to-date';
+    for(const filter of ['complete','incomplete','up-to-date']){
+        const result=await get(`collection?status=${filter}`);
+        expect(result.status).toBe(200);
+        expect(result.body.pagination.total).toBe(filter===expectedStatus?1:0);
+        expect(result.body.works).toHaveLength(filter===expectedStatus?1:0);
+    }
+    await request(app).delete(`${base}/collection/volumes/${f.third}`).set('Cookie',f.owner.cookie).expect(204);
+    for(const filter of ['complete','incomplete','up-to-date']){
+        const result=await get(`collection?status=${filter}`);
+        expect(result.status).toBe(200);
+        expect(result.body.pagination.total).toBe(filter==='incomplete'?1:0);
+        expect(result.body.works).toHaveLength(filter==='incomplete'?1:0);
+    }
+});
 it('seleção funciona sem posse e paginação permite mais de50 volumes',async()=>{
     for(let n=4;n<=53;n++)await f.volume(n);
     const first=await get(`collection/editions/${f.editionId}?limit=50`);

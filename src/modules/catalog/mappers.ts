@@ -72,7 +72,6 @@ function normalizeWorkSummary(work: WorkSummaryInput) {
         originalTitle: work.originalTitle,
         romanizedTitle: work.romanizedTitle,
         type: normalizeOptionSummary(work.type),
-        country: work.country,
         visibility: work.visibility,
         adultContent: work.adultContent,
         coverAssetId: work.coverAssetId,

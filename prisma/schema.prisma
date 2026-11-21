@@ -109,8 +109,6 @@ model DomainOptionValue {
   active                       Boolean                       @default(true)
   criadoEm                     DateTime                      @default(now()) @map("criado_em") @db.Timestamptz
   category                     DomainOptionCategory          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  dependencies                 DomainOptionValueDependency[] @relation("DependentOption")
-  dependents                   DomainOptionValueDependency[] @relation("DependencyOption")
   worksAsType                  Work[]                        @relation("WorkType")
   workOriginalPublishers       WorkOriginalPublisher[]       @relation("WorkOriginalPublisherOption")
   workAuthors                  WorkAuthor[]                  @relation("WorkAuthorAuthor")
@@ -129,17 +127,6 @@ model DomainOptionValue {
   @@map("domain_option_values")
 }
 
-model DomainOptionValueDependency {
-  dependentValueId Int               @map("dependent_value_id")
-  dependsOnValueId Int               @map("depends_on_value_id")
-  dependentValue   DomainOptionValue @relation("DependentOption", fields: [dependentValueId], references: [id], onDelete: Cascade)
-  dependsOnValue   DomainOptionValue @relation("DependencyOption", fields: [dependsOnValueId], references: [id], onDelete: Restrict)
-
-  @@id([dependentValueId, dependsOnValueId])
-  @@index([dependsOnValueId], map: "idx_domain_option_dependencies_depends_on")
-  @@map("domain_option_value_dependencies")
-}
-
 model Work {
   id                           Int                         @id @default(autoincrement())
   slug                         String                      @unique @db.VarChar(255)
@@ -154,7 +141,6 @@ model Work {
   originalPublicationEndYear   Int?                        @map("original_publication_end_year")
   directRelease                Boolean                     @default(false) @map("direct_release")
   typeId                       Int                         @map("type_id")
-  country                      String                      @db.VarChar(40)
   originalPublicationStatus    String                      @map("original_publication_status") @db.VarChar(40)
   coverAssetId                 String                      @unique @map("cover_asset_id") @db.Uuid
   visibility                   String                      @default("Privado") @db.VarChar(20)
@@ -178,10 +164,9 @@ model Work {
   @@index([searchOriginalTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_search_original_title_trgm")
   @@index([searchRomanizedTitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "idx_works_search_romanized_title_trgm")
   @@index([typeId], map: "idx_works_type")
-  @@index([country], map: "idx_works_country")
   @@index([originalPublicationStatus], map: "idx_works_original_publication_status")
   @@index([visibility], map: "idx_works_visibility")
-  @@index([visibility, adultContent, typeId, country, id], map: "idx_works_public_filters")
+  @@index([visibility, adultContent, typeId, id], map: "idx_works_public_filters")
   @@index([visibility, title, id], map: "idx_works_visibility_title")
   @@index([visibility, originalPublicationStatus, id], map: "idx_works_visibility_original_status")
   @@map("works")

@@ -74,15 +74,14 @@ function buildWorkPayload(overrides = {}) {
         romanizedTitle: `${fixturePrefix}_${overrides.suffix || 'obra'}`,
         synopsis: 'Sinopse da Obra de teste.',
         typeId: fixture.mangaType.id,
-        country: 'Japão',
+
         originalPublicationStatus: 'Completa',
         coverAssetId: overrides.coverAssetId,
         authors: [{ authorId: fixture.author.id, roles: ['História e Arte'] }],
         genreIds: overrides.genreIds || [],
         demographies: overrides.demographies || [],
         adultContent: overrides.adultContent === undefined ? false : overrides.adultContent,
-        ...(overrides.typeId ? { typeId: overrides.typeId } : {}),
-        ...(overrides.country ? { country: overrides.country } : {})
+        ...(overrides.typeId ? { typeId: overrides.typeId } : {})
     };
 }
 
@@ -109,7 +108,7 @@ describe('classificações controladas na área administrativa de Obras', () => 
     beforeAll(async () => {
         await deleteFixtures();
         fixture.mangaType = await findOfficialOption('tipos-obra', 'manga');
-        fixture.manhwaType = await findOfficialOption('tipos-obra', 'manhwa');
+        fixture.lightNovelType = await findOfficialOption('tipos-obra', 'light-novel');
         fixture.hentai = await findOfficialOption('generos', 'hentai');
         fixture.boysLove = await findOfficialOption('generos', 'boys-love');
         fixture.girlsLove = await findOfficialOption('generos', 'girls-love');
@@ -120,6 +119,23 @@ describe('classificações controladas na área administrativa de Obras', () => 
     });
 
     afterAll(deleteFixtures);
+
+    it('filtra demografia em conjunto com tipo e visibilidade e mantém contagem e paginação', async () => {
+        const first = await createWorkThroughApi(sessionCookie, { suffix: 'demography-filter-a', demographies: ['Shonen'] });
+        const second = await createWorkThroughApi(sessionCookie, { suffix: 'demography-filter-b', demographies: ['Seinen'] });
+        const third = await createWorkThroughApi(sessionCookie, { suffix: 'demography-filter-c', demographies: ['Shonen', 'Seinen'] });
+        const without = await createWorkThroughApi(sessionCookie, { suffix: 'demography-filter-d' });
+        for (const response of [first, second, third, without]) expect(response.status).toBe(201);
+        const query = { term: `${fixturePrefix}_demography-filter`, demography: 'Seinen', typeId: fixture.mangaType.id, visibility: 'Privado', limit: 1 };
+        const result = await request(app).get('/api/admin/works').set('Cookie', sessionCookie).query(query);
+        expect(result.status).toBe(200);
+        expect(result.body.works.map(work => work.id)).toEqual([second.body.work.id]);
+        expect(result.body.pagination).toMatchObject({ total: 2, totalPages: 2, page: 1 });
+        const next = await request(app).get('/api/admin/works').set('Cookie', sessionCookie).query({ ...query, page: 2 });
+        expect(next.body.works.map(work => work.id)).toEqual([third.body.work.id]);
+        const invalid = await request(app).get('/api/admin/works').set('Cookie', sessionCookie).query({ demography: 'Adulto' });
+        expect(invalid.status).toBe(400);
+    });
 
     it('recusa remover todos os autores e preserva vínculos e créditos', async () => {
         const created = await createWorkThroughApi(sessionCookie, { suffix: 'integridade-autores' });
@@ -160,27 +176,17 @@ describe('classificações controladas na área administrativa de Obras', () => 
         expect(persisted.rows[0]).toEqual({ start, end });
     });
 
-    it.each(Object.entries({
-        manga: ['Japão'], manhwa: ['Coreia do Sul'], manhua: ['China', 'Taiwan'],
-        'light-novel': ['Japão'], novel: ['China', 'Coreia do Sul', 'Japão', 'Taiwan'],
-        artbook: ['Japão'], databook: ['Japão']
-    }).flatMap(([code, allowed]) => ['Japão', 'Coreia do Sul', 'China', 'Taiwan']
-        .map(country => [code, country, allowed.includes(country)])))
-    ('valida tipo %s no país %s na criação e atualização', async (code, country, allowed) => {
+    it.each(['manga', 'light-novel', 'novel', 'artbook', 'databook'])
+    ('permite criar e atualizar o tipo %s sem país', async (code) => {
         const type = await findOfficialOption('tipos-obra', code);
-        const result = await createWorkThroughApi(sessionCookie, {
-            suffix: `matrix-create-${code}-${country}`, typeId: type.id, country
-        });
-        expect(result.status).toBe(allowed ? 201 : 400);
-        const existing = await createWorkThroughApi(sessionCookie, { suffix: `matrix-update-${code}-${country}` });
-        expect(existing.status).toBe(201);
-        const updated = await request(app).patch(`/api/admin/works/${existing.body.work.id}`)
-            .set('Cookie', sessionCookie).send({ typeId: type.id, country });
-        expect(updated.status).toBe(allowed ? 200 : 400);
-        if (!allowed) {
-            const stored = await db.query('SELECT type_id, country FROM works WHERE id = $1', [existing.body.work.id]);
-            expect(stored.rows[0]).toEqual({ type_id: fixture.mangaType.id, country: 'Japão' });
-        }
+        const created = await createWorkThroughApi(sessionCookie, { suffix: 'type-create-' + code, typeId: type.id });
+        expect(created.status).toBe(201);
+        expect(created.body.work).not.toHaveProperty('country');
+        const existing = await createWorkThroughApi(sessionCookie, { suffix: 'type-update-' + code });
+        const updated = await request(app).patch('/api/admin/works/' + existing.body.work.id)
+            .set('Cookie', sessionCookie).send({ typeId: type.id });
+        expect(updated.status).toBe(200);
+        expect(updated.body.work.type.id).toBe(type.id);
     });
 
     it('força adultContent ao criar Obra com Hentai, mesmo recebendo false', async () => {
@@ -235,33 +241,33 @@ describe('classificações controladas na área administrativa de Obras', () => 
         expect(addedGenre.body.work.demographics).toEqual([]);
     });
 
-    it('recusa tipo de Obra incompatível com o país de origem', async () => {
+    it('recusa tipo de Obra inexistente', async () => {
         const response = await createWorkThroughApi(sessionCookie, {
-            suffix: 'tipo-incompativel',
-            typeId: fixture.manhwaType.id,
-            country: 'Japão'
+            suffix: 'tipo-invalido',
+            typeId: 2147483647,
+
         });
 
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Um ou mais valores selecionados são inválidos.');
     });
 
-    it('recusa tipo de Obra sem dependência de país declarada', async () => {
+    it('recusa tipo de Obra legado para novos vínculos', async () => {
         const response = await createWorkThroughApi(sessionCookie, {
             suffix: 'tipo-sem-dependencia',
             typeId: fixture.legacyType.id,
-            country: 'Japão'
+
         });
 
         expect(response.status).toBe(400);
         expect(response.body.error).toBe('Um ou mais valores selecionados são inválidos.');
     });
 
-    it('aceita tipo oficial no país declarado pela dependência', async () => {
+    it('aceita tipo oficial sem restringir pelo país de um cliente antigo', async () => {
         const response = await createWorkThroughApi(sessionCookie, {
-            suffix: 'manhwa-coreia',
-            typeId: fixture.manhwaType.id,
-            country: 'Coreia do Sul'
+            suffix: 'light-novel-sem-pais',
+            typeId: fixture.lightNovelType.id,
+
         });
 
         expect(response.status).toBe(201);
@@ -348,11 +354,6 @@ describe('classificações controladas na área administrativa de Obras', () => 
         expect(kept.status).toBe(200);
         expect(kept.body.work.type.id).toBe(fixture.legacyType.id);
         expect(kept.body.work.genres.map(genre => genre.id)).toContain(legacyGenre.id);
-        const country = await db.query(`SELECT value.id FROM domain_option_values value
-            JOIN domain_option_categories category ON category.id = value.category_id
-            WHERE category.slug = 'paises-origem' AND value.label = 'Japão'`);
-        await db.query(`INSERT INTO domain_option_value_dependencies (dependent_value_id, depends_on_value_id)
-            VALUES ($1, $2) ON CONFLICT DO NOTHING`, [fixture.legacyType.id, country.rows[0].id]);
         const rejectedType = await request(app).patch(`/api/admin/works/${another.body.work.id}`)
             .set('Cookie', sessionCookie).send({ typeId: fixture.legacyType.id });
         expect(rejectedType.status).toBe(400);

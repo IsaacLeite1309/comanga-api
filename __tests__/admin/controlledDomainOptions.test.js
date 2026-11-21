@@ -3,6 +3,7 @@ const path = require('node:path');
 
 const { createTestCover } = require('../helpers/cover');
 const db = require('../../src/database');
+const { legacyCountrySchema } = require('../helpers/legacyCountrySchema');
 
 const MIGRATION_PATH = path.join(
     __dirname,
@@ -14,13 +15,11 @@ const MIGRATION_PATH = path.join(
 );
 
 const OFFICIAL_WORK_TYPES = {
-    artbook: ['Japão'],
-    databook: ['Japão'],
-    'light-novel': ['Japão'],
-    manga: ['Japão'],
-    manhua: ['China', 'Taiwan'],
-    manhwa: ['Coreia do Sul'],
-    novel: ['China', 'Coreia do Sul', 'Japão', 'Taiwan']
+    artbook: [],
+    databook: [],
+    'light-novel': [],
+    manga: [],
+    novel: []
 };
 
 const OFFICIAL_GENRES = [
@@ -36,7 +35,7 @@ const fixturePrefix = `controlled_${runId}`;
 jest.setTimeout(30000);
 
 function readMigrationSql() {
-    return fs.readFileSync(MIGRATION_PATH, 'utf8');
+    return legacyCountrySchema + fs.readFileSync(MIGRATION_PATH, 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../prisma/migrations/20261121120000_remove_country_and_retired_work_types/migration.sql'), 'utf8');
 }
 
 async function listControlledValues(categorySlug) {
@@ -52,21 +51,10 @@ async function listControlledValues(categorySlug) {
     return result.rows;
 }
 
-async function listWorkTypeCountries() {
-    const result = await db.query(
-        `SELECT work_type.code, country.label
-         FROM domain_option_value_dependencies dependency
-         JOIN domain_option_values work_type ON work_type.id = dependency.dependent_value_id
-         JOIN domain_option_categories type_category
-             ON type_category.id = work_type.category_id AND type_category.slug = 'tipos-obra'
-         JOIN domain_option_values country ON country.id = dependency.depends_on_value_id
-         ORDER BY work_type.code, country.label`
-    );
-
-    return result.rows.reduce((grouped, row) => ({
-        ...grouped,
-        [row.code]: [...(grouped[row.code] || []), row.label]
-    }), {});
+async function expectCountryStructureRemoved() {
+    const result = await db.query("SELECT to_regclass('domain_option_value_dependencies') AS dependencies");
+    expect(result.rows).toEqual([{ dependencies: null }]);
+    expect((await db.query("SELECT id FROM domain_option_categories WHERE slug='paises-origem'")).rows).toEqual([]);
 }
 
 async function deleteFixtures() {
@@ -98,9 +86,7 @@ describe('semeadura idempotente dos valores controlados', () => {
                 VALUES ($1,$2,FALSE) RETURNING id`, [original.category_id, exactLabel])).rows[0];
             const mangaId = category === 'tipos-obra' ? original.id
                 : (await client.query("SELECT id FROM domain_option_values WHERE code='manga'")).rows[0].id;
-            const work = (await client.query(`INSERT INTO works
-                (cover_asset_id,slug,title,romanized_title,synopsis,type_id,country,original_publication_status,atualizado_em)
-                VALUES ($1,$2::text,$2::text,$2::text,$2::text,$3,'Japão','Completa',NOW()) RETURNING id`,
+            const work = (await client.query(`INSERT INTO works (cover_asset_id,slug,title,romanized_title,synopsis,type_id,original_publication_status,atualizado_em) VALUES ($1,$2::text,$2::text,$2::text,$2::text,$3,'Completa',NOW()) RETURNING id`,
                 [await createTestCover(client, fixturePrefix), `${fixturePrefix}-equivalentes`, mangaId])).rows[0];
             if (category === 'generos') {
                 await client.query('INSERT INTO work_genres(work_id,genre_id) VALUES ($1,$2)', [work.id, original.id]);
@@ -126,7 +112,7 @@ describe('semeadura idempotente dos valores controlados', () => {
         }
     });
 
-    it('mantém os 7 tipos e os 21 gêneros oficiais com código, controle e ordem', async () => {
+    it('mantém os 5 tipos e os 21 gêneros oficiais com código, controle e ordem', async () => {
         const workTypes = await listControlledValues('tipos-obra');
         const genres = await listControlledValues('generos');
         const officialTypes = workTypes.filter((value) => value.system_managed);
@@ -135,12 +121,12 @@ describe('semeadura idempotente dos valores controlados', () => {
         expect(officialTypes.map((value) => value.code).sort()).toEqual(
             Object.keys(OFFICIAL_WORK_TYPES).sort()
         );
-        expect(officialTypes.map((value) => value.code)).toEqual(['manga', 'manhwa', 'manhua', 'light-novel', 'novel', 'artbook', 'databook']);
+        expect(officialTypes.map((value) => value.code)).toEqual(['manga', 'light-novel', 'novel', 'artbook', 'databook']);
         expect(officialGenres.map((value) => value.label)).toEqual(OFFICIAL_GENRES);
         expect(officialGenres.map((value) => value.position)).toEqual(
             OFFICIAL_GENRES.map((_label, index) => index)
         );
-        expect(await listWorkTypeCountries()).toEqual(OFFICIAL_WORK_TYPES);
+        await expectCountryStructureRemoved();
     });
 
     it('reexecutar o seed não duplica valores, não troca ids e preserva associações', async () => {
@@ -150,9 +136,8 @@ describe('semeadura idempotente dos valores controlados', () => {
         const hentai = genresBefore.find((value) => value.code === 'hentai');
         const coverAssetId = await createTestCover(db, fixturePrefix);
         const work = await db.query(
-            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id, country,
-                original_publication_status, visibility, adult_content, atualizado_em)
-             VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Japão', 'Completa', 'Privado', TRUE, NOW())
+            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id,
+                original_publication_status, visibility, adult_content, atualizado_em) VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Completa', 'Privado', TRUE, NOW())
              RETURNING id`,
             [coverAssetId, `${fixturePrefix}-obra`, `${fixturePrefix} Obra`, manga.id]
         );
@@ -166,7 +151,7 @@ describe('semeadura idempotente dos valores controlados', () => {
 
         expect(await listControlledValues('tipos-obra')).toEqual(typesBefore);
         expect(await listControlledValues('generos')).toEqual(genresBefore);
-        expect(await listWorkTypeCountries()).toEqual(OFFICIAL_WORK_TYPES);
+        await expectCountryStructureRemoved();
         const association = await db.query(
             'SELECT genre_id FROM work_genres WHERE work_id = $1',
             [work.rows[0].id]
@@ -204,9 +189,8 @@ describe('semeadura idempotente dos valores controlados', () => {
         const manga = (await listControlledValues('tipos-obra')).find((value) => value.code === 'manga');
         const coverAssetId = await createTestCover(db, fixturePrefix);
         const work = await db.query(
-            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id, country,
-                original_publication_status, visibility, adult_content, atualizado_em)
-             VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Japão', 'Completa', 'Público', FALSE, NOW())
+            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id,
+                original_publication_status, visibility, adult_content, atualizado_em) VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Completa', 'Público', FALSE, NOW())
              RETURNING id`,
             [coverAssetId, `${fixturePrefix}-legada`, `${fixturePrefix} Legada`, manga.id]
         );
@@ -222,7 +206,7 @@ describe('semeadura idempotente dos valores controlados', () => {
     });
 
     it('versiona a semeadura de forma reexecutável e sem exclusões destrutivas', () => {
-        const sql = readMigrationSql();
+        const sql = fs.readFileSync(MIGRATION_PATH, 'utf8');
 
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS code');
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS system_managed');

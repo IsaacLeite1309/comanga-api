@@ -8,7 +8,7 @@ async function fixture() {
     const type = await db.query("SELECT v.id FROM domain_option_values v JOIN domain_option_categories c ON c.id=v.category_id WHERE c.slug='tipos-obra' LIMIT 1");
     const category = await db.query("INSERT INTO domain_option_categories(slug,name) VALUES ('editoras-brasileiras','Editoras Brasileiras') ON CONFLICT(slug) DO UPDATE SET name=domain_option_categories.name RETURNING id");
     const publisher = await db.query('INSERT INTO domain_option_values(category_id,label) VALUES($1,$2) RETURNING id',[category.rows[0].id,prefix]);
-    const work = await db.query(`INSERT INTO works(slug,title,romanized_title,synopsis,type_id,country,original_publication_status,cover_asset_id,visibility) VALUES($1::text,$1::text,$1::text,$1::text,$2,'Japão','Completa',$3,'Público') RETURNING id`,[prefix,type.rows[0].id,await createTestCover(db,prefix)]);
+    const work = await db.query(`INSERT INTO works (slug,title,romanized_title,synopsis,type_id,original_publication_status,cover_asset_id,visibility) VALUES ($1::text,$1::text,$1::text,$1::text,$2,'Completa',$3,'Público') RETURNING id`,[prefix,type.rows[0].id,await createTestCover(db,prefix)]);
     const edition = await db.query(`INSERT INTO editions(work_id,brazilian_publisher_id,chronological_number,brazil_publication_status,visibility) VALUES($1,$2,1,'Completa','Público') RETURNING id`,[work.rows[0].id,publisher.rows[0].id]);
     const volumeIds=[];
     async function volume(number, editionId=edition.rows[0].id) {

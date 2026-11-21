@@ -68,7 +68,7 @@ function persistedWork(authors) {
         coverAssetId: COVER_ASSET_ID,
         coverAsset: null,
         type: { id: 1, label: 'Mangá' },
-        country: 'Japão',
+
         originalPublicationStatus: 'Completa',
         originalPublishers: [],
         genres: [],
@@ -84,7 +84,7 @@ function createBody(authors) {
         romanizedTitle: 'Obra',
         synopsis: 'Sinopse própria da Obra.',
         typeId: 1,
-        country: 'Japão',
+
         coverAssetId: COVER_ASSET_ID,
         originalPublicationStatus: 'Completa',
         directRelease: true,
@@ -175,7 +175,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             .mockResolvedValueOnce({
                 id: 1,
                 coverAssetId: COVER_ASSET_ID,
-                country: 'Japão',
+
                 typeId: 1,
                 authors: [{ authorId: 4 }, { authorId: 11 }],
                 originalPublishers: [],
@@ -222,7 +222,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             .mockResolvedValueOnce({
                 id: 1,
                 coverAssetId: COVER_ASSET_ID,
-                country: 'Japão',
+
                 typeId: 1,
                 authors: [{ authorId: 4 }, { authorId: 7 }, { authorId: 11 }],
                 originalPublishers: [],
@@ -256,7 +256,7 @@ describe('ordem editorial dos Autores nos endpoints administrativos', () => {
             .mockResolvedValueOnce({
                 id: 1,
                 coverAssetId: COVER_ASSET_ID,
-                country: 'Japão',
+
                 typeId: 1,
                 authors: [{ authorId: 4 }],
                 originalPublishers: [],

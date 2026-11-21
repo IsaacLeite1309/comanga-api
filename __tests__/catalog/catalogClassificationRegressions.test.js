@@ -13,9 +13,7 @@ let mangaId;
 let hentaiId;
 
 async function createWork(suffix) {
-    const result = await db.query(`INSERT INTO works
-        (title,romanized_title,synopsis,slug,type_id,country,original_publication_status,cover_asset_id,atualizado_em)
-        VALUES ($1::text,$1::text,$1::text,$1::text,$2,'Japão','Completa',$3,NOW()) RETURNING id`,
+    const result = await db.query(`INSERT INTO works (title,romanized_title,synopsis,slug,type_id,original_publication_status,cover_asset_id,atualizado_em) VALUES ($1::text,$1::text,$1::text,$1::text,$2,'Completa',$3,NOW()) RETURNING id`,
     [`${prefix}-${suffix}`, mangaId, await createTestCover(db, prefix)]);
     return result.rows[0].id;
 }
@@ -50,23 +48,23 @@ afterAll(async () => {
     await db.query('DELETE FROM users WHERE email=$1', [`${prefix}@regression.local`]);
 });
 
-it('valida o país do tipo inativo preservado e não permite novas associações', async () => {
+it('preserva o tipo inativo sem país e não permite novas associações', async () => {
     const workId = await createWork('inactive');
     const anotherId = await createWork('another');
-    const otherType = (await db.query("SELECT id FROM domain_option_values WHERE code='manhwa'")).rows[0].id;
-    await db.query("UPDATE works SET type_id=$1,country='Coreia do Sul' WHERE id=$2", [otherType, anotherId]);
+    const otherType = (await db.query("SELECT id FROM domain_option_values WHERE code='light-novel'")).rows[0].id;
+    await db.query("UPDATE works SET type_id=$1 WHERE id=$2", [otherType, anotherId]);
     await db.query('UPDATE domain_option_values SET active=false WHERE id=$1', [mangaId]);
     try {
         const kept = await request(app).patch(`/api/admin/works/${workId}`).set('Cookie', cookie)
-            .send({ typeId: mangaId, country: 'Japão', synopsis: 'Revisada.' });
+            .send({ typeId: mangaId, synopsis: 'Revisada.' });
         expect(kept.status).toBe(200);
         const invalid = await request(app).patch(`/api/admin/works/${workId}`).set('Cookie', cookie)
-            .send({ typeId: mangaId, country: 'Coreia do Sul' });
-        expect(invalid.status).toBe(400);
-        const persisted = await db.query('SELECT country FROM works WHERE id=$1', [workId]);
-        expect(persisted.rows[0].country).toBe('Japão');
+            .send({ typeId: mangaId });
+        expect(invalid.status).toBe(200);
+        const persisted = await db.query('SELECT synopsis FROM works WHERE id=$1', [workId]);
+        expect(persisted.rows[0].synopsis).toBe('Revisada.');
         const newLink = await request(app).patch(`/api/admin/works/${anotherId}`).set('Cookie', cookie)
-            .send({ typeId: mangaId, country: 'Japão' });
+            .send({ typeId: mangaId });
         expect(newLink.status).toBe(400);
     } finally {
         await db.query('UPDATE domain_option_values SET active=true WHERE id=$1', [mangaId]);
@@ -97,8 +95,8 @@ it('mantém a marca adulta ao adicionar Hentai e tentar desmarcá-la simultaneam
     expect(result.rows[0]).toEqual({ adult_content: true, has_hentai: true });
 });
 
-it('revalida tipo e país após aguardar outra atualização da mesma Obra', async () => {
-    const workId = await createWork('concurrent-country');
+it('serializa a troca de tipo sem alterar o país histórico', async () => {
+    const workId = await createWork('concurrent-type');
     const novelId = (await db.query("SELECT id FROM domain_option_values WHERE code='novel'")).rows[0].id;
     await db.query('UPDATE works SET type_id=$1 WHERE id=$2', [novelId, workId]);
     const blocker = await db.pool.connect();
@@ -107,7 +105,7 @@ it('revalida tipo e país após aguardar outra atualização da mesma Obra', asy
     await blocker.query('SELECT pg_advisory_xact_lock(9142026)');
     try {
         requests.push(request(app).patch(`/api/admin/works/${workId}`).set('Cookie', cookie)
-            .send({ country: 'China' }).then(response => response.status));
+            .send({ synopsis: 'Revisão concorrente.' }).then(response => response.status));
         await waitForBlockedRequests(1);
         requests.push(request(app).patch(`/api/admin/works/${workId}`).set('Cookie', cookie)
             .send({ typeId: mangaId }).then(response => response.status));
@@ -116,9 +114,9 @@ it('revalida tipo e país após aguardar outra atualização da mesma Obra', asy
         await blocker.query('ROLLBACK');
         blocker.release();
     }
-    expect(await Promise.all(requests)).toEqual([200, 400]);
-    const stored = await db.query('SELECT type_id,country FROM works WHERE id=$1', [workId]);
-    expect(stored.rows[0]).toEqual({ type_id: novelId, country: 'China' });
+    expect(await Promise.all(requests)).toEqual([200, 200]);
+    const stored = await db.query('SELECT type_id,synopsis FROM works WHERE id=$1', [workId]);
+    expect(stored.rows[0]).toEqual({ type_id: mangaId, synopsis: 'Revisão concorrente.' });
 });
 
 it('revalida o período após aguardar outra atualização da mesma Obra', async () => {
