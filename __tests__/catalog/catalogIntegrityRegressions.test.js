@@ -65,9 +65,8 @@ describe('integridade de Volumes e publicação concorrente', () => {
 
     beforeEach(async () => {
         const type = (await db.query("SELECT id FROM domain_option_values WHERE code='manga'")).rows[0].id;
-        work = (await db.query(`INSERT INTO works(cover_asset_id,slug,title,romanized_title,synopsis,type_id,country,
-            original_publication_status,visibility,atualizado_em)
-            VALUES($1,$2::text,$2::text,$2::text,$2::text,$3,'Japão','Completa','Público',NOW()) RETURNING id`,
+        work = (await db.query(`INSERT INTO works (cover_asset_id,slug,title,romanized_title,synopsis,type_id,
+            original_publication_status,visibility,atualizado_em) VALUES ($1,$2::text,$2::text,$2::text,$2::text,$3,'Completa','Público',NOW()) RETURNING id`,
         [await createTestCover(db, prefix), `${prefix}-${crypto.randomUUID()}`, type])).rows[0].id;
         edition = (await db.query(`INSERT INTO editions(work_id,brazilian_publisher_id,chronological_number,
             brazil_publication_status,visibility,atualizado_em) VALUES($1,$2,1,'Completa','Privado',NOW()) RETURNING id`,

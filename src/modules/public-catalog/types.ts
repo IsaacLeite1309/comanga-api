@@ -51,7 +51,6 @@ interface PublicWorkInput {
     originalTitle: string | null;
     romanizedTitle: string;
     coverAsset: PublicCoverAssetInput | null;
-    country: string;
     type: PublicOptionInput;
     authors: PublicAuthorRelationInput[];
 }

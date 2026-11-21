@@ -96,7 +96,7 @@ describe('planos de consulta do catalogo publico', () => {
 
         expect(extension.rows).toEqual([{ extname: 'pg_trgm' }]);
         expect(indexes.rows.find(row => row.indexname === 'idx_works_public_filters').indexdef)
-            .toMatch(/\(visibility, adult_content, type_id, country, id\)/);
+            .toMatch(/\(visibility, adult_content, type_id, id\)/);
         expect(indexes.rows.find(row => row.indexname === 'idx_work_genres_genre_work').indexdef)
             .toMatch(/\(genre_id, work_id\)/);
         expect(indexes.rows.find(row => row.indexname === 'idx_volumes_calendar_release').indexdef)
@@ -148,10 +148,9 @@ describe('planos de consulta do catalogo publico', () => {
              WHERE visibility = 'Público'
                AND adult_content = FALSE
                AND type_id = $1
-               AND country = $2
-             ORDER BY visibility, adult_content, type_id, country, id
+             ORDER BY visibility, adult_content, type_id, id
              LIMIT 50`,
-            [2147483640, 'Japão']
+            [2147483640]
         );
         const genrePlan = await explainAnalyze(
             `SELECT work_id

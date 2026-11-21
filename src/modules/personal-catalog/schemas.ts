@@ -23,7 +23,7 @@ const selectionQuerySchema = z.object({ ...paginationFields, all: z.literal('tru
 const collectionQuerySchema = z.object({
     ...paginationFields,
     term: z.string().trim().min(1).max(255).optional(),
-    status: z.enum(['complete', 'incomplete']).optional(),
+    status: z.enum(['complete', 'incomplete', 'up-to-date']).optional(),
     brazilianPublisherId: pageInteger.optional(),
     order: z.enum(['ASC', 'DESC']).optional()
 }).strict().refine(validPage);

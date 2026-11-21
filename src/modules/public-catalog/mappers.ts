@@ -43,7 +43,6 @@ function mapPublicWorkDetails(
         romanizedTitle: work.romanizedTitle,
         coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
-        country: work.country,
         originalPublicationStartYear: work.originalPublicationStartYear,
         originalPublicationEndYear: work.originalPublicationEndYear,
         directRelease: work.directRelease,
@@ -110,7 +109,6 @@ function mapPublicWork(work: PublicWorkInput) {
         romanizedTitle: work.romanizedTitle,
         coverUrl: mapCoverUrl(work.coverAsset),
         type: mapOption(work.type),
-        country: work.country,
         authors: mapAuthors(work.authors)
     };
 }

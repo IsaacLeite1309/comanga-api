@@ -7,7 +7,6 @@ import {
     ORIGINAL_PUBLICATION_STATUS_VALUES,
     VOLUME_PRICE_CURRENCY_VALUES,
     VOLUME_RELEASE_PRECISION_VALUES,
-    WORK_COUNTRY_VALUES,
     WORK_DEMOGRAPHY_VALUES,
     WORK_SORT_FIELDS,
     WORK_VISIBILITY_VALUES
@@ -49,7 +48,6 @@ const createWorkSchema = z.object({
     originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     directRelease: z.boolean().optional().default(false),
     typeId: z.coerce.number().int().positive(),
-    country: z.enum(WORK_COUNTRY_VALUES),
     originalPublisherIds: z.array(orderedWorkOptionSchema).optional().default([]),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES),
     coverAssetId: coverAssetIdSchema,
@@ -69,7 +67,6 @@ const updateWorkSchema = z.object({
     originalPublicationEndYear: z.coerce.number().int().min(1900).max(2200).optional().nullable(),
     directRelease: z.boolean().optional(),
     typeId: z.coerce.number().int().positive().optional(),
-    country: z.enum(WORK_COUNTRY_VALUES).optional(),
     authors: z.array(workAuthorSchema).min(1).optional(),
     originalPublicationStatus: z.enum(ORIGINAL_PUBLICATION_STATUS_VALUES).optional().nullable(),
     coverAssetId: coverAssetIdSchema.optional(),
@@ -87,7 +84,7 @@ const updateWorkVisibilitySchema = z.object({
 const listWorksQuerySchema = z.object({
     term: z.string().trim().optional(),
     typeId: z.coerce.number().int().positive().optional(),
-    country: z.enum(WORK_COUNTRY_VALUES).optional(),
+    demography: z.enum(WORK_DEMOGRAPHY_VALUES).optional(),
     visibility: z.enum(WORK_VISIBILITY_VALUES).optional(),
     sortBy: z.enum(WORK_SORT_FIELDS).default('title'),
     order: z.enum(['ASC', 'DESC']).default('ASC'),

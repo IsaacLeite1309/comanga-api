@@ -29,7 +29,6 @@ interface WorkSummaryInput {
     coverAsset: CoverAssetInput | null;
     editionsCount?: number;
     type: OptionSummary;
-    country: string;
     authors?: Array<{
         position?: number;
         author: OptionSummary;

@@ -31,24 +31,10 @@ describe('politica de categorias administrativas', () => {
         expect(isListableOptionCategory(slug)).toBe(true);
     });
 
-    it('lista paises de origem como referencia sem permitir sua edicao', async () => {
-        prisma.domainOptionCategory.findUnique.mockResolvedValueOnce({
-            id: 4,
-            slug: 'paises-origem',
-            name: 'País de origem'
-        });
-
-        expect(isManageableOptionCategory('paises-origem')).toBe(false);
-        expect(isListableOptionCategory('paises-origem')).toBe(true);
-        await expect(findListableCategoryBySlug('paises-origem')).resolves.toEqual({
-            id: 4,
-            slug: 'paises-origem',
-            name: 'País de origem'
-        });
-        expect(prisma.domainOptionCategory.findUnique).toHaveBeenCalledWith({
-            where: { slug: 'paises-origem' }
-        });
-    });
+    it('não oferece país de origem como opção administrativa', async () => {
+   expect(isManageableOptionCategory('paises-origem')).toBe(false);expect(isListableOptionCategory('paises-origem')).toBe(false);
+   await expect(findListableCategoryBySlug('paises-origem')).resolves.toBeNull();expect(prisma.domainOptionCategory.findUnique).not.toHaveBeenCalled();
+ });
 
     it.each([
         'paises-origem',

@@ -25,8 +25,6 @@ export {
     updateVolume
 } from './volumes';
 export {
-    COUNTRY_CATEGORY_SLUG,
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
     EDITION_FORM_OPTION_CATEGORIES,
     WORK_FORM_OPTION_CATEGORIES
 } from './constants';

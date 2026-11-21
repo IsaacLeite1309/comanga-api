@@ -76,7 +76,6 @@ function buildPublicWorkWhere(
         visibility: PUBLIC_VISIBILITY,
         ...buildAdultWorkRestriction(canViewAdultContent),
         ...(query.typeId ? { typeId: query.typeId } : {}),
-        ...(query.country ? { country: query.country } : {}),
         ...(query.originalPublisherId
             ? { originalPublishers: { some: { publisherId: query.originalPublisherId } } }
             : {}),
@@ -221,7 +220,6 @@ const publicWorkSelect = {
             }
         }
     },
-    country: true,
     type: {
         select: { id: true, label: true }
     },
@@ -315,7 +313,6 @@ const publicWorkDetailSelect = {
     originalPublicationStartYear: true,
     originalPublicationEndYear: true,
     directRelease: true,
-    country: true,
     originalPublicationStatus: true,
     coverAsset: { select: publicCoverAssetSelect },
     type: { select: { id: true, label: true } },

@@ -87,11 +87,10 @@ describe('integridade dos valores fechados do dominio', () => {
                 synopsis,
                 slug,
                 type_id,
-                country,
                 original_publication_status,
                 visibility,
                 atualizado_em
-             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', 'Oculto', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Completa', 'Oculto', NOW())`,
             [`integrity_${runId}_invalid_visibility`, `integrity-${runId}-invalid-visibility`, typeId]
         )).rejects.toMatchObject({ code: '23514' });
     });
@@ -111,10 +110,9 @@ describe('integridade dos valores fechados do dominio', () => {
                     synopsis,
                     slug,
                     type_id,
-                    country,
                     original_publication_status,
                     atualizado_em
-                 ) VALUES ('${await createTestCover(client, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', NOW())
+                 ) VALUES ('${await createTestCover(client, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Completa', NOW())
                  RETURNING id`,
                 [`integrity_${runId}_publisher`, `integrity-${runId}-publisher`, typeId]
             );
@@ -134,6 +132,8 @@ describe('integridade dos valores fechados do dominio', () => {
             await client.query("UPDATE works SET original_publication_status = CASE original_publication_status WHEN 'Completa' THEN 'Completo' WHEN 'Cancelada' THEN 'Cancelado' ELSE original_publication_status END");
             await client.query("UPDATE editions SET brazil_publication_status = CASE brazil_publication_status WHEN 'Completa' THEN 'Completo' WHEN 'Cancelada' THEN 'Cancelado' ELSE brazil_publication_status END");
 
+            // Esta migration histórica ainda normalizava país de origem.
+            await client.query("ALTER TABLE works ADD COLUMN country VARCHAR(40) NOT NULL DEFAULT 'Japão'");
             const migrationSql = fs.readFileSync(MIGRATION_PATH, 'utf8')
                 .replace(/^BEGIN;\s*/, '')
                 .replace(/\s*COMMIT;\s*$/, '');
@@ -176,10 +176,9 @@ describe('integridade dos valores fechados do dominio', () => {
                 synopsis,
                 slug,
                 type_id,
-                country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', NOW())
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Completa', NOW())
              RETURNING id, slug`,
             [title, slug, typeId]
         );
@@ -192,10 +191,9 @@ describe('integridade dos valores fechados do dominio', () => {
                 synopsis,
                 slug,
                 type_id,
-                country,
                 original_publication_status,
                 atualizado_em
-             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Japão', 'Completa', NOW())`,
+             ) VALUES ('${await createTestCover(db, `integrity_${runId}`)}', $1::text, $1::text, $1::text, $2, $3, 'Completa', NOW())`,
             [`${title}_duplicated`, slug, typeId]
         )).rejects.toMatchObject({ code: '23505' });
 
@@ -223,12 +221,10 @@ describe('integridade dos valores fechados do dominio', () => {
                     synopsis,
                     slug,
                     type_id,
-                    country,
                     original_publication_status,
                     atualizado_em
-                 ) VALUES
-                    ('${await createTestCover(client)}', $1::text, $1::text, $1::text, NULL, $3, 'Japão', 'Completa', NOW()),
-                    ('${await createTestCover(client)}', $2::text, $2::text, $2::text, NULL, $3, 'Japão', 'Completa', NOW())`,
+                 ) VALUES ('${await createTestCover(client)}', $1::text, $1::text, $1::text, NULL, $3, 'Completa', NOW()),
+                    ('${await createTestCover(client)}', $2::text, $2::text, $2::text, NULL, $3, 'Completa', NOW())`,
                 [
                     `integrity_${runId}_Ação Total`,
                     `integrity_${runId}_Acao Total`,

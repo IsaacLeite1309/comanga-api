@@ -12,9 +12,8 @@ async function catalogOption(prisma, slug, label, code) {
 }
 
 async function catalogOptions(prisma) {
-    const [type, country, genre, otherGenre, paper] = await Promise.all([
+    const [type, genre, otherGenre, paper] = await Promise.all([
         prisma.domainOptionValue.findFirstOrThrow({ where: { category: { slug: 'tipos-obra' }, code: 'manga' } }),
-        prisma.domainOptionValue.findFirstOrThrow({ where: { category: { slug: 'paises-origem' }, label: 'Japão' } }),
         prisma.domainOptionValue.findFirstOrThrow({ where: { category: { slug: 'generos' }, code: 'aventura' } }),
         prisma.domainOptionValue.findFirstOrThrow({ where: { category: { slug: 'generos' }, code: 'acao' } }),
         prisma.domainOptionValue.findFirstOrThrow({ where: { category: { slug: 'miolos' }, label: 'Papel' } })
@@ -26,7 +25,7 @@ async function catalogOptions(prisma) {
         catalogOption(prisma, 'tipos-capa', 'Capa sintética CoMangá')
     ]);
     return {
-        typeId: type.id, countryId: country.id, authorId: author.id, publisherId: publisher.id,
+        typeId: type.id, authorId: author.id, publisherId: publisher.id,
         genreId: genre.id, otherGenreId: otherGenre.id, formatId: format.id, coverTypeId: coverType.id, paperId: paper.id
     };
 }
@@ -62,7 +61,7 @@ function createCatalogWork(prisma, options, { slug, title, count = 1, adultConte
     return prisma.work.create({
         data: {
             slug, title, romanizedTitle: title, synopsis: 'Sinopse sintética para a carga local do catálogo.',
-            type: { connect: { id: options.typeId } }, country: 'Japão', originalPublicationStatus: 'Completa',
+            type: { connect: { id: options.typeId } }, originalPublicationStatus: 'Completa',
             originalPublicationStartYear: 2015, originalPublicationEndYear: 2018,
             visibility: PUBLIC, adultContent, coverAsset: makeCover(`carga/${slug}/obra.webp`),
             authors: { create: { authorId: options.authorId, roles: { create: { role: 'História e Arte' } } } },

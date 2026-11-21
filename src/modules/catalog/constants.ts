@@ -3,10 +3,9 @@ const WORK_DUPLICATED_MESSAGE = 'Obra já cadastrada!';
 const REQUIRED_WORK_FIELDS_MESSAGE = 'Preencha os campos obrigatórios da Obra.';
 const INVALID_DOMAIN_REFERENCE_MESSAGE = 'Um ou mais valores selecionados são inválidos.';
 const WORK_VISIBILITY_VALUES = ['Privado', 'Público'] as const;
-const WORK_SORT_FIELDS = ['title', 'author', 'country', 'type', 'editions', 'visibility'] as const;
+const WORK_SORT_FIELDS = ['title', 'author', 'type', 'editions', 'visibility'] as const;
 const AUTHOR_ROLE_VALUES = ['História e Arte', 'História', 'Arte', 'Criador Original', 'História Original', 'História e ilustrações', 'Ilustrador', 'Design de Personagens'] as const;
 const AUTHOR_ROLE_PRIORITY_VALUES = ['Criador Original', 'História Original', 'História e Arte', 'História', 'Arte', 'História e ilustrações', 'Ilustrador', 'Design de Personagens'] as const;
-const WORK_COUNTRY_VALUES = ['Japão', 'Coreia do Sul', 'China', 'Taiwan'] as const;
 const ORIGINAL_PUBLICATION_STATUS_VALUES = ['Completa', 'Em andamento', 'Em hiato', 'Cancelada'] as const;
 const WORK_DEMOGRAPHY_VALUES = ['Shonen', 'Shoujo', 'Seinen', 'Josei', 'Kodomo'] as const;
 const WORK_DOMAIN_CATEGORIES = {
@@ -16,7 +15,6 @@ const WORK_DOMAIN_CATEGORIES = {
     genreIds: 'generos',
     magazineIds: 'revistas-serializacao'
 } as const;
-const COUNTRY_CATEGORY_SLUG = 'paises-origem';
 const WORK_FORM_OPTION_CATEGORIES = {
     authors: 'autores',
     workTypes: 'tipos-obra',
@@ -45,18 +43,6 @@ const VOLUME_DUPLICATED_MESSAGE = 'Um volume desta edição com esse mesmo núme
 const PUBLIC_VOLUME_DELETE_MESSAGE = 'Essa Obra está pública, não pode ser excluída!';
 const VOLUME_PRICE_CURRENCY_VALUES = ['R$', 'CR$', 'Cr$', 'NCz$', 'Cz$'] as const;
 const VOLUME_RELEASE_PRECISION_VALUES = ['Completa', 'Mes e ano', 'Ano'] as const;
-const COUNTRY_DEPENDENT_CATEGORY_SLUGS = new Set([
-    'autores',
-    'tipos-obra',
-    'revistas-serializacao',
-    'editoras-originais'
-]);
-// Tipos de Obra oficiais têm dependência de país completa: sem dependência com o
-// país informado a combinação é recusada. Autores, editoras e revistas seguem
-// aceitando valores sem dependência declarada.
-const COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS = new Set([
-    'tipos-obra'
-]);
 export {
     AUTHOR_DUPLICATED_MESSAGE,
     WORK_DUPLICATED_MESSAGE,
@@ -66,11 +52,9 @@ export {
     WORK_SORT_FIELDS,
     AUTHOR_ROLE_VALUES,
     AUTHOR_ROLE_PRIORITY_VALUES,
-    WORK_COUNTRY_VALUES,
     ORIGINAL_PUBLICATION_STATUS_VALUES,
     WORK_DEMOGRAPHY_VALUES,
     WORK_DOMAIN_CATEGORIES,
-    COUNTRY_CATEGORY_SLUG,
     WORK_FORM_OPTION_CATEGORIES,
     EDITION_FORM_OPTION_CATEGORIES,
     EDITION_VISIBILITY_VALUES,
@@ -87,6 +71,4 @@ export {
     PUBLIC_VOLUME_DELETE_MESSAGE,
     VOLUME_PRICE_CURRENCY_VALUES,
     VOLUME_RELEASE_PRECISION_VALUES,
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
-    COUNTRY_DEPENDENCY_MANDATORY_CATEGORY_SLUGS
 };

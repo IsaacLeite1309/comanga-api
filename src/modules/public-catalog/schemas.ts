@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import {
     PUBLIC_PUBLICATION_STATUSES,
-    PUBLIC_WORK_COUNTRIES,
     PUBLIC_WORK_DEMOGRAPHICS
 } from './constants';
 
@@ -41,7 +40,6 @@ const publicationYearSchema = z.coerce.number().int().min(1900).max(lastPublicat
 const publicWorksQuerySchema = z.object({
     term: z.string().trim().max(255).optional(),
     typeId: z.coerce.number().int().positive().optional(),
-    country: z.enum(PUBLIC_WORK_COUNTRIES).optional(),
     demographics: demographyListSchema,
     genreIds: positiveIntegerListSchema,
     originalPublisherId: z.coerce.number().int().positive().optional(),

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import prisma from '../../../prisma';
 import { withCatalogWriteLock } from '../writeLock';
 import { activateCoverAsset, deleteOrphanedCoverAsset, isCoverAssetAttachable } from '../../media';
-import { AUTHOR_DUPLICATED_MESSAGE, WORK_DUPLICATED_MESSAGE, REQUIRED_WORK_FIELDS_MESSAGE, INVALID_DOMAIN_REFERENCE_MESSAGE, WORK_DOMAIN_CATEGORIES, PrismaKnownError, WorkDetailInput, normalizeWorkDetail, normalizeOrderedIds, normalizeOrderedAuthors, getOrderedIds, findDuplicatedNumbers, containsHentaiGenre, containsGenreWithoutDemography, workHasHentaiGenre, validateOptionIdsByCategory, updateWorkSchema, validateSelectedOptionsByCountry, getWorkDetailInclude, parsePositiveId } from '../shared';
+import { AUTHOR_DUPLICATED_MESSAGE, WORK_DUPLICATED_MESSAGE, REQUIRED_WORK_FIELDS_MESSAGE, INVALID_DOMAIN_REFERENCE_MESSAGE, WORK_DOMAIN_CATEGORIES, PrismaKnownError, WorkDetailInput, normalizeWorkDetail, normalizeOrderedIds, normalizeOrderedAuthors, getOrderedIds, findDuplicatedNumbers, containsHentaiGenre, containsGenreWithoutDemography, workHasHentaiGenre, validateOptionIdsByCategory, updateWorkSchema, getWorkDetailInclude, parsePositiveId } from '../shared';
 
 import { hasDuplicatedWorkRelations, hasInvalidPublicationPeriod } from './validation';
 
@@ -20,7 +20,6 @@ async function normalizeAdultContentOnUpdate(workId: number, data: UpdateWorkDat
 }
 
 interface CurrentWorkDomainReferences {
-    country: string;
     typeId: number;
     type?: { systemManaged: boolean };
     genres?: Array<{ genreId: number }>;
@@ -70,36 +69,7 @@ async function validatePartialWorkDomainReferences(
         return false;
     }
 
-    if (!currentWork) {
-        return true;
-    }
-
-    return validateWorkCountryReferences(data, currentWork, client);
-}
-
-async function validateWorkCountryReferences(
-    data: z.infer<typeof updateWorkSchema>, currentWork: CurrentWorkDomainReferences, client: Prisma.TransactionClient
-) {
-    const country = data.country || currentWork.country;
-    const preservingLegacyType = currentWork.type?.systemManaged === false
-        && (!data.typeId || data.typeId === currentWork.typeId) && country === currentWork.country;
-    const typeIds = preservingLegacyType ? [] : [data.typeId || currentWork.typeId];
-    const authorIds = data.authors
-        ? data.authors.map((author) => author.authorId)
-        : currentWork.authors.map((author) => author.authorId);
-    const originalPublisherIds = data.originalPublisherIds !== undefined
-        ? getOrderedIds(normalizeOrderedIds(data.originalPublisherIds))
-        : currentWork.originalPublishers.map((publisher) => publisher.publisherId);
-    const magazineIds = data.magazineIds
-        ? getOrderedIds(normalizeOrderedIds(data.magazineIds))
-        : currentWork.serializationMagazines.map((magazine) => magazine.magazineId);
-
-    return validateSelectedOptionsByCountry([
-        { categorySlug: WORK_DOMAIN_CATEGORIES.typeId, ids: typeIds },
-        { categorySlug: WORK_DOMAIN_CATEGORIES.authorId, ids: authorIds },
-        { categorySlug: WORK_DOMAIN_CATEGORIES.originalPublishers, ids: originalPublisherIds },
-        { categorySlug: WORK_DOMAIN_CATEGORIES.magazineIds, ids: magazineIds }
-    ], country, client);
+    return true;
 }
 
 type UpdateWorkData = z.infer<typeof updateWorkSchema>;
@@ -149,7 +119,6 @@ async function findWorkForUpdate(workId: number, client: Prisma.TransactionClien
             coverAssetId: true,
             originalPublicationStartYear: true,
             originalPublicationEndYear: true,
-            country: true,
             typeId: true,
             type: { select: { systemManaged: true } },
             genres: { select: { genreId: true } },
@@ -208,7 +177,6 @@ function buildWorkUpdateData(data: UpdateWorkData) {
     assignPublicationUpdateData(updateData, data);
     if (data.directRelease !== undefined) updateData.directRelease = data.directRelease;
     if (data.typeId !== undefined) updateData.typeId = data.typeId;
-    if (data.country !== undefined) updateData.country = data.country;
     if (data.originalPublicationStatus !== undefined) updateData.originalPublicationStatus = data.originalPublicationStatus;
     if (data.coverAssetId !== undefined) updateData.coverAssetId = data.coverAssetId;
     if (data.adultContent !== undefined) updateData.adultContent = data.adultContent;
@@ -298,7 +266,7 @@ function buildWorkUpdateOperations(
     ];
 }
 
-// Releitura sob o lock evita combinar tipo/país validados contra versões diferentes.
+// Releitura sob o lock mantém a validação dos vínculos consistente.
 async function persistWorkUpdate(
     workId: number, data: UpdateWorkData, relations: ReturnType<typeof prepareUpdateWorkRelations>
 ) {

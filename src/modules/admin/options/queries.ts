@@ -1,8 +1,7 @@
 import prisma from '../../../prisma';
 import { isOrderedOptionCategory, isSystemManagedOptionCategory } from '../../../utils/domainOptionCodes';
-import { COUNTRY_DEPENDENT_CATEGORY_SLUGS } from '../../catalog';
 
-function getOptionValueSelect(includeDependencies: boolean) {
+function getOptionValueSelect() {
     return {
         id: true,
         label: true,
@@ -12,23 +11,7 @@ function getOptionValueSelect(includeDependencies: boolean) {
         active: true,
         category: {
             select: { slug: true, name: true }
-        },
-        ...(includeDependencies
-            ? {
-                dependencies: {
-                    select: {
-                        dependsOnValue: {
-                            select: {
-                                id: true,
-                                label: true,
-                                category: { select: { slug: true, name: true } }
-                            }
-                        }
-                    },
-                    orderBy: { dependsOnValue: { label: 'asc' as const } }
-                }
-            }
-            : {})
+        }
     };
 }
 
@@ -39,7 +22,7 @@ function buildFormOptionQuery(categorySlug: string) {
             ...(isSystemManagedOptionCategory(categorySlug) ? { systemManaged: true } : {}),
             category: { slug: categorySlug }
         },
-        select: getOptionValueSelect(COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(categorySlug)),
+        select: getOptionValueSelect(),
         orderBy: buildOptionValueOrderBy(categorySlug, 'asc')
     });
 }

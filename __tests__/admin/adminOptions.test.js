@@ -125,35 +125,11 @@ describe('Rotas administrativas de opcoes', () => {
         ]);
     });
 
-    it('lista paises de origem como referencia sem permitir seu cadastro', async () => {
-        const admin = makeUser({ suffix: 'country-reference' });
-        await insertUser(admin);
-        const sessionCookie = await loginUser(admin);
-        const countryLabel = `Sprint4 ${runId} País`;
-        await insertOption(countryLabel, 'paises-origem');
-
-        const listResponse = await request(app)
-            .get('/api/admin/options/paises-origem')
-            .query({ order: 'ASC', page: 1, limit: 100 })
-            .set('Cookie', sessionCookie);
-
-        expect(listResponse.status).toBe(200);
-        expect(listResponse.body.category).toEqual(expect.objectContaining({
-            slug: 'paises-origem',
-            name: expect.any(String)
-        }));
-        expect(listResponse.body.values.map((value) => value.label)).toEqual(
-            expect.arrayContaining([countryLabel])
-        );
-
-        const createResponse = await request(app)
-            .post('/api/admin/options')
-            .set('Cookie', sessionCookie)
-            .send({ category: 'paises-origem', label: 'Brasil' });
-
-        expect(createResponse.status).toBe(404);
-        expect(createResponse.body).toEqual({ error: 'Categoria não encontrada.' });
-    });
+    it('não oferece país de origem nas opções administrativas', async () => {
+ const admin=makeUser({suffix:'retired-country'});await insertUser(admin);const cookie=await loginUser(admin);
+ const response=await request(app).get('/api/admin/options/paises-origem').set('Cookie',cookie);expect(response.status).toBe(404);
+ const created=await request(app).post('/api/admin/options').set('Cookie',cookie).send({category:'paises-origem',label:'Brasil'});expect(created.status).toBe(404);
+});
 
     it('bloqueia duplicidade de valor dentro da mesma categoria', async () => {
         const admin = makeUser({ suffix: 'duplicate' });
@@ -264,14 +240,9 @@ describe('valores de dom\u00ednio controlados pelo sistema', () => {
         expect(response.status).toBe(200);
         const byCode = Object.fromEntries(response.body.values.map((value) => [value.code, value]));
         expect(Object.keys(byCode).sort()).toEqual([
-            'artbook', 'databook', 'light-novel', 'manga', 'manhua', 'manhwa', 'novel'
+            'artbook', 'databook', 'light-novel', 'manga', 'novel'
         ]);
-        expect(byCode.manga.depends_on.map((country) => country.label)).toEqual(['Jap\u00e3o']);
-        expect(byCode.manhua.depends_on.map((country) => country.label)).toEqual(['China', 'Taiwan']);
-        expect(byCode.manhwa.depends_on.map((country) => country.label)).toEqual(['Coreia do Sul']);
-        expect(byCode.novel.depends_on.map((country) => country.label)).toEqual([
-            'China', 'Coreia do Sul', 'Jap\u00e3o', 'Taiwan'
-        ]);
+        expect(response.body.values.every(value => !Object.hasOwn(value, 'depends_on'))).toBe(true);
         expect(response.body.values.every((value) => value.systemManaged)).toBe(true);
     });
 
@@ -302,11 +273,6 @@ describe('valores de dom\u00ednio controlados pelo sistema', () => {
         const sessionCookie = await loginUser(admin);
         const hentai = await findOptionByCode('generos', 'hentai');
         const manga = await findOptionByCode('tipos-obra', 'manga');
-        const country = await db.query(
-            `SELECT value.id FROM domain_option_values value
-             JOIN domain_option_categories category ON category.id = value.category_id
-             WHERE category.slug = 'paises-origem' AND value.label = 'China'`
-        );
 
         const renameResponse = await request(app)
             .patch(`/api/admin/options/${hentai.id}`)
@@ -315,26 +281,20 @@ describe('valores de dom\u00ednio controlados pelo sistema', () => {
         const dependencyResponse = await request(app)
             .patch(`/api/admin/options/${manga.id}`)
             .set('Cookie', sessionCookie)
-            .send({ dependsOnValueIds: [country.rows[0].id] });
+            .send({ dependsOnValueIds: [manga.id] });
         const deleteResponse = await request(app)
             .delete(`/api/admin/options/${hentai.id}`)
             .set('Cookie', sessionCookie);
 
         expect(renameResponse.status).toBe(403);
-        expect(dependencyResponse.status).toBe(403);
+        expect(dependencyResponse.status).toBe(400);
         expect(deleteResponse.status).toBe(403);
         expect(deleteResponse.body.error).toBe(
             'Esse valor \u00e9 controlado pelo sistema e n\u00e3o pode ser exclu\u00eddo.'
         );
         const stillThere = await findOptionByCode('generos', 'hentai');
         expect(stillThere).toEqual(expect.objectContaining({ label: 'Hentai', active: true }));
-        const mangaDependencies = await db.query(
-            `SELECT country.label FROM domain_option_value_dependencies dependency
-             JOIN domain_option_values country ON country.id = dependency.depends_on_value_id
-             WHERE dependency.dependent_value_id = $1 ORDER BY country.label`,
-            [manga.id]
-        );
-        expect(mangaDependencies.rows.map((row) => row.label)).toEqual(['Jap\u00e3o']);
+        expect((await db.query("SELECT to_regclass('domain_option_value_dependencies') AS dependencies")).rows).toEqual([{ dependencies: null }]);
     });
 
     it('permite desativar e reativar valor controlado sem remover associacoes', async () => {
@@ -345,9 +305,8 @@ describe('valores de dom\u00ednio controlados pelo sistema', () => {
         const manga = await findOptionByCode('tipos-obra', 'manga');
         const coverAssetId = await createTestCover(db, `sprint4-${runId}`);
         const work = await db.query(
-            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id, country,
-                original_publication_status, visibility, adult_content, atualizado_em)
-             VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Jap\u00e3o', 'Completa', 'Privado', TRUE, NOW())
+            `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id,
+                original_publication_status, visibility, adult_content, atualizado_em) VALUES ($1, $2, $3::text, $3::text, $3::text, $4, 'Completa', 'Privado', TRUE, NOW())
              RETURNING id`,
             [coverAssetId, `sprint4-${runId}-controlada`, `Sprint4 ${runId} Controlada`, manga.id]
         );
