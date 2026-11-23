@@ -32,6 +32,12 @@ interface ProcessedCover {
     format: string;
 }
 
+function isAllowedImageFormat({ format, compression }: Metadata) {
+    if (!format) return false;
+    // O Sharp identifica AVIF como HEIF com compressão AV1.
+    return ALLOWED_FORMATS.has(format) || format === 'raw' || (format === 'heif' && compression === 'av1');
+}
+
 function invalidImage(cause?: unknown) {
     return new ApplicationError({
         statusCode: 415,
@@ -95,10 +101,7 @@ async function processCoverImage(
         throw invalidImage(error);
     }
 
-    // O Sharp identifica AVIF como HEIF com compressão AV1.
-    const isAvif = metadata.format === 'heif' && metadata.compression === 'av1';
-    if ((!metadata.format || !ALLOWED_FORMATS.has(metadata.format) && metadata.format !== 'raw' && !isAvif)
-        || !metadata.width || !metadata.height) {
+    if (!isAllowedImageFormat(metadata) || !metadata.width || !metadata.height) {
         throw invalidImage();
     }
 
