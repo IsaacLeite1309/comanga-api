@@ -84,9 +84,6 @@ function getEditionInclude() {
 function getWorkOrderBy(sortBy: typeof WORK_SORT_FIELDS[number], order: 'ASC' | 'DESC') {
     const direction = order.toLowerCase() as 'asc' | 'desc';
 
-    if (sortBy === 'country') {
-        return { country: direction };
-    }
 
     if (sortBy === 'type') {
         return { type: { label: direction } };

@@ -5,7 +5,7 @@ import { visibleWork, visibleEdition, visibleVolume, editionSelect, volumeSelect
 import { mapEdition, mapVolume, mapWork, pagination } from './views';
 
 type Page = { page: number; limit: number };
-type CollectionQuery = Page & { term?: string; status?: 'complete' | 'incomplete'; brazilianPublisherId?: number; order?: 'ASC' | 'DESC' };
+type CollectionQuery = Page & { term?: string; status?: 'complete' | 'incomplete' | 'up-to-date'; brazilianPublisherId?: number; order?: 'ASC' | 'DESC' };
 type WishlistQuery = Page & { term?: string; brazilianPublisherId?: number; order?: 'ASC' | 'DESC' };
 type Transaction = Prisma.TransactionClient;
 
@@ -56,10 +56,8 @@ function listCollection(userId: string, adult: boolean, page: CollectionQuery) {
             brazilianPublisherId: page.brazilianPublisherId,
             volumes: { some: ownedVolume },
             ...(page.status === 'complete' ? { brazilPublicationStatus: { in: ['Completa', 'Cancelada'] }, AND: [{ volumes: { none: missingVolume } }] } : {}),
-            ...(page.status === 'incomplete' ? { OR: [
-                { brazilPublicationStatus: { notIn: ['Completa', 'Cancelada'] } },
-                { volumes: { some: missingVolume } }
-            ] } : {}),
+            ...(page.status === 'incomplete' ? { AND: [{ volumes: { some: missingVolume } }] } : {}),
+            ...(page.status === 'up-to-date' ? { brazilPublicationStatus: { in: ['Em andamento', 'Em hiato'] }, AND: [{ volumes: { none: missingVolume } }] } : {}),
             ...(page.term ? { work: {
                 ...visibleWork(adult),
                 OR: [

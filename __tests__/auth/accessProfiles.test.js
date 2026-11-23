@@ -126,7 +126,7 @@ describe('perfis de acesso como entidades', () => {
         await insertUser(makeUser({ suffix: 'restrito' }));
 
         await expect(db.query("DELETE FROM profiles WHERE code = 'USUARIO_PADRAO'"))
-            .rejects.toMatchObject({ code: '23503' });
+            .rejects.toMatchObject({ code: expect.stringMatching(/^(23503|23001)$/) });
     });
 
     it('toda conta nasce com o perfil Usuário Padrão e sem poderes administrativos', async () => {

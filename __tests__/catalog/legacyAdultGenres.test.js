@@ -37,9 +37,8 @@ async function session(suffix, adult, admin = false, minor = false) {
 
 async function createWork(type, genre, suffix) {
     const slug = `${prefix}-${suffix}`;
-    const row = (await db.query(`INSERT INTO works(cover_asset_id,slug,title,romanized_title,synopsis,type_id,country,
-        original_publication_status,visibility,adult_content,atualizado_em)
-        VALUES($1,$2::text,$2::text,$2::text,$2::text,$3,'Japão','Completa','Público',FALSE,NOW()) RETURNING id`,
+    const row = (await db.query(`INSERT INTO works (cover_asset_id,slug,title,romanized_title,synopsis,type_id,
+        original_publication_status,visibility,adult_content,atualizado_em) VALUES ($1,$2::text,$2::text,$2::text,$2::text,$3,'Completa','Público',FALSE,NOW()) RETURNING id`,
     [await createTestCover(db, prefix), slug, type])).rows[0];
     fixture.works.push(row.id);
     if (genre) await db.query('INSERT INTO work_genres(work_id,genre_id) VALUES($1,$2)', [row.id, genre]);

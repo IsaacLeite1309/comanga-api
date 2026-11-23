@@ -77,7 +77,6 @@ describe('contratos unitários do catálogo público', () => {
         const query = publicWorksQuerySchema.parse({
             term: 'Urasawa',
             typeId: 3,
-            country: 'Japão',
             genreIds: '11,12',
             demographics: 'Shonen,Seinen',
             originalPublisherId: 31,
@@ -93,7 +92,6 @@ describe('contratos unitários do catálogo público', () => {
             adultContent: false,
             ...HENTAI_RESTRICTION,
             typeId: 3,
-            country: 'Japão',
             originalPublishers: { some: { publisherId: 31 } },
             serializationMagazines: { some: { magazineId: 32 } },
             originalPublicationStatus: 'Em andamento',
@@ -174,7 +172,6 @@ describe('contratos unitários do catálogo público', () => {
             title: 'Monster',
             originalTitle: null,
             coverAsset: null,
-            country: 'Japão',
             type: { id: 2, label: 'Mangá' },
             authors: [{ author: { id: 3, label: 'Naoki Urasawa' } }],
             visibility: 'Público',

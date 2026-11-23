@@ -37,7 +37,7 @@ function validWorkPayload(overrides = {}) {
         romanizedTitle: 'Kozure Ōkami',
         synopsis: 'Um samurai percorre o Japão feudal com o filho.',
         typeId: 1,
-        country: 'Japão',
+
         originalPublicationStatus: 'Completa',
         coverAssetId: '7f28c7f0-c94f-46e8-b61c-6ea716f8f28e',
         authors: [{ authorId: 4, roles: ['História'] }],
@@ -132,7 +132,7 @@ describe('contrato dos metadados próprios da Obra', () => {
             coverAssetId: null,
             coverAsset: null,
             type: { id: 1, label: 'Mangá' },
-            country: 'Japão',
+
             authors: []
         });
         const detail = normalizeWorkDetail({
@@ -206,7 +206,7 @@ describe('sinopse própria na página pública da Obra', () => {
             synopsis: 'A sinopse própria da Obra.',
             coverAsset: null,
             type: { id: 1, label: 'Mangá' },
-            country: 'Japão',
+
             originalPublicationStartYear: 1970,
             originalPublicationEndYear: 1976,
             directRelease: false,
@@ -325,7 +325,7 @@ describe('ordem editorial dos Autores', () => {
             coverAssetId: null,
             coverAsset: null,
             type: { id: 1, label: 'Mangá' },
-            country: 'Japão',
+
             originalPublicationStartYear: null,
             originalPublicationEndYear: null,
             directRelease: false,

@@ -23,17 +23,17 @@ function endpoint(method, path, parameters = [], dependencies = [database]) {
 const admin = {
     users: endpoint('GET', '/users', [pagination, 'Consulta: term, role, status']),
     role: endpoint('PATCH', '/users/:id/role', ['Rota: id (UUID do usuário)', 'Corpo: role']),
-    options: endpoint('GET', '/options/:category', [pagination, 'Rota: category', 'Consulta: term, includeInactive, dependsOn']),
-    createOption: endpoint('POST', '/options', ['Corpo: category, label, dependsOnValueIds']),
+    options: endpoint('GET', '/options/:category', [pagination, 'Rota: category', 'Consulta: term, includeInactive']),
+    createOption: endpoint('POST', '/options', ['Corpo: category, label']),
     updateOption: endpoint('PATCH', '/options/:id', ['Rota: id da opção', 'Corpo: label, dependsOnValueIds, active']),
     deleteOption: endpoint('DELETE', '/options/:id', ['Rota: id da opção']),
     importCover: endpoint('POST', '/media/covers', ['Corpo: sourceUrl (HTTPS)'], [database, 'Download HTTPS simulado', 'Sharp', mediaStorage]),
     deleteCover: endpoint('DELETE', '/media/covers/:assetId', ['Rota: assetId (UUID)'], [database, mediaStorage]),
     workOptions: endpoint('GET', '/works/form-options'),
     editionOptions: endpoint('GET', '/editions/form-options'),
-    works: endpoint('GET', '/works', [pagination, 'Consulta: term, typeId, country, visibility, sortBy']),
+    works: endpoint('GET', '/works', [pagination, 'Consulta: term, typeId, demography, visibility, sortBy']),
     createWork: endpoint('POST', '/works', [
-        'Corpo: title, romanizedTitle, synopsis, typeId, country, originalPublicationStatus, coverAssetId, authors',
+        'Corpo: title, romanizedTitle, synopsis, typeId, originalPublicationStatus, coverAssetId, authors',
         'Corpo opcional: originalTitle, originalPublicationStartYear, originalPublicationEndYear, directRelease, adultContent, genreIds, demographies, originalPublisherIds, magazineIds'
     ]),
     workSlug: endpoint('GET', '/works/slug/:slug', ['Rota: slug da obra']),
@@ -109,10 +109,10 @@ function readScenarios(users, catalog) {
     const editionAddressParams = { workSlug: catalog.workSlug, editionNumber: catalog.editionNumber };
     const cases = [
         ['listar usuários', admin.users, {}, { ...paginationQuery, term: users.admin.username, role: adminRole, status: 'Ativada' }],
-        ['listar opções', admin.options, { category: 'tipos-obra' }, { ...paginationQuery, dependsOn: catalog.countryId }],
+        ['listar opções', admin.options, { category: 'tipos-obra' }, paginationQuery],
         ['opções do formulário de obras', admin.workOptions],
         ['opções do formulário de edições', admin.editionOptions],
-        ['listar obras', admin.works, {}, { ...paginationQuery, typeId: catalog.typeId, country: 'Japão', visibility: 'Público', sortBy: 'title' }],
+        ['listar obras', admin.works, {}, { ...paginationQuery, typeId: catalog.typeId, visibility: 'Público', sortBy: 'title' }],
         ['consultar obra por slug', admin.workSlug, { slug: catalog.workSlug }],
         ['consultar obra por ID', admin.work, { id: catalog.workId }],
         ['consultar edição por número', admin.editionNumber, editionAddressParams],
@@ -279,7 +279,6 @@ function workInput(catalog, coverAssetId) {
         romanizedTitle: title,
         synopsis: 'Sinopse sintética para o teste de carga.',
         typeId: catalog.typeId,
-        country: 'Japão',
         originalPublicationStatus: 'Em andamento',
         authors: [{ authorId: catalog.authorId, roles: ['História e Arte'] }],
         coverAssetId

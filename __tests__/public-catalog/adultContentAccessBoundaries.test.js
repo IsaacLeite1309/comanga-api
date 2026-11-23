@@ -35,9 +35,8 @@ async function createOption(categorySlug, suffix) {
 
 async function createWork(suffix, adultContent) {
     const result = await db.query(
-        `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id, country,
-            original_publication_status, visibility, adult_content, atualizado_em)
-         VALUES ('${await createTestCover(db, prefix)}', $1, $2::text, $2::text, $2::text, $3, 'Japão', 'Completa', $4, $5, NOW())
+        `INSERT INTO works (cover_asset_id, slug, title, romanized_title, synopsis, type_id,
+            original_publication_status, visibility, adult_content, atualizado_em) VALUES ('${await createTestCover(db, prefix)}', $1, $2::text, $2::text, $2::text, $3, 'Completa', $4, $5, NOW())
          RETURNING id, slug`,
         [
             `${prefix}-${suffix}`.toLowerCase().replace(/_/g, '-'),

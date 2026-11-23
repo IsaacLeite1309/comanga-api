@@ -3,7 +3,6 @@ import type { z } from 'zod';
 import prisma from '../../../prisma';
 import { availableAuthorSlug } from '../../../utils/authorSlug';
 import {
-    COUNTRY_DEPENDENT_CATEGORY_SLUGS,
     EDITION_FORM_OPTION_CATEGORIES,
     WORK_FORM_OPTION_CATEGORIES
 } from '../../catalog';
@@ -33,8 +32,7 @@ import {
     formatSubmittedDuplicateMessage,
     isManageableOptionCategory,
     optionLabelExists,
-    parseOptionLabelsForCategory,
-    validateCountryDependencies
+    parseOptionLabelsForCategory
 } from './services';
 import { buildFormOptionQuery, buildOptionValueOrderBy, getOptionValueSelect } from './queries';
 
@@ -131,7 +129,7 @@ async function listOptions(req: Request, res: Response, next: NextFunction) {
         return res.status(400).json({ error: 'Filtros de consulta inválidos.' });
     }
 
-    const { term, dependsOn, includeInactive, order, page, limit } = queryValidation.data;
+    const { term, includeInactive, order, page, limit } = queryValidation.data;
 
     try {
         const category = await findListableCategoryBySlug(paramsValidation.data.category);
@@ -145,15 +143,6 @@ async function listOptions(req: Request, res: Response, next: NextFunction) {
             ...(isSystemManagedOptionCategory(category.slug) ? { systemManaged: true } : {}),
             // Valores inativos só aparecem sob demanda, para permitir reativá-los.
             ...(includeInactive ? {} : { active: true }),
-            ...(dependsOn
-                ? {
-                    dependencies: {
-                        some: {
-                            dependsOnValueId: dependsOn
-                        }
-                    }
-                }
-                : {}),
             ...(term
                 ? {
                     label: {
@@ -163,12 +152,11 @@ async function listOptions(req: Request, res: Response, next: NextFunction) {
                 }
                 : {})
         };
-        const shouldSelectDependencies = COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(category.slug);
 
         const [values, total] = await prisma.$transaction([
             prisma.domainOptionValue.findMany({
                 where,
-                select: getOptionValueSelect(shouldSelectDependencies),
+                select: getOptionValueSelect(),
                 orderBy: buildOptionValueOrderBy(category.slug, order.toLowerCase() as 'asc' | 'desc'),
                 skip: (page - 1) * limit,
                 take: limit
@@ -204,7 +192,7 @@ async function createOption(req: Request, res: Response, next: NextFunction) {
         return res.status(400).json({ error: 'Categoria e texto do valor são obrigatórios.' });
     }
 
-    const { category: categorySlug, label, dependsOnValueIds } = validation.data;
+    const { category: categorySlug, label } = validation.data;
 
     try {
         const category = await findCategoryBySlug(categorySlug);
@@ -235,13 +223,6 @@ async function createOption(req: Request, res: Response, next: NextFunction) {
             return res.status(409).json({ error: formatExistingDuplicateMessage(existingLabels) });
         }
 
-        const dependencyValidation = await validateCountryDependencies(category.slug, dependsOnValueIds);
-
-        if ('error' in dependencyValidation) {
-            return res.status(400).json({ error: dependencyValidation.error });
-        }
-
-        const shouldSelectDependencies = COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(category.slug);
         const values = await prisma.$transaction(async (tx) => {
             const createdValues = [];
 
@@ -257,29 +238,10 @@ async function createOption(req: Request, res: Response, next: NextFunction) {
                         label: itemLabel,
                         ...(authorCode ? { code: authorCode } : {})
                     },
-                    select: getOptionValueSelect(false)
+                    select: getOptionValueSelect()
                 });
 
-                if (dependencyValidation.length > 0) {
-                    await tx.domainOptionValueDependency.createMany({
-                        data: dependencyValidation.map((dependsOnValueId) => ({
-                            dependentValueId: createdValue.id,
-                            dependsOnValueId
-                        }))
-                    });
-                }
-
-                if (!shouldSelectDependencies) {
-                    createdValues.push(createdValue);
-                    continue;
-                }
-
-                const valueWithDependencies = await tx.domainOptionValue.findUniqueOrThrow({
-                    where: { id: createdValue.id },
-                    select: getOptionValueSelect(true)
-                });
-
-                createdValues.push(valueWithDependencies);
+                createdValues.push(createdValue);
             }
 
             return createdValues;
@@ -316,7 +278,7 @@ async function findOptionForUpdate(optionId: number) {
 
 // Valor controlado pelo sistema aceita apenas ativação/desativação (decisão 4).
 function changesControlledFields(data: z.infer<typeof updateOptionSchema>) {
-    return data.label !== undefined || data.dependsOnValueIds !== undefined;
+    return data.label !== undefined;
 }
 
 function buildOptionUpdateData(data: z.infer<typeof updateOptionSchema>) {
@@ -326,45 +288,12 @@ function buildOptionUpdateData(data: z.infer<typeof updateOptionSchema>) {
     };
 }
 
-async function persistOptionUpdate(
-    optionId: number,
-    categorySlug: string,
-    data: z.infer<typeof updateOptionSchema>,
-    dependencyIds: number[] | undefined
-) {
-    const shouldSelectDependencies = COUNTRY_DEPENDENT_CATEGORY_SLUGS.has(categorySlug);
-
-    return prisma.$transaction(async (tx) => {
-        const updatedValue = await tx.domainOptionValue.update({
-            where: { id: optionId },
-            data: buildOptionUpdateData(data),
-            select: getOptionValueSelect(false)
-        });
-
-        if (dependencyIds) {
-            await tx.domainOptionValueDependency.deleteMany({
-                where: { dependentValueId: optionId }
-            });
-
-            if (dependencyIds.length > 0) {
-                await tx.domainOptionValueDependency.createMany({
-                    data: dependencyIds.map((dependsOnValueId) => ({
-                        dependentValueId: optionId,
-                        dependsOnValueId
-                    }))
-                });
-            }
-        }
-
-        if (!shouldSelectDependencies) {
-            return updatedValue;
-        }
-
-        return tx.domainOptionValue.findUniqueOrThrow({
-            where: { id: optionId },
-            select: getOptionValueSelect(true)
-        });
-    });
+async function persistOptionUpdate(optionId: number, data: z.infer<typeof updateOptionSchema>) {
+    return prisma.$transaction(async (tx) => tx.domainOptionValue.update({
+        where: { id: optionId },
+        data: buildOptionUpdateData(data),
+        select: getOptionValueSelect()
+    }));
 }
 
 function isControlledValue(value: { systemManaged: boolean; category: { slug: string } }) {
@@ -406,23 +335,7 @@ async function updateOption(req: Request, res: Response, next: NextFunction) {
             return res.status(409).json({ error: DUPLICATE_OPTION_MESSAGE });
         }
 
-        const dependencyIds = validation.data.dependsOnValueIds;
-        let dependencyValidation: number[] | { error: string } = [];
-
-        if (dependencyIds) {
-            dependencyValidation = await validateCountryDependencies(currentValue.category.slug, dependencyIds);
-
-            if ('error' in dependencyValidation) {
-                return res.status(400).json({ error: dependencyValidation.error });
-            }
-        }
-
-        const value = await persistOptionUpdate(
-            optionId,
-            currentValue.category.slug,
-            validation.data,
-            dependencyIds ? dependencyValidation as number[] : undefined
-        );
+        const value = await persistOptionUpdate(optionId, validation.data);
 
         return res.status(200).json({
             value: normalizeOptionValue(value as unknown as Parameters<typeof normalizeOptionValue>[0])

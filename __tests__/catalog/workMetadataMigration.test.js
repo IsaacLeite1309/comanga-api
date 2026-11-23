@@ -38,8 +38,8 @@ async function createLegacyWork(client, typeId, suffix) {
     const result = await client.query(
         `INSERT INTO works (
             cover_asset_id, slug, title, romanized_title, synopsis,
-            type_id, country, original_publication_status, atualizado_em
-         ) VALUES ($1, $2, $3, $4, $5, $6, 'Japão', 'Completa', NOW())
+            type_id, original_publication_status, atualizado_em
+         ) VALUES ($1, $2, $3, $4, $5, $6, 'Completa', NOW())
          RETURNING id`,
         [
             await createTestCover(client, fixturePrefix),
@@ -65,9 +65,9 @@ describe('migration dos metadados da Obra e da ordem dos Autores', () => {
 
             await expect(client.query(
                 `INSERT INTO works (
-                    cover_asset_id, slug, title, type_id, country,
+                    cover_asset_id, slug, title, type_id,
                     original_publication_status, atualizado_em
-                 ) VALUES ($1, $2, $3, $4, 'Japão', 'Completa', NOW())`,
+                 ) VALUES ($1, $2, $3, $4, 'Completa', NOW())`,
                 [coverAssetId, `${fixturePrefix}-sem-metadados`, `${fixturePrefix}_sem_metadados`, typeId]
             )).rejects.toMatchObject({ code: '23502' });
         } finally {

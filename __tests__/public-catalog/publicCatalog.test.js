@@ -65,7 +65,6 @@ async function createWork({
     romanizedTitle,
     synopsis,
     typeId = fixture.options.typeOne.id,
-    country = 'Jap\u00e3o',
     visibility = PUBLIC_VISIBILITY,
     adultContent = false,
     authorIds = [fixture.options.authorOne.id],
@@ -89,14 +88,13 @@ async function createWork({
             romanized_title,
             synopsis,
             type_id,
-            country,
             original_publication_start_year,
             original_publication_end_year,
             original_publication_status,
             visibility,
             adult_content,
             atualizado_em
-         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+         ) VALUES ('${await createTestCover(db, fixturePrefix)}', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
          RETURNING id, slug, title, romanized_title, synopsis`,
         [
             slug,
@@ -105,7 +103,6 @@ async function createWork({
             ownMetadata.romanizedTitle,
             ownMetadata.synopsis,
             typeId,
-            country,
             originalPublicationStartYear,
             originalPublicationEndYear,
             originalPublicationStatus,
@@ -352,7 +349,6 @@ describe('catálogo público', () => {
         fixture.works.partial = await createWork({
             suffix: 'partial',
             typeId: fixture.options.typeTwo.id,
-            country: 'Coreia do Sul',
             authorIds: [fixture.options.authorTwo.id],
             genreIds: [fixture.options.genreOne.id],
             demographics: ['Shonen'],
@@ -520,7 +516,6 @@ describe('catálogo público', () => {
             originalTitle: `${fixturePrefix}_original-alpha`,
             coverUrl: expect.any(String),
             type: expect.objectContaining({ id: fixture.options.typeOne.id }),
-            country: 'Jap\u00e3o',
             authors: [
                 {
                     id: fixture.options.authorZulu.id,
@@ -592,7 +587,6 @@ describe('catálogo público', () => {
             .query({
                 term: fixturePrefix,
                 typeId: fixture.options.typeOne.id,
-                country: 'Jap\u00e3o',
                 genreIds: `${fixture.options.genreOne.id},${fixture.options.genreTwo.id}`,
                 demographics: 'Shonen,Seinen',
                 originalPublisherId: fixture.options.originalPublisherOne.id,
@@ -695,7 +689,6 @@ describe('catálogo público', () => {
             originalTitle: `${fixturePrefix}_original-alpha`,
             coverUrl: expect.any(String),
             type: fixture.options.typeOne,
-            country: 'Japão',
             romanizedTitle: `${fixturePrefix}_romanized-alpha`,
             synopsis: `${fixturePrefix} sinopse pr\u00f3pria da Obra.`,
             authors: [
@@ -1164,7 +1157,7 @@ describe('catálogo público', () => {
         expect(response.headers.vary).toContain('Cookie');
         expect(response.headers['cache-control']).toBe('private, no-store');
         expect(response.body.options.workTypes).toEqual(expect.arrayContaining([
-            expect.objectContaining({ ...fixture.options.typeOne, countryIds: [], countries: [] })
+            expect.objectContaining(fixture.options.typeOne)
         ]));
         expect(response.body.options.genres).toEqual(expect.arrayContaining([fixture.options.genreOne]));
         expect(response.body.options.genres).not.toEqual(expect.arrayContaining([fixture.options.inactiveGenre]));
@@ -1176,7 +1169,7 @@ describe('catálogo público', () => {
         expect(response.body.options.brazilPublicationStatuses).toEqual(['Completa', 'Em andamento', 'Em hiato', 'Cancelada']);
         expect(response.body.options.formats).toEqual(expect.arrayContaining([fixture.options.formatOne]));
         expect(response.body.options.coverTypes).toEqual(expect.arrayContaining([fixture.options.coverOne]));
-        expect(response.body.options.countries).toEqual(['Jap\u00e3o', 'Coreia do Sul', 'China', 'Taiwan']);
+        expect(response.body.options).not.toHaveProperty('countries');
         expect(response.body.options.demographics).toEqual(['Shonen', 'Seinen', 'Shoujo', 'Josei', 'Kodomo']);
         expect(response.body.options).not.toHaveProperty('authors');
     });
@@ -1186,11 +1179,9 @@ describe('catálogo público', () => {
         const expectedGenreOrder = ['Aventura', 'A\u00e7\u00e3o', 'Boys\u2019 Love'];
         const officialGenres = response.body.options.genres
             .filter((genre) => expectedGenreOrder.includes(genre.label));
-        const manhua = response.body.options.workTypes.find((type) => type.label === 'Manhua');
+        expect(response.body.options.workTypes.some(type => ['Manhua','Manhwa'].includes(type.label))).toBe(false);
 
         expect(response.status).toBe(200);
-        expect(manhua.countries).toEqual(['China', 'Taiwan']);
-        expect(manhua.countryIds).toHaveLength(2);
         expect(officialGenres.map((genre) => genre.label)).toEqual(expectedGenreOrder);
     });
     });

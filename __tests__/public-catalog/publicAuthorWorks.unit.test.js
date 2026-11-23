@@ -35,7 +35,7 @@ function workFixture() {
         title: 'Monster',
         originalTitle: 'MONSTER',
         coverAsset: null,
-        country: 'Japão',
+
         type: { id: 2, label: 'Mangá' },
         authors: [{ author: { id: 5, label: 'Naoki Urasawa' }, roles: [{ role: 'História e Arte' }] }]
     };

@@ -10,8 +10,8 @@ it('permite o mesmo título para mangá e light novel, mas recusa duas obras do 
     async function insertWork(typeId, slug, workTitle = title) {
         return client.query(`INSERT INTO works (
             cover_asset_id, slug, title, romanized_title, synopsis,
-            type_id, country, original_publication_status, atualizado_em
-        ) VALUES ($1, $2, $3, $3, 'Sinopse de teste.', $4, 'Japão', 'Completa', NOW())`, [
+            type_id, original_publication_status, atualizado_em
+        ) VALUES ($1, $2, $3, $3, 'Sinopse de teste.', $4, 'Completa', NOW())`, [
             await createTestCover(client, prefix), slug, workTitle, typeId
         ]);
     }

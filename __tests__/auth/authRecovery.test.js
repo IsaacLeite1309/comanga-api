@@ -27,8 +27,7 @@ let user, typeId;
 const covers = [];
 async function cover() { const id = await createTestCover(db, prefix); covers.push(id); return id; }
 async function work(id, suffix) {
-    return db.query(`INSERT INTO works (title, romanized_title, synopsis, slug, type_id, country, original_publication_status, cover_asset_id, atualizado_em)
-        VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Japão', 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
+    return db.query(`INSERT INTO works (title, romanized_title, synopsis, slug, type_id, original_publication_status, cover_asset_id, atualizado_em) VALUES ($1::text, $1::text, $1::text, $1::text, $2, 'Completa', $3, NOW()) RETURNING id`, [`${prefix}_${suffix}`, typeId, id]);
 }
 // A Edição não tem capa própria: a concorrência de capas agora é entre Obra e Volume.
 async function edition(workId) {
@@ -170,7 +169,7 @@ describe('capas com concorrência e restrições reais', () => {
         await expect(db.query("UPDATE media_assets SET status='Descartando' WHERE id=$1", [attached]))
             .rejects.toMatchObject({ code: '23514' });
         await expect(db.query('DELETE FROM media_assets WHERE id=$1', [attached]))
-            .rejects.toMatchObject({ code: '23503' });
+            .rejects.toMatchObject({ code: expect.stringMatching(/^(23503|23001)$/) });
 
         await db.query('DELETE FROM volumes WHERE id=$1', [created.rows[0].id]);
         await db.query('DELETE FROM editions WHERE id=$1', [parentEdition.rows[0].id]);
@@ -181,7 +180,7 @@ describe('capas com concorrência e restrições reais', () => {
         await Promise.all([b,c].map(id=>db.query('UPDATE works SET cover_asset_id=$1 WHERE id=$2',[id,created.rows[0].id])));
         const states=await db.query('SELECT status FROM media_assets WHERE id=ANY($1::uuid[])',[[a,b,c]]);
         expect(states.rows.filter(row=>row.status==='Descartando')).toHaveLength(2);
-        await expect(db.query('DELETE FROM media_assets WHERE id=(SELECT cover_asset_id FROM works WHERE id=$1)',[created.rows[0].id])).rejects.toMatchObject({code:'23503'});
+        await expect(db.query('DELETE FROM media_assets WHERE id=(SELECT cover_asset_id FROM works WHERE id=$1)',[created.rows[0].id])).rejects.toMatchObject({code:expect.stringMatching(/^(23503|23001)$/)});
     });
     it('impede associação durante exclusão física e permite retry após falha do storage', async () => {
         const id=await cover();

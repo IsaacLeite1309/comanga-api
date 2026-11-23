@@ -27,7 +27,7 @@ it('filtra a coleção antes da paginação e usa os mesmos critérios na contag
     expect(where).toMatchObject({
         brazilianPublisherId:4,
         volumes:{some:{visibility:'Público',userVolumes:{some:{userId,state:'Owned'}}}},
-        OR:[{brazilPublicationStatus:{notIn:['Completa','Cancelada']}},{volumes:{some:{visibility:'Público',userVolumes:{none:{userId,state:'Owned'}}}}}]
+        AND:[{volumes:{some:{visibility:'Público',userVolumes:{none:{userId,state:'Owned'}}}}}]
     });
     expect(where.work.OR).toContainEqual({title:{contains:'Monster',mode:'insensitive'}});
     expect(where.work.OR).toContainEqual({authors:{some:{author:{label:{contains:'Monster',mode:'insensitive'}}}}});
@@ -37,6 +37,16 @@ it('filtra a coleção antes da paginação e usa os mesmos critérios na contag
         brazilPublicationStatus:{in:['Completa','Cancelada']},
         AND:[{volumes:{none:{visibility:'Público',userVolumes:{none:{userId,state:'Owned'}}}}}]
     });
+});
+it('filtra em dia por edição em andamento ou hiato sem volumes públicos faltantes',async()=>{
+    await listCollection(userId,false,{page:1,limit:12,status:'up-to-date'});
+    const where=tx.edition.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({
+        brazilPublicationStatus:{in:['Em andamento','Em hiato']},
+        volumes:{some:{visibility:'Público',userVolumes:{some:{userId,state:'Owned'}}}},
+        AND:[{volumes:{none:{visibility:'Público',userVolumes:{none:{userId,state:'Owned'}}}}}]
+    });
+    expect(tx.edition.count).toHaveBeenCalledWith({where});
 });
 it('agrupa edições da mesma obra e conserva progresso por edição',async()=>{
     tx.edition.findMany.mockResolvedValue([

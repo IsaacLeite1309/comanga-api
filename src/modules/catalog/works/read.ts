@@ -11,7 +11,7 @@ async function listWorks(req: Request, res: Response, next: NextFunction) {
         return res.status(400).json({ error: 'Filtros de consulta inválidos.' });
     }
 
-    const { term, typeId, country, visibility, sortBy, order, page, limit } = validation.data;
+    const { term, typeId, demography, visibility, sortBy, order, page, limit } = validation.data;
     const where = {
         ...(term
             ? {
@@ -22,7 +22,7 @@ async function listWorks(req: Request, res: Response, next: NextFunction) {
             }
             : {}),
         ...(typeId ? { typeId } : {}),
-        ...(country ? { country } : {}),
+        ...(demography ? { demographics: { some: { demography } } } : {}),
         ...(visibility ? { visibility } : {})
     };
 

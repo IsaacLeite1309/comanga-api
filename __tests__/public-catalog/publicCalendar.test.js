@@ -20,9 +20,8 @@ async function option(category, suffix) {
 
 async function work(suffix, visibility = 'Público', adult = false) {
     const title = `${prefix}-${suffix}`;
-    const result = await db.query(`INSERT INTO works(cover_asset_id,slug,title,original_title,romanized_title,
-        synopsis,type_id,country,original_publication_status,visibility,adult_content,atualizado_em)
-        VALUES($1,$2::text,$2::text,$3,$4,$2::text,$5,'Japão','Completa',$6,$7,NOW()) RETURNING id,slug,title`,
+    const result = await db.query(`INSERT INTO works (cover_asset_id,slug,title,original_title,romanized_title,
+        synopsis,type_id,original_publication_status,visibility,adult_content,atualizado_em) VALUES ($1,$2::text,$2::text,$3,$4,$2::text,$5,'Completa',$6,$7,NOW()) RETURNING id,slug,title`,
     [await createTestCover(db, prefix), title, `${title}-original`, `${title}-romanized`, state.typeId, visibility, adult]);
     const row = result.rows[0];
     fixture.works.push(row.id);
