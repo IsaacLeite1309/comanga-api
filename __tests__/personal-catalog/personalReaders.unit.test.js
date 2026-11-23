@@ -60,6 +60,7 @@ it('agrupa edições da mesma obra e conserva progresso por edição',async()=>{
     expect(result.works).toHaveLength(2);expect(result.works[0].editions).toHaveLength(2);
     expect(result.works[0].editions[0].progress).toEqual({owned:1,total:3,read:1,wished:1});
     expect(result.works[0].editions[0].volumes).toEqual([{id:3,number:1,singleVolume:false,coverUrl:null,read:true}]);
+    expect(result.works[0].editions[0].volumesPagination).toEqual({page:1,limit:11,total:1,totalPages:1});
     expect(result.works[1].editions[0].progress).toEqual({owned:0,total:0,read:0,wished:0});
 });
 it('seleção sem volumes ou vínculos retorna zero sem inventar posse',async()=>{

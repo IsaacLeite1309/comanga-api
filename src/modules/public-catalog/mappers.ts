@@ -169,6 +169,7 @@ function mapPublicEditionVolume(volume: PublicEditionVolumeInput) {
 
 function mapPublicCalendarVolume(volume: PublicCalendarVolumeInput) {
     return {
+        affiliateLink: volume.affiliateLink,
         id: volume.id,
         number: volume.number,
         singleVolume: volume.singleVolume,

@@ -171,8 +171,9 @@ it('seleção funciona sem posse e paginação permite mais de50 volumes',async(
     const synchronized=await sync({addVolumeIds:[...first.body.volumes,...second.body.volumes].map(v=>v.id),removeVolumeIds:[]});
     expect(synchronized.status).toBe(200);
     const collection=(await get('collection')).body;
-    expect(collection.works[0].editions[0].volumes).toHaveLength(50);
-    expect(collection.works[0].editions[0].volumesPagination.totalPages).toBe(2);
+    expect(collection.works[0].editions[0].volumes).toHaveLength(11);
+    expect(collection.works[0].editions[0].volumesPagination).toEqual({page:1,limit:11,total:53,totalPages:5});
+    expect(collection.works[0].editions[0].volumes.map(volume=>volume.number)).toEqual(Array.from({length:11},(_,i)=>i+1));
 });
 it('rejeita ids, booleanos, corpo e limites inválidos sem escrita',async()=>{
     for(const body of [{addVolumeIds:[f.first,f.first],removeVolumeIds:[]},{addVolumeIds:[f.first],removeVolumeIds:[f.first]},{addVolumeIds:Array.from({length:101},(_,i)=>i+1),removeVolumeIds:[]},{addVolumeIds:[f.first],removeVolumeIds:[],userId:f.other.id}])expect((await sync(body)).status).toBe(400);

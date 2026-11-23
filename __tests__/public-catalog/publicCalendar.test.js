@@ -74,6 +74,7 @@ describe('integração do calendário público', () => {
         state.work = await work('livre');
         state.editionId = await edition(state.work.id);
         state.dayLater = await volume(state.editionId, 2, { day: 25 });
+        await db.query('UPDATE volumes SET affiliate_link=$1 WHERE id=$2', ['https://amazon.example.test/volume-2', state.dayLater]);
         state.dayFirst = await volume(state.editionId, 0, { day: 2 });
         state.sameDay = await volume(state.editionId, 3, { day: 2 });
         state.monthOnly = await volume(state.editionId, 4, { day: null });
@@ -120,9 +121,11 @@ describe('integração do calendário público', () => {
         expect(res.body).toMatchObject({ year: 2035, month: 10, pagination: { total: 5, totalPages: 1 } });
         const partial = res.body.volumes.find(({ id }) => id === state.monthOnly);
         expect(partial).toMatchObject({ releaseDatePrecision: 'Mes e ano', releaseDay: null });
+        expect(partial.affiliateLink).toBeNull();
+        expect(res.body.volumes.find(({ id }) => id === state.dayLater).affiliateLink).toBe('https://amazon.example.test/volume-2');
         expect(partial.coverUrl).toMatch(/^https:\/\/media\.example\.test\//);
         expect(Object.keys(partial).sort()).toEqual([
-            'coverUrl', 'edition', 'id', 'number', 'releaseDatePrecision', 'releaseDay', 'releaseMonth', 'releaseYear', 'singleVolume'
+            'affiliateLink', 'coverUrl', 'edition', 'id', 'number', 'releaseDatePrecision', 'releaseDay', 'releaseMonth', 'releaseYear', 'singleVolume'
         ]);
         expect(partial.edition).toEqual({
             id: state.editionId, chronologicalNumber: 1, brazilianPublisher: state.publisher,

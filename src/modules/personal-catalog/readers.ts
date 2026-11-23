@@ -13,6 +13,7 @@ function readTransaction<T>(operation: (tx: Transaction) => Promise<T>) {
     return prisma.$transaction(operation, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });
 }
 type Progress = { owned: number; total: number; read: number; wished: number };
+const COLLECTION_VOLUME_PREVIEW_LIMIT = 11;
 
 async function groupedProgress(tx: Transaction, userId: string, editionIds: number[]) {
     if (!editionIds.length) return new Map<number, Progress>();
@@ -35,7 +36,7 @@ function collectionEditionSelect(userId: string) {
         volumes: {
             where: { visibility: 'Público', userVolumes: { some: { userId, state: 'Owned' } } },
             select: { ...volumeSelect, userVolumes: { where: { userId }, select: { read: true } } },
-            orderBy: volumeOrder, take: 50
+            orderBy: volumeOrder, take: COLLECTION_VOLUME_PREVIEW_LIMIT
         }
     } satisfies Prisma.EditionSelect;
 }
@@ -44,7 +45,7 @@ function collectionEdition(edition: CollectionEdition, editionProgress: Progress
     return {
         edition: mapEdition(edition), progress: editionProgress,
         volumes: edition.volumes.map(volume => ({ ...mapVolume(volume), read: volume.userVolumes[0].read })),
-        volumesPagination: pagination(1, 50, editionProgress.owned)
+        volumesPagination: pagination(1, COLLECTION_VOLUME_PREVIEW_LIMIT, editionProgress.owned)
     };
 }
 function listCollection(userId: string, adult: boolean, page: CollectionQuery) {
