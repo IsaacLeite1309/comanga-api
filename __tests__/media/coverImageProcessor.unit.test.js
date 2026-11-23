@@ -4,6 +4,34 @@ const bmp = require('bmp-js');
 const { processCoverImage } = require('../../src/infrastructure/media/CoverImageProcessor');
 
 describe('processamento interno de capas', () => {
+    it('aceita AVIF identificado pelo Sharp como HEIF com compressão AV1', async () => {
+        const source = await sharp({
+            create: { width: 90, height: 120, channels: 3, background: '#336699' }
+        }).avif().toBuffer();
+
+        expect(await sharp(source).metadata()).toMatchObject({ format: 'heif', compression: 'av1' });
+        const result = await processCoverImage(source);
+        expect(result.format).toBe('webp');
+        for (const output of [result.master, ...result.variants]) {
+            expect(await sharp(output.body).metadata()).toMatchObject({
+                format: 'webp', width: output.width, height: output.height
+            });
+        }
+    });
+
+    it('continua rejeitando HEIF com compressão HEVC', async () => {
+        const metadata = jest.spyOn(sharp.prototype, 'metadata').mockResolvedValue({
+            format: 'heif', compression: 'hevc', width: 90, height: 120
+        });
+        try {
+            await expect(processCoverImage(Buffer.from('heic'))).rejects.toMatchObject({
+                code: 'MEDIA_IMAGE_INVALID', statusCode: 415
+            });
+        } finally {
+            metadata.mockRestore();
+        }
+    });
+
     it('converte BMP em capa e variantes WebP', async () => {
         const source = bmp.encode({
             data: Buffer.from([0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 255, 255, 255]),
@@ -56,10 +84,10 @@ describe('processamento interno de capas', () => {
         });
     });
 
-    it('rejeita imagens acima do limite de pixels antes de gerar variantes', async () => {
+    it.each(['png', 'avif'])('rejeita %s acima do limite de pixels antes de gerar variantes', async format => {
         const source = await sharp({
             create: { width: 100, height: 100, channels: 3, background: '#000000' }
-        }).png().toBuffer();
+        }).toFormat(format).toBuffer();
 
         await expect(processCoverImage(source, { maxPixels: 9_999 })).rejects.toMatchObject({
             code: 'MEDIA_DIMENSIONS_EXCEEDED',

@@ -95,7 +95,9 @@ async function processCoverImage(
         throw invalidImage(error);
     }
 
-    if ((!metadata.format || !ALLOWED_FORMATS.has(metadata.format) && metadata.format !== 'raw')
+    // O Sharp identifica AVIF como HEIF com compressão AV1.
+    const isAvif = metadata.format === 'heif' && metadata.compression === 'av1';
+    if ((!metadata.format || !ALLOWED_FORMATS.has(metadata.format) && metadata.format !== 'raw' && !isAvif)
         || !metadata.width || !metadata.height) {
         throw invalidImage();
     }
