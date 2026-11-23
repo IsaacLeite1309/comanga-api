@@ -24,7 +24,7 @@ function response() {
 
 function fixture() {
     return {
-        id: 30, number: 0, singleVolume: false, coverAsset: null,
+        id: 30, affiliateLink: "https://amazon.example.test/monster", number: 0, singleVolume: false, coverAsset: null,
         releaseDatePrecision: 'Mes e ano', releaseYear: 2026, releaseMonth: 10, releaseDay: null,
         edition: {
             id: 20, chronologicalNumber: 2,
@@ -102,6 +102,7 @@ describe('calendário público', () => {
         await listPublicCalendar({ query: { year: '2026', month: '10', page: '2' } }, res, jest.fn());
         expect(mockFindMany).toHaveBeenCalledWith(expect.objectContaining({
             skip: 12, take: 12,
+            select: expect.objectContaining({ affiliateLink: true }),
             orderBy: [
                 { edition: { work: { title: 'asc' } } },
                 { edition: { chronologicalNumber: 'asc' } },

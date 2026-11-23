@@ -36,6 +36,7 @@ interface PublicEditionVolumeInput extends PublicVolumePreviewInput {
 }
 
 interface PublicCalendarVolumeInput extends PublicVolumePreviewInput {
+    affiliateLink: string | null;
     edition: {
         id: number;
         chronologicalNumber: number;

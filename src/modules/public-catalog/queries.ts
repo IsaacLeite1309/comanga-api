@@ -423,6 +423,7 @@ const publicEditionVolumeSelect = {
 
 const publicCalendarVolumeSelect = {
     id: true,
+    affiliateLink: true,
     number: true,
     singleVolume: true,
     releaseDatePrecision: true,
