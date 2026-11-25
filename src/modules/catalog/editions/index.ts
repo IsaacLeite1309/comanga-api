@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { Prisma } from '@prisma/client';
 import prisma from '../../../prisma';
 import { withCatalogWriteLock } from '../writeLock';
+import { hasLinkedVolumes, LINKED_EDITION_PRIVATE_MESSAGE } from '../visibilityProtection';
 import {
     INVALID_DOMAIN_REFERENCE_MESSAGE,
     EDITION_COVER_SOURCE_VOLUME_NUMBER,
@@ -301,11 +302,6 @@ async function deleteEdition(req: Request, res: Response, next: NextFunction) {
     }
 }
 
-async function assertEditionCanBecomePrivate(editionId: number) {
-    // Ponto de extensão para bloquear rebaixamento quando houver volumes em estantes de usuários.
-    await Promise.resolve(editionId);
-}
-
 // Valida o estado final da publicação: o Volume 1 precisa existir, estar público e ter capa.
 async function assertPublishedEditionHasCoverSource(tx: Prisma.TransactionClient, editionId: number) {
     const coverSourceVolume = await tx.volume.findFirst({
@@ -321,13 +317,15 @@ async function assertPublishedEditionHasCoverSource(tx: Prisma.TransactionClient
 async function applyEditionVisibility(editionId: number, visibility: string) {
     return withCatalogWriteLock(async (tx) => {
         const edition = await tx.edition.findUnique({
-            where: { id: editionId }, select: { id: true, work: { select: { visibility: true } } }
+            where: { id: editionId }, select: { id: true, visibility: true, work: { select: { visibility: true } } }
         });
         if (!edition) return { status: 404, error: 'Edição não encontrada.' } as const;
         if (isPublicVisibility(visibility) && !isPublicVisibility(edition.work.visibility)) {
             return { status: 409, error: PRIVATE_WORK_PUBLIC_EDITION_MESSAGE } as const;
         }
-        if (visibility === 'Privado') await assertEditionCanBecomePrivate(editionId);
+        if (visibility === 'Privado' && isPublicVisibility(edition.visibility) && await hasLinkedVolumes(tx, { editionId })) {
+            return { status: 409, error: LINKED_EDITION_PRIVATE_MESSAGE } as const;
+        }
         const updatedEdition = await tx.edition.update({
             where: { id: editionId },
             data: { visibility },
