@@ -19,6 +19,25 @@ async function rows(user=f.owner){return (await db.query('SELECT volume_id,state
 beforeEach(async()=>{f=await fixture();});
 afterEach(async()=>{if(f)await f.cleanup();});
 
+it.each(['Owned','Wanted'])('protege edição e obra ao haver vínculo pessoal %s',async state=>{
+    const profile=(await db.query("SELECT id FROM profiles WHERE code='ADMINISTRADOR'")).rows[0].id;
+    const administrator=await f.user();
+    await db.query('INSERT INTO user_profiles(user_id,profile_id) VALUES($1,$2)',[administrator.id,profile]);
+    await db.query('UPDATE sessions SET active_profile_id=$1 WHERE user_id=$2',[profile,administrator.id]);
+    expect((await (state==='Owned'?own():wish())).status).toBe(200);
+    for(const [kind,id] of [['editions',f.editionId],['works',f.workId]]){
+        const response=await request(app).patch(`/api/admin/${kind}/${id}/visibility`)
+            .set('Cookie',administrator.cookie).send({visibility:'Privado'});
+        expect(response.status).toBe(409);
+        expect(response.body.error).toBe('Essa Edição tem Volumes vinculados a usuários, não pode ser tornada privada!');
+        const saved=await db.query('SELECT e.visibility AS edition,v.visibility AS volume FROM editions e JOIN volumes v ON v.edition_id=e.id WHERE e.id=$1 AND v.id=$2',[f.editionId,f.first]);
+        expect(saved.rows[0]).toEqual({edition:'Público',volume:'Público'});
+        expect(await rows()).toHaveLength(1);
+    }
+    await request(app).delete(`${base}/${state==='Owned'?'collection':'wishlist'}/volumes/${f.first}`).set('Cookie',f.owner.cookie).expect(204);
+    await request(app).patch(`/api/admin/editions/${f.editionId}/visibility`).set('Cookie',administrator.cookie).send({visibility:'Privado'}).expect(200);
+});
+
 it('exige sessão em todas operações pessoais e rejeita sessão revogada',async()=>{
     const paths=[['get','collection'],['get','wishlist'],['get',`collection/editions/${f.editionId}`],['put',`collection/volumes/${f.first}`],['patch',`collection/volumes/${f.first}`],['delete',`collection/volumes/${f.first}`],['put',`wishlist/volumes/${f.first}`],['delete',`wishlist/volumes/${f.first}`],['put',`collection/editions/${f.editionId}`],['put',`wishlist/editions/${f.editionId}`],['put',`reading/editions/${f.editionId}`]];
     for(const [method,path]of paths)expect((await request(app)[method](`${base}/${path}`)).status).toBe(401);

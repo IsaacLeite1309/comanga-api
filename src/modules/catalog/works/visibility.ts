@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { withCatalogWriteLock } from '../writeLock';
+import { hasLinkedVolumes, LINKED_EDITION_PRIVATE_MESSAGE } from '../visibilityProtection';
 import { WorkDetailInput, normalizeVisibility, normalizeWorkDetail, updateWorkVisibilitySchema, getWorkDetailInclude, parsePositiveId } from '../shared';
 
 export { updateWorkVisibility };
@@ -8,6 +9,9 @@ async function persistWorkVisibility(workId: number, visibility: string) {
     return withCatalogWriteLock(async tx => {
         const work = await tx.work.findUnique({ where: { id: workId }, select: { id: true, visibility: true } });
         if (!work) return { status: 404, error: 'Obra não encontrada.' } as const;
+        if (work.visibility !== visibility && visibility === 'Privado' && await hasLinkedVolumes(tx, { workId })) {
+            return { status: 409, error: LINKED_EDITION_PRIVATE_MESSAGE } as const;
+        }
         const isPublishing = work.visibility !== 'Público' && visibility === 'Público';
         if (isPublishing) {
             const incompleteEdition = await tx.edition.findFirst({
