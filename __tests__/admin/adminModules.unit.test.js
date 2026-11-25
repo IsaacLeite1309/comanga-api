@@ -1820,6 +1820,45 @@ describe('módulos administrativos', () => {
             });
         });
 
+        it('impede tornar privada edição pública com volume vinculado a usuário', async () => {
+            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Público', work: { visibility: 'Público' } });
+            prisma.volume.findFirst.mockResolvedValue({ id: 30 });
+            const res = makeRes();
+            await catalog.updateEditionVisibility(makeReq({ params: { id: '20' }, body: { visibility: 'Privado' } }), res);
+            expect(prisma.volume.findFirst).toHaveBeenCalledWith({
+                where: { edition: { id: 20 }, userVolumes: { some: {} } }, select: { id: true }
+            });
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Essa Edição tem Volumes vinculados a usuários, não pode ser tornada privada!' });
+            expect(prisma.edition.update).not.toHaveBeenCalled();
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
+        });
+
+        it('permite tornar privada edição pública sem vínculos pessoais', async () => {
+            prisma.edition.findUnique.mockResolvedValue({ id: 20, visibility: 'Público', work: { visibility: 'Público' } });
+            prisma.volume.findFirst.mockResolvedValue(null);
+            prisma.edition.update.mockResolvedValue({ ...edition, visibility: 'Privado', volumes: [] });
+            prisma.volume.updateMany.mockResolvedValue({ count: 1 });
+            const res = makeRes();
+            await catalog.updateEditionVisibility(makeReq({ params: { id: '20' }, body: { visibility: 'Privado' } }), res);
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(prisma.volume.updateMany).toHaveBeenCalledWith({ where: { editionId: 20 }, data: { visibility: 'Privado' } });
+        });
+
+        it('impede tornar privada obra que contém edição pública com volume vinculado', async () => {
+            prisma.work.findUnique.mockResolvedValue({ id: 1, visibility: 'Público' });
+            prisma.volume.findFirst.mockResolvedValue({ id: 30 });
+            const res = makeRes();
+            await catalog.updateWorkVisibility(makeReq({ params: { id: '1' }, body: { visibility: 'Privado' } }), res);
+            expect(prisma.volume.findFirst).toHaveBeenCalledWith({
+                where: { edition: { workId: 1, visibility: 'Público' }, userVolumes: { some: {} } }, select: { id: true }
+            });
+            expect(res.status).toHaveBeenCalledWith(409);
+            expect(prisma.work.update).not.toHaveBeenCalled();
+            expect(prisma.edition.updateMany).not.toHaveBeenCalled();
+            expect(prisma.volume.updateMany).not.toHaveBeenCalled();
+        });
+
         it('bloqueia exclusão de edição privada quando ainda possui volumes vinculados', async () => {
             prisma.edition.findUnique.mockResolvedValue({
                 id: 20,
