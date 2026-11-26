@@ -1,11 +1,15 @@
 # CoMangá API
 
-API REST do CoMangá, plataforma para catalogação e gerenciamento de coleções físicas de mangás. A aplicação centraliza autenticação, administração do catálogo, importação de capas e a experiência pública de consulta.
+API REST do CoMangá, plataforma para catalogação e gerenciamento de coleções físicas de mangás, light novels, novels, databooks e artbooks. A aplicação centraliza autenticação, administração do catálogo, importação de capas e a experiência pública de consulta.
 
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5%2B-3178C6?logo=typescript&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma&logoColor=white)
+
+Site: [comanga.com.br](https://comanga.com.br).
+
+Versão do sistema: **1.0**.
 
 ## Visão geral
 
@@ -47,7 +51,7 @@ A limpeza de capas está em `src/commands/cleanupDiscardedCovers.ts`, usa a API 
 ### Administração do catálogo
 
 - Gestão de usuários e de papéis de acesso.
-- Gestão de opções de domínio: autores, gêneros, tipos, editoras, formatos, acabamentos, países e demais classificações.
+- Gestão de opções de domínio: autores, gêneros, tipos, editoras, formatos, acabamentos e demais classificações.
 - Cadastro, consulta, edição, exclusão e visibilidade de Obras, Edições e Volumes.
 - Identidade pública de Obra por `slug` único e imutável.
 - Relações ordenadas de editoras originais, autores e papéis de autoria.
@@ -59,16 +63,21 @@ A limpeza de capas está em `src/commands/cleanupDiscardedCovers.ts`, usa a API 
 - Processamento com Sharp e geração de variantes WebP no formato 2:3.
 - Persistência dos arquivos no Cloudflare R2; PostgreSQL mantém somente metadados e referências internas.
 - A URL de procedência fica nos metadados restritos. A URL pública da capa é derivada do R2.
-- Obra, Edição e Volume exigem capa interna; PATCH sem `coverAssetId` preserva a atual e `null` é recusado.
+- Obras e Volumes usam capas internas; a capa da Edição é derivada do Volume 1, quando disponível.
 
 ### Catálogo público
 
 - Vitrine paginada de Obras e Edições, com busca, filtros combináveis, ordenação e limite máximo de 50 registros por página.
-- Busca por título, título original e autor; filtros de Obra por tipo, país, demografia e gênero; filtros de Edição por editora brasileira, formato e acabamento.
+- Busca por título, título original e autor; filtros de Obra por tipo, demografia e gênero; filtros de Edição por editora brasileira, formato e acabamento.
 - Interseção lógica `E` entre filtros múltiplos.
 - Detalhes públicos de Obra, Edição e Volume.
 - Listagem pública de Obras por Autor.
 - Visitantes podem navegar pelo catálogo. Obras e Edições privadas nunca são retornadas; conteúdo adulto exige conta ativa, nascimento informado, 18 anos completos e preferência ativada. Administradores autorizados consultam todo o catálogo na área administrativa.
+
+### Acervo e lançamentos
+
+- Consulta de lançamentos mensais.
+- Coleção pessoal e lista de desejos para usuários autenticados, com ações individuais e em lote e controle de leitura.
 
 ## Rotas principais
 
@@ -105,7 +114,7 @@ A resposta neutra antecede a consulta e o envio. Não há fila persistente nem r
 
 Contas antigas sem nascimento são preservadas, com +18 público bloqueado. Antes das migrations, execute `npm run check:covers` e corrija referências ausentes ou compartilhadas com capas reais na versão anterior. As migrations interrompem a aplicação das restrições se os dados forem incompatíveis; não apagam registros. Depois, execute `npm run migrate` e `npm run prisma:generate` no ambiente autorizado.
 
-A capa desassociada passa a `Descartando`, impedindo reutilização. A requisição limpa somente a capa afetada; `npm run media:cleanup` processa até 20 pendências, incluindo falhas e capas intermediárias de substituições concorrentes. Veja [operação de capas](docs/operations/internal-cover-media.md). Configuração do Resend, migrations e entrega real ainda precisam ser validadas no deploy.
+A capa desassociada passa a `Descartando`, impedindo reutilização. A requisição limpa somente a capa afetada; `npm run media:cleanup` processa até 20 pendências, incluindo falhas e capas intermediárias de substituições concorrentes. Veja [operação de capas](docs/operations/internal-cover-media.md).
 
 ## Requisitos
 
@@ -152,7 +161,7 @@ A capa desassociada passa a `Descartando`, impedindo reutilização. A requisiç
    npm run dev
    ```
 
-A API local usa a porta `3000` por padrão. O frontend local deve apontar `VITE_API_URL` para `http://localhost:3000/api`.
+A API local usa a porta `3000` por padrão. O frontend local usa `/api` por padrão, encaminhado pelo proxy do Vite para `http://localhost:3000`.
 
 > Nunca altere uma migration já aplicada e não execute `prisma migrate reset` em banco com dados que precisem ser preservados. Toda correção de schema deve ser uma migration nova.
 
@@ -206,9 +215,9 @@ Os procedimentos de mídia e capacidade estão em [`docs/operations`](./docs/ope
 
 O backend é hospedado na Render. O fluxo de produção gera o Prisma Client, aplica migrations versionadas e compila TypeScript antes de executar `npm start`. Variáveis de ambiente e segredos devem ser configurados na plataforma, nunca no repositório.
 
-## Escopo ainda planejado
+## Documentação e requisitos
 
-Calendário público, Estante Digital, Lista de Desejos, enriquecimento autenticado do catálogo e a evolução para serviços distribuídos ainda não fazem parte desta API. O planejamento e os critérios de aceite vivem no repositório [`comanga-docs`](https://github.com/IsaacLeite1309/comanga-docs).
+O planejamento e os critérios de aceite vivem no repositório [`comanga-docs`](https://github.com/IsaacLeite1309/comanga-docs).
 
 ## Repositórios relacionados
 
@@ -225,7 +234,7 @@ A migration `20260920120000_perfis_de_acesso` preserva usuários e sessões e cr
 
 ## Metadados e ordem editorial
 
-A migration `20260920121000_work_metadata_and_author_positions` adiciona `romanized_title`, `synopsis` e `work_authors.position`. O backfill copia o título da Obra para os novos textos e exige revisão editorial posterior; autores começam em ordem alfabética. Criação exige romanizedTitle e synopsis; PATCH aceita omissão e recusa valores vazios. originalTitle permanece opcional. A pesquisa pública inclui o romanizado; duplicidade e slug continuam baseados no título. A ordem do array authors é normalizada para posições 0..n-1 e preservada nas respostas. A sinopse pública vem exclusivamente da Obra.
+A migration `20260920121000_work_metadata_and_author_positions` adiciona `romanized_title`, `synopsis` e `work_authors.position`. O backfill copia o título da Obra para os novos textos e exige revisão editorial posterior; autores começam em ordem alfabética. Criação exige romanizedTitle e synopsis; PATCH aceita omissão e recusa valores vazios. originalTitle permanece opcional. A pesquisa pública inclui o romanizado; a duplicidade considera título e tipo de obra, e o slug continua único. A ordem do array authors é normalizada para posições 0..n-1 e preservada nas respostas. A sinopse pública vem exclusivamente da Obra.
 
 ## Capa derivada de Edição
 
@@ -235,4 +244,4 @@ Aplicar com inventário e backup, coordenando API, Web e schema. Ativos órfãos
 
 ## Miolo da Edição
 
-A migration `20260922000000_add_edition_paper` cria a categoria administrativa `miolos`, cadastra o valor inicial `Papel` e o atribui às Edições existentes. Novas Edições exigem `paperId` pertencente a essa categoria; consultas administrativas devolvem o valor em `paper`, e as opções do formulário incluem `papers`.
+A categoria administrativa `miolos` contém as opções de papel. O cadastro de Edição recebe `paperIds`, uma lista de identificadores dessa categoria; consultas administrativas devolvem os valores em `papers`.
